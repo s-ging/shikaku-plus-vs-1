@@ -661,8 +661,10 @@
 	const HALF = 3; // ice rows per half; frostMaxHeld 12 = 3 ice
 	const poles = [0, 1].map(() => ({}));
 	// Krischan's icons (2026-11-05): four corners = attack (your frost), three = danger (ice coming in).
-	const ICON_ATTACK = '<svg viewBox="0 0 7 7" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 2.3335V4.66683"/><path d="M0.788165 3.00436C0.722817 3.06964 0.670976 3.14716 0.635607 3.23249C0.600237 3.31782 0.582031 3.40928 0.582031 3.50165C0.582031 3.59402 0.600237 3.68548 0.635607 3.77081C0.670976 3.85614 0.722817 3.93366 0.788165 3.99894L3.00192 6.21269C3.0672 6.27804 3.14472 6.32988 3.23005 6.36525C3.31537 6.40062 3.40684 6.41882 3.49921 6.41882C3.59158 6.41882 3.68304 6.40062 3.76837 6.36525C3.8537 6.32988 3.93122 6.27804 3.9965 6.21269L6.21025 3.99894C6.2756 3.93366 6.32744 3.85614 6.36281 3.77081C6.39818 3.68548 6.41638 3.59402 6.41638 3.50165C6.41638 3.40928 6.39818 3.31782 6.36281 3.23249C6.32744 3.14716 6.2756 3.06964 6.21025 3.00436L3.9965 0.790607C3.93122 0.725259 3.8537 0.673418 3.76837 0.638048C3.68304 0.602678 3.59158 0.584473 3.49921 0.584473C3.40684 0.584473 3.31537 0.602678 3.23005 0.638048C3.14472 0.673418 3.0672 0.725259 3.00192 0.790607L0.788165 3.00436Z"/><path d="M2.33398 3.5H4.66732"/></svg>';
-	const ICON_DANGER = '<svg viewBox="0 0 7 7" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.33796 5.25015L4.00462 1.16681C3.95375 1.07704 3.87997 1.00237 3.79081 0.950417C3.70165 0.898466 3.60031 0.871094 3.49712 0.871094C3.39394 0.871094 3.29259 0.898466 3.20344 0.950417C3.11428 1.00237 3.0405 1.07704 2.98962 1.16681L0.65629 5.25015C0.604864 5.33921 0.577899 5.44029 0.578126 5.54313C0.578354 5.64597 0.605767 5.74693 0.657587 5.83576C0.709407 5.9246 0.783792 5.99815 0.873202 6.04897C0.962611 6.09979 1.06387 6.12607 1.16671 6.12515H5.83337C5.93572 6.12504 6.03624 6.09801 6.12483 6.04677C6.21343 5.99553 6.28698 5.92188 6.33811 5.83322C6.38923 5.74456 6.41614 5.64401 6.41611 5.54166C6.41608 5.43932 6.38913 5.33878 6.33796 5.25015Z"/><path d="M3.5 2.88672L3.5 3.7041"/><path d="M3.5 4.9585H3.50292"/></svg>';
+	// Krischan's icons (2026-11-05), filled: diamond = attack (your frost), triangle = danger (ice coming in).
+	// One per half, at the middle of the pole. Cut-outs use the ice track colour.
+	const ICON_ATTACK = '<svg viewBox="0 0 7 7" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path fill="#fff" stroke="#fff" d="M0.788165 3.00436C0.722817 3.06964 0.670976 3.14716 0.635607 3.23249C0.600237 3.31782 0.582031 3.40928 0.582031 3.50165C0.582031 3.59402 0.600237 3.68548 0.635607 3.77081C0.670976 3.85614 0.722817 3.93366 0.788165 3.99894L3.00192 6.21269C3.0672 6.27804 3.14472 6.32988 3.23005 6.36525C3.31537 6.40062 3.40684 6.41882 3.49921 6.41882C3.59158 6.41882 3.68304 6.40062 3.76837 6.36525C3.8537 6.32988 3.93122 6.27804 3.9965 6.21269L6.21025 3.99894C6.2756 3.93366 6.32744 3.85614 6.36281 3.77081C6.39818 3.68548 6.41638 3.59402 6.41638 3.50165C6.41638 3.40928 6.39818 3.31782 6.36281 3.23249C6.32744 3.14716 6.2756 3.06964 6.21025 3.00436L3.9965 0.790607C3.93122 0.725259 3.8537 0.673418 3.76837 0.638048C3.68304 0.602678 3.59158 0.584473 3.49921 0.584473C3.40684 0.584473 3.31537 0.602678 3.23005 0.638048C3.14472 0.673418 3.0672 0.725259 3.00192 0.790607L0.788165 3.00436Z"/><path stroke="#29343F" d="M3.5 2.3335V4.66683"/><path stroke="#29343F" d="M2.33398 3.5H4.66732"/></svg>';
+	const ICON_DANGER = '<svg viewBox="0 0 7 7" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path fill="#fff" stroke="#fff" d="M6.33796 5.25015L4.00462 1.16681C3.95375 1.07704 3.87997 1.00237 3.79081 0.950417C3.70165 0.898466 3.60031 0.871094 3.49712 0.871094C3.39394 0.871094 3.29259 0.898466 3.20344 0.950417C3.11428 1.00237 3.0405 1.07704 2.98962 1.16681L0.65629 5.25015C0.604864 5.33921 0.577899 5.44029 0.578126 5.54313C0.578354 5.64597 0.605767 5.74693 0.657587 5.83576C0.709407 5.9246 0.783792 5.99815 0.873202 6.04897C0.962611 6.09979 1.06387 6.12607 1.16671 6.12515H5.83337C5.93572 6.12504 6.03624 6.09801 6.12483 6.04677C6.21343 5.99553 6.28698 5.92188 6.33811 5.83322C6.38923 5.74456 6.41614 5.64401 6.41611 5.54166C6.41608 5.43932 6.38913 5.33878 6.33796 5.25015Z"/><path stroke="#29343F" d="M3.5 2.18066L3.49384 3.65967"/><path stroke="#29343F" d="M3.49414 5.11279H3.49706"/></svg>';
 	function buildPoles(i) {
 		const p = poles[i];
 		const track = (cls, n, html) => {
@@ -670,7 +672,7 @@
 			const out = [];
 			for (let k = 0; k < n; k++) {
 				const seg = document.createElement('i');
-				if (html) seg.innerHTML = html;
+				if (html) seg.innerHTML = html(k, n);
 				t.appendChild(seg);
 				out.push(seg);
 			}
@@ -684,11 +686,11 @@
 		hz.append(tb, tr);
 		p.bank = bank.reverse(); // index 0 = the pill next to the batch: the bank fills upward from there
 		p.batch = batch.reverse();
-		// Left: frost (attack) over incoming (danger), one pill per cell row, icons at the middle-facing end.
+		// Left: frost (attack) over incoming (danger), one pill per cell row, one icon per half at the middle.
 		const ip = $(PREFIX[i] + '-ice');
 		ip.innerHTML = '';
-		const [to, out] = track('out', HALF, '<span class="fill"></span>' + ICON_ATTACK);
-		const [ti, inn] = track('in', HALF, ICON_DANGER);
+		const [to, out] = track('out', HALF, (k, n) => '<span class="fill"></span>' + (k === n - 1 ? ICON_ATTACK : ''));
+		const [ti, inn] = track('in', HALF, (k) => (k === 0 ? ICON_DANGER : ''));
 		ip.append(to, ti);
 		p.out = out; // index 0 = the top row: frost fills downward toward the middle
 		p.in = inn.reverse(); // index 0 = the bottom row: the soonest ice

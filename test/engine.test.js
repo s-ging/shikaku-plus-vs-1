@@ -527,3 +527,22 @@ test('combo: clears in a row add to the attack on a capped ramp; damage breaks i
 	assert.equal(e.combo, 0);
 	assert.equal(e.onBoardCleared()[0].sendMines, 4);
 });
+
+test('gravity: a move resets the timer, so a tick never lands right after a move', () => {
+	const m = new FFMatch({ seed: 7 });
+	m.startClock(0);
+	const s = m.sides[0];
+	const placed = () => new Set(s.rects.map((r) => [r.x1, r.y1, r.x2, r.y2].join()));
+	const nextBox = () => s.puzzle.layout.find((l) => !placed().has([l.x1, l.y1, l.x2, l.y2].join()) && !s.isRectBlocked(l));
+	const move = (at) => {
+		m.catchUp(at);
+		const r = nextBox();
+		return m.act(0, { type: 'place', ax: r.x1, ay: r.y1, bx: r.x2, by: r.y2 }, at);
+	};
+	assert.ok(move(2900).moved);
+	const ticks = s.econ.ticks;
+	assert.equal(m.catchUp(3100).filter((e) => e.side === 'you' && e.kind === 'gravity').length, 0, 'no tick 200ms after a move');
+	assert.equal(m.catchUp(5899).filter((e) => e.side === 'you' && e.kind === 'gravity').length, 0);
+	assert.equal(m.catchUp(5900).filter((e) => e.side === 'you' && e.kind === 'gravity').length, 1, 'ticks 3s after the last move');
+	assert.equal(s.econ.ticks, ticks + 1);
+});

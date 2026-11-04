@@ -75,7 +75,7 @@ button { cursor: pointer; }
 .seat { min-width: 0; display: flex; flex-direction: column; }
 /* The mini board: same parts, scaled down; icons and the clock drop out. */
 .seat.mini { --pw: 6px; }
-.seat.mini .lane { height: 18px; font-size: 11px; padding: 0 3px; }
+.seat.mini .lane { height: 18px; font-size: 10px; padding: 0 3px; }
 .seat.mini .call, .seat.mini .combo { bottom: 3px; }
 .seat.mini .card { padding: 5px 5px 0; border-radius: 7px; }
 .seat.mini .foot { padding: 5px 2px 6px; grid-template-columns: minmax(0, 1fr) auto; gap: 4px; }
@@ -84,15 +84,15 @@ button { cursor: pointer; }
 .seat.mini .hearts { gap: 3px; }
 .seat.mini .hearts i { width: 7px; height: 7px; }
 .seat.mini .icepole i.full { outline-width: 1px; outline-offset: 1px; }
-.lane { position: relative; z-index: 0; height: 30px; display: flex; align-items: flex-end; justify-content: space-between; padding: 0 6px; font-family: var(--font-call); font-size: 19px; line-height: 1; letter-spacing: 0.06em; white-space: nowrap; }
+.lane { position: relative; z-index: 0; height: 32px; display: flex; align-items: flex-end; justify-content: space-between; padding: 0 6px; font-family: var(--font-call); font-size: 15px; line-height: 1; letter-spacing: 0.06em; white-space: nowrap; }
 .calls { position: relative; flex: 1 1 auto; height: 100%; min-width: 0; }
-.call { position: absolute; left: 0; bottom: 5px; animation: call-rise 0.16s ease-out; will-change: transform, opacity; }
+.call { position: absolute; left: 0; bottom: 11px; animation: call-rise 0.16s ease-out; will-change: transform, opacity; }
 .call.fade { animation: call-fade 0.7s ease-in forwards; }
 .call.knocked { animation: knock 0.18s ease-out forwards; }
-@keyframes call-rise { from { transform: translateY(130%); } to { transform: translateY(0); } }
+@keyframes call-rise { from { transform: translateY(calc(100% + 13px)); } to { transform: translateY(0); } }
 @keyframes call-fade { from { opacity: 1; } to { opacity: 0; } }
 @keyframes knock { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-90%); opacity: 0; } }
-.combo { position: relative; bottom: 5px; flex: 0 0 auto; transition: opacity 0.3s; }
+.combo { position: relative; bottom: 11px; flex: 0 0 auto; transition: opacity 0.3s; }
 .combo.gone { opacity: 0; }
 .combo.bump { animation: bump 0.18s ease-out; }
 @keyframes bump { 40% { transform: scale(1.14); } }
@@ -122,9 +122,9 @@ canvas.board { display: block; width: 100%; height: auto; aspect-ratio: 1; touch
 .hazards i.on { background: #d0b878; }
 .hazards .batch i.on { background: #d08080; }
 .hazards i.over { animation: blink 0.5s steps(2, jump-none) infinite; }
-/* Left: ice. Top 3 rows = your frost (attack, ◇+), bottom 3 = ice coming at you (defense, △!).
-   Both fill toward the middle, where the icons sit. */
-.icepole svg { position: absolute; left: 50%; width: min(9px, calc(var(--pw, 12px) - 3px)); height: auto; transform: translateX(-50%); color: rgba(255, 255, 255, 0.75); pointer-events: none; }
+/* Left: ice. Top 3 rows = your frost (attack, ◆), bottom 3 = ice coming at you (danger, ▲).
+   Both fill toward the middle, where the two icons sit. */
+.icepole svg { position: absolute; left: 50%; width: min(9px, calc(var(--pw, 12px) - 3px)); height: auto; transform: translateX(-50%); pointer-events: none; }
 .icepole .out svg { bottom: 3px; }
 .icepole .in svg { top: 3px; }
 .icepole .fill { position: absolute; left: 0; right: 0; top: 0; height: 0; border-radius: 999px; background: var(--slate); }
@@ -132,7 +132,6 @@ canvas.board { display: block; width: 100%; height: auto; aspect-ratio: 1; touch
 @keyframes near { 0% { background: var(--frost); } 50% { background: #ffffff; } }
 .icepole i.full .fill { background: var(--frost); }
 .icepole i.full { outline: 1.5px solid var(--frost); outline-offset: 2px; }
-.icepole i.full svg, .icepole .in i.eta2 svg, .icepole .in i.eta1 svg { color: rgba(0, 0, 0, 0.6); }
 .icepole .in i.eta2 { background: var(--slate); }
 .icepole .in i.eta1 { background: var(--frost); animation: blink 0.36s steps(2, jump-none) infinite; }
 .icepole .in i.over { animation: overblink 0.3s steps(1, end) infinite; }
@@ -144,9 +143,9 @@ canvas.board { display: block; width: 100%; height: auto; aspect-ratio: 1; touch
 @keyframes blink { 50% { opacity: 0.4; } }
 
 /* —— Footer: name, time, hearts —— */
-.foot { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; padding: 10px 6px 12px; font-size: 13px; color: var(--fg2); }
+.foot { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px; padding: 10px 6px 12px; font-size: 13px; color: var(--fg2); }
 .foot .who { color: var(--fg); font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.foot .time { font-size: 14px; }
+.foot .time { font-size: 14px; margin-right: 6px; }
 .hearts { justify-self: end; display: inline-flex; gap: 6px; }
 .hearts i { width: 13px; height: 13px; border-radius: 50%; display: block; position: relative; overflow: hidden; box-shadow: inset 0 0 0 1.5px var(--fg3); }
 .hearts i.on { background: var(--you); box-shadow: none; }
@@ -228,7 +227,7 @@ legend { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; col
 	.mid { padding: 0; }
 	.mid h1 { font-size: 21px; }
 	.mid p { font-size: 11.5px; }
-	.lane { font-size: 17px; }
+	.lane { font-size: 14px; }
 }
 </style>
 
@@ -281,7 +280,7 @@ legend { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; col
 		</section>
 	</div>
 
-	<p class="hint">Drag to place a box, tap one to erase it. Your board ticks when you move and every 3 seconds anyway. Mines land in clumps in the biggest open box: cover them to defuse. Clear boards in a row for a combo; only a mine going off or freezing over breaks it.</p>
+	<p class="hint">Drag to place a box, tap one to erase it. Your board ticks when you move, or after 3 seconds without a move. Mines land in clumps in the biggest open box: cover them to defuse. Clear boards in a row for a combo; only a mine going off or freezing over breaks it.</p>
 	<div class="controls">
 		<div class="seg" id="presets" role="group" aria-label="Bot difficulty"></div>
 		<div class="seg" id="views" role="group" aria-label="Layout"><button type="button" data-view="play" aria-pressed="true">Play view</button><button type="button" data-view="spec" aria-pressed="false">Spectator view</button></div>
@@ -305,7 +304,7 @@ legend { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; col
 			<h3>Rules lab</h3>
 			<div class="note">
 				<p><b>Above the board.</b> Left: what your last move did (SENT, COUNTER-SPIKE, CLUTCH). It rises from behind the board and fades; a new one knocks the old one off. Colour is how many mines it sent: grey up to 4, amber 5–8, red 9–15, white-hot 16+ or in a rush. Right: your combo, clears in a row, shown from 2. It adds +1 at 2, +2 at 4, +3 at 6, +4 at 8 and up. Medium moments blink twice, big three times, max four. ICEBREAK is blue: ice you broke.</p>
-				<p><b>Left pole, ice.</b> Top half (◇+, attack) is your frost: each row is one ice, filling down toward the middle as you charge it. One point short it blinks; full, it's outlined and fires on your next move (or with your clear on your last 4 boxes). Bottom half (△!, danger) is ice coming at you: slate lands in 2 moves, blinking blue lands next move; the bottom row flashes white when more than 3 are coming.</p>
+				<p><b>Left pole, ice.</b> Top half (◆, attack) is your frost: each row is one ice, filling down toward the middle as you charge it. One point short it blinks; full, it's outlined and fires on your next move (or with your clear on your last 4 boxes). Bottom half (▲, danger) is ice coming at you: slate lands in 2 moves, blinking blue lands next move; the bottom row flashes white when more than 3 are coming.</p>
 				<p><b>Views.</b> Play view keeps your board where solo has it, with the opponent as a mini board (beside you on desktop, in the header on a phone). Spectator view puts both boards side by side; Watch bots switches to it.</p>
 				<p><b>Right pole, mines.</b> 18 pills, 3 per row: gold is the bank (12; the top blinks past 12), red is the batch landing on your next move. Hearts are the dots in the footer; a lost one fills back per perfect board.</p>
 			</div>

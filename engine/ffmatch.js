@@ -238,6 +238,10 @@ export class FFMatch {
 		const a = this._apply(s, action);
 		if (!a.moved) return { moved: false, events: [], denied: a.denied };
 		tag(s, a.events);
+		// A move resets your gravity timer (Krischan, 2026-11-05, like Tetris lock delay): gravity
+		// only ticks after gravitySecs with no move, never a hair after one. Owed ticks were paid
+		// by catchUp(now) before this move, so the replay order stays exact.
+		if (now != null && s.gAt != null && s.frozenAt == null) s.gAt = now;
 
 		// Clear resolves before the tick, so its attack cancels incoming first.
 		const cleared = isSolved(s.rects, s.N);
