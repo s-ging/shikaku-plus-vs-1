@@ -209,6 +209,29 @@ canvas.board { display: block; width: 100%; height: auto; aspect-ratio: 1; touch
 @keyframes shake-small { 30% { transform: translate(0, 2px); } 60% { transform: translate(0, -1px); } }
 .hint { text-align: center; color: var(--fg3); font-size: 12.5px; margin: -8px auto 0; max-width: 72ch; }
 
+/* —— Between rounds: the result, then a big 3-2-1 (replacement and opacity only) —— */
+.count { position: absolute; inset: 0; z-index: 5; display: grid; place-items: center; pointer-events: none; font-family: var(--font-brand); font-weight: 800; font-size: clamp(96px, 30vw, 220px); line-height: 1; color: #fff; background: rgba(18, 18, 22, 0.55); border-radius: 10px; }
+.count span { animation: count-in 0.25s ease-out; }
+@keyframes count-in { from { opacity: 0; } to { opacity: 1; } }
+.box.win { animation: flick 0.3s steps(1, end) 4; }
+#ov-sub { font-variant-numeric: tabular-nums; }
+/* —— Lobby settings: Match and Game tabs —— */
+.tabs { display: flex; gap: 4px; align-items: center; border-bottom: 1px solid var(--line, rgba(255,255,255,0.08)); margin-bottom: 12px; flex-wrap: wrap; }
+.tabs button { background: transparent; color: var(--fg2); border-radius: 6px 6px 0 0; min-height: 38px; }
+.tabs button[aria-selected='true'] { background: var(--cell); color: var(--fg); }
+.tabs .muted { margin-left: auto; }
+.pick { display: grid; grid-template-columns: 90px minmax(0, 1fr); align-items: center; gap: 10px; margin: 8px 0; }
+.pick > span { color: var(--fg2); font-size: 13px; }
+.pick .seg button { min-height: 36px; }
+.set-row { display: grid; grid-template-columns: minmax(0, 1fr) 110px 64px; gap: 8px; align-items: center; font-size: 12.5px; }
+.set-row.toggle { grid-template-columns: minmax(0, 1fr) auto; }
+.set-row label { color: var(--fg2); }
+.set-row.changed label { color: var(--fg); }
+.set-row output { text-align: right; font-variant-numeric: tabular-nums; }
+.set-row input[type=range] { width: 100%; accent-color: var(--accent); }
+.set-row select { background: var(--cell); border: 0; border-radius: 6px; padding: 4px 6px; }
+.set-row input[type=checkbox] { accent-color: var(--accent); width: 18px; height: 18px; }
+.save-row { display: flex; justify-content: flex-end; align-items: center; gap: 12px; margin-top: 14px; }
 .banner { background: var(--card); border-left: 2px solid var(--accent); color: var(--fg2); border-radius: 6px; padding: 8px 12px; font-size: 13px; }
 #game-controls { justify-content: center; }
 #game-controls .seg button { min-height: 34px; }
@@ -244,6 +267,7 @@ canvas.board { display: block; width: 100%; height: auto; aspect-ratio: 1; touch
 	<div class="panel">
 		<h2>Your name</h2>
 		<input type="text" id="name" maxlength="16" autocomplete="nickname" aria-label="Your name">
+		<p class="muted" style="margin: 10px 0 0">Playtester code <span class="num" id="tester-code"></span></p>
 	</div>
 	<div class="panel">
 		<h2>Play a friend</h2>
@@ -279,12 +303,20 @@ canvas.board { display: block; width: 100%; height: auto; aspect-ratio: 1; touch
 		</div>
 	</div>
 	<div class="panel">
-		<h2>Rules <span class="muted" id="rules-who"></span></h2>
-		<div class="row" id="presets"></div>
-		<details id="all-settings">
-			<summary>All settings</summary>
+		<div class="tabs" role="tablist" aria-label="Room settings">
+			<button type="button" role="tab" data-tab="match" aria-selected="true">Match</button>
+			<button type="button" role="tab" data-tab="game" aria-selected="false">Game</button>
+			<span class="muted" id="rules-who"></span>
+		</div>
+		<div id="tab-match" role="tabpanel">
+			<div class="pick"><span>Mode</span><div class="seg" id="pick-mode"></div></div>
+			<div class="pick"><span>First to</span><div class="seg" id="pick-ft"></div></div>
+			<div class="pick"><span>Presets</span><div class="seg" id="presets"></div></div>
+		</div>
+		<div id="tab-game" role="tabpanel" hidden>
 			<div class="settings" id="settings"></div>
-		</details>
+		</div>
+		<div class="save-row" id="save-row" hidden><span class="muted" id="save-note"></span><button class="primary" id="save">Save</button></div>
 	</div>
 	<div class="panel" id="admin-tools" hidden>
 		<h2>Admin</h2>
@@ -318,10 +350,11 @@ canvas.board { display: block; width: 100%; height: auto; aspect-ratio: 1; touch
 					<span class="hearts" id="you-hearts" aria-label="Hearts"></span>
 				</div>
 				<div class="overlay" id="overlay" hidden>
-					<h2 id="ov-title">Round won</h2>
+					<h2 id="ov-title"></h2>
 					<p id="ov-sub"></p>
-					<button class="primary" id="ov-next">Next round</button>
+					<button class="primary" id="ov-next" hidden>Back to the room</button>
 				</div>
+				<div class="count" id="count" hidden aria-live="assertive"></div>
 			</div>
 		</section>
 		<section class="seat mini" id="seat-them" aria-label="Their board">
@@ -351,7 +384,6 @@ canvas.board { display: block; width: 100%; height: auto; aspect-ratio: 1; touch
 	</div>
 </section>
 
-<p class="hint" id="foot"></p>
 </div>
 <script src="/app.js"></script>
 </body>

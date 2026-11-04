@@ -174,12 +174,18 @@ export class VersusMatch {
 	 * ticks it owes since its anchor. Lazy: call it whenever anything happens; nothing runs
 	 * in between. A frozen side (disconnected) owes nothing while frozen.
 	 */
-	startClock(now) {
+	/**
+	 * delayMs: the round starts that much later (the 3-2-1 countdown, 2026-11-05). Until then
+	 * both boards refuse moves (pausedUntil) and gravity owes nothing, so both players start even.
+	 */
+	startClock(now, delayMs = 0) {
+		const at = now + delayMs;
 		this.clock = now;
-		this.roundStartAt = now;
+		this.roundStartAt = at;
 		for (const s of this.sides) {
-			s.gAt = now;
+			s.gAt = at;
 			s.frozenAt = null;
+			if (delayMs) s.pausedUntil = at;
 		}
 	}
 	/**

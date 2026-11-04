@@ -86,3 +86,15 @@ export function parseRoomPath(pathname) {
 	const up = (code || '').toUpperCase();
 	return isRoomCode(up) ? { code: up, key: rest.join('+') || null } : null;
 }
+
+/** A short public code for a browser's private id: FNV-1a, 8 hex. Shown to the player, kept in reports. */
+export function testerCode(id) {
+	let h = 0x811c9dc5;
+	for (const ch of String(id || '')) h = Math.imul(h ^ ch.charCodeAt(0), 0x01000193) >>> 0;
+	const x = h.toString(16).padStart(8, '0').toUpperCase();
+	return x.slice(0, 4) + '-' + x.slice(4);
+}
+
+// Between rounds (2026-11-05): the result shows for RESULT_MS, then a 3-2-1 countdown of COUNTDOWN_MS.
+export const RESULT_MS = 2000;
+export const COUNTDOWN_MS = 3000;

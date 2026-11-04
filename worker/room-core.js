@@ -8,7 +8,7 @@
 //               timestamps when the next message arrives (VersusMatch.catchUp).
 //   per match:  one report sent to the Reports object at the end.
 import { VersusMatch } from '../engine/versus-match.js';
-import { decodeAction, encodeAction, stateHash } from '../shared/protocol.js';
+import { decodeAction, encodeAction, stateHash, testerCode, RESULT_MS, COUNTDOWN_MS } from '../shared/protocol.js';
 import { rulesFor, sanitize } from '../shared/settings.js';
 
 const STALE_MS = 20000; // no ping or message this long = really gone (a phone that lost signal may never close its socket).
@@ -22,6 +22,9 @@ const NAME_MAX = 16;
 // instead of losing to it. The sender's own gravity is paid up to its message: one seat's
 // messages arrive in order. Cost: about 15 bytes more per message; nothing runs while idle.
 const LAG_MS = 250;
+// Between rounds: RESULT_MS of result, then a COUNTDOWN_MS 3-2-1 (both in shared/protocol.js).
+// No "next round" button: the server schedules the next round's start time the moment one ends.
+// Nothing runs meanwhile; moves before the start time are refused.
 
 const cleanName = (s) =>
 	String(s || '')
@@ -176,6 +179,9 @@ export class RoomCore {
 			this.match.freezeSide(i, g);
 			// Sent to the frozen seat too: if its socket was only quiet, it hears this and answers.
 			this._all(this._seq({ t: 'fz', i, at: g }));
+			// Everyone gone mid-match: record it as abandoned now. If they come back and finish,
+			// the finished report replaces this one (same key).
+			if (!this.match.over && this.seats.every((s) => !s.connected)) this._sendReport(now);
 		}
 		this._roomAll();
 	}
@@ -242,16 +248,16 @@ export class RoomCore {
 		const { rules, firstTo } = rulesFor(this.o);
 		const seed = (Math.floor(now / 1000) % 1000000) + 1;
 		this.match = new VersusMatch({ rules, seed, target: firstTo });
-		this.match.startClock(now);
+		this.match.startClock(now, COUNTDOWN_MS);
 		this.phase = 'match';
 		this.next = [false, false];
 		for (const s of this.seats) {
 			s.goneRound = 0;
 			s.timing = { n: 0, sum: 0, sumSq: 0, min: null, last: now, boardFirst: { n: 0, sum: 0 }, boardAt: now, board: 0 };
 		}
-		this.report = { code: this.code, startedAt: now, o: this.o, rounds: [], votes: [] };
+		this.report = { code: this.code, startedAt: now, o: this.o, mode: rules.mode === 'mines' ? 'mines' : 'vs', firstTo, rounds: [], votes: [] };
 		this.n++;
-		for (const s of this.seats) this._to(s.id, { t: 'round', n: this.n, st: this.match.toState(), rules, ls: s.lastS || 0 });
+		for (const s of this.seats) this._to(s.id, { t: 'round', n: this.n, st: this.match.toState(), rules, ls: s.lastS || 0, startAt: this.match.roundStartAt });
 		this._roomAll();
 	}
 
@@ -326,32 +332,43 @@ export class RoomCore {
 			this.report.rounds.push({ round: m.round, winner: m.roundOver.winner, by: m.roundOver.by, ms: now - (m.roundStartAt ?? now), boards: m.sides.map((s) => s.boardIndex + 1), hearts: m.sides.map((s) => s.econ.hearts), frozenOut: m.sides.map((s) => s.econ.stats.frozenOut || 0) });
 			this.next = [false, false];
 			this.vote = null;
-			this._roomAll();
+			if (m.over) {
+				// The match is concluded: record it now, not when someone presses a button.
+				this.report.endedAt = now;
+				this.report.result = 'finished';
+				this._sendReport(now);
+				this._roomAll();
+			} else {
+				const prev = { winner: m.roundOver.winner, by: m.roundOver.by, score: [...m.score] };
+				this._newRound(now, false, RESULT_MS + COUNTDOWN_MS, prev);
+			}
 		}
 	}
 
+	/** One report per match, keyed by its start: sending again (an abandoned match resumed and finished) replaces it. */
+	_sendReport(now) {
+		if (!this.report) return;
+		this.io.report(this._report(now));
+	}
+
+	/** After a match: either player can take the room back to the lobby. Rounds advance by themselves. */
 	_next(i, now) {
 		const m = this.match;
 		if (!m || !m.roundOver) return;
 		this.next[i] = true;
-		if (!this.next.every(Boolean)) return;
 		if (m.over) {
 			this.phase = 'lobby';
-			this.report.endedAt = now;
-			this.report.score = [...m.score];
-			this.io.report(this._report(now));
 			this.match = null;
 			for (const s of this.seats) s.ready = false;
 			this._roomAll();
 			return;
 		}
-		this._newRound(now, false);
 	}
 
-	_newRound(now, remake) {
+	_newRound(now, remake, delayMs = COUNTDOWN_MS, prev = null) {
 		const m = this.match;
 		m.newRound();
-		m.startClock(now);
+		m.startClock(now, delayMs);
 		this._roundLogged = false;
 		this.next = [false, false];
 		this.vote = null;
@@ -361,7 +378,7 @@ export class RoomCore {
 		}
 		this.n++;
 		const rules = rulesFor(this.o).rules;
-		for (const s of this.seats) this._to(s.id, { t: 'round', n: this.n, st: m.toState(), rules, remake, ls: s.lastS || 0 });
+		for (const s of this.seats) this._to(s.id, { t: 'round', n: this.n, st: m.toState(), rules, remake, ls: s.lastS || 0, startAt: m.roundStartAt, prev });
 		this._roomAll();
 	}
 
@@ -384,6 +401,8 @@ export class RoomCore {
 	_report(now) {
 		return {
 			...this.report,
+			key: `${this.report.startedAt}:${this.code}`,
+			result: this.report.result || 'abandoned',
 			at: now,
 			score: this.match ? [...this.match.score] : this.report?.score,
 			seats: this.seats.map((s) => {
@@ -391,6 +410,7 @@ export class RoomCore {
 				const mean = t && t.n ? t.sum / t.n : null;
 				return {
 					name: s.name,
+					tester: testerCode(s.id), // the playtester code shown on the player's home screen
 					dev: s.dev,
 					tele: s.tele,
 					reconnects: s.reconnects,

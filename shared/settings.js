@@ -7,8 +7,8 @@ import { VERSUS_RULES, MINES_RULES } from '../engine/versus.js';
 /** Every setting a room may change. Anything not listed here is fixed at VERSUS_RULES. */
 export const SETTINGS = [
 	// Match
-	{ k: 'mode', group: 'Match', label: 'Mode', type: 'enum', options: [['vs', 'Shikaku+ VS'], ['mines', 'Shikaku+ Mines (no ice, unrated)']], def: 'vs' },
-	{ k: 'firstTo', group: 'Match', label: 'First to', type: 'int', min: 1, max: 9, def: 7 },
+	{ k: 'mode', group: 'Mode', label: 'Mode', type: 'enum', options: [['vs', 'Shikaku+ VS'], ['mines', 'Shikaku+ Mines (no ice, unrated)']], def: 'vs' },
+	{ k: 'firstTo', group: 'Match', label: 'First to', type: 'enum', options: [[1, '1'], [3, '3'], [5, '5'], [7, '7']], def: 7 },
 	{ k: 'hearts', group: 'Match', label: 'Hearts', type: 'int', min: 1, max: 5 },
 	{ k: 'gravitySecs', group: 'Match', label: 'Gravity: a tick every', type: 'num', min: 0, max: 10, step: 0.5, unit: 's', off: 0 },
 	{ k: 'rushAfterSecs', group: 'Match', label: 'Rush after', type: 'int', min: 0, max: 600, step: 30, unit: 's', off: 0 },

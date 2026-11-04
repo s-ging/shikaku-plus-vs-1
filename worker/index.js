@@ -1,13 +1,15 @@
 // index.js — the Cloudflare Worker: static files, one Durable Object per room, one for reports.
 //
 //   /ws/QWER          WebSocket into room QWER (the Room object named "QWER")
-//   /api/reports?k=…  admin: recent match reports (k must equal the ADMIN_KEY secret)
+//   /api/reports?k=…  admin: the last 100 match reports (k must equal the ADMIN_KEY secret)
+//   /api/stats?k=…    admin: every match so far, added up
 //   everything else   static client files; unknown paths (like /QWER) get index.html
 //
 // Rooms use the WebSocket Hibernation API: while nobody sends anything, the object
 // can sleep and costs nothing; it wakes on the next message and reloads from storage.
 import { RoomCore } from './room-core.js';
 import { isRoomCode } from '../shared/protocol.js';
+import { summarize } from './stats.js';
 
 const MAX_MSG = 2048; // bytes; every real message is far smaller
 const MAX_PER_SEC = 40; // per socket; a human makes at most a few moves a second
@@ -23,9 +25,10 @@ export default {
 			const stub = env.ROOMS.get(env.ROOMS.idFromName(code));
 			return stub.fetch(new Request(`https://room/${code}`, req));
 		}
-		if (url.pathname === '/api/reports') {
+		if (url.pathname === '/api/reports' || url.pathname === '/api/stats') {
 			if (!env.ADMIN_KEY || url.searchParams.get('k') !== env.ADMIN_KEY) return new Response('no', { status: 403 });
-			return env.REPORTS.get(env.REPORTS.idFromName('all')).fetch('https://reports/list');
+			const path = url.pathname === '/api/stats' ? 'stats' : 'list';
+			return env.REPORTS.get(env.REPORTS.idFromName('all')).fetch('https://reports/' + path);
 		}
 		return env.ASSETS.fetch(req);
 	}
@@ -124,7 +127,11 @@ export class Room {
 	}
 }
 
-/** Keeps the last 500 match reports for the admin list. One write per finished match. */
+/**
+ * Every concluded match, finished or abandoned, one row each (key: start time + room code; a resumed
+ * match that finishes replaces its abandoned row). One write per match. /stats adds them up when
+ * asked, so nothing runs in between.
+ */
 export class Reports {
 	constructor(ctx) {
 		this.ctx = ctx;
@@ -133,16 +140,17 @@ export class Reports {
 		const url = new URL(req.url);
 		if (url.pathname === '/add' && req.method === 'POST') {
 			const r = await req.json();
-			const key = `r:${String(Date.now()).padStart(15, '0')}:${r.code || ''}`;
+			const key = `r:${String(r.startedAt || Date.now()).padStart(15, '0')}:${r.code || ''}`;
 			await this.ctx.storage.put(key, r);
-			const old = await this.ctx.storage.list({ prefix: 'r:', limit: 50 });
-			const total = (await this.ctx.storage.list({ prefix: 'r:' })).size;
-			if (total > 500) await this.ctx.storage.delete([...old.keys()].slice(0, total - 500));
 			return new Response('ok');
 		}
 		if (url.pathname === '/list') {
 			const list = await this.ctx.storage.list({ prefix: 'r:', reverse: true, limit: 100 });
 			return Response.json([...list.values()]);
+		}
+		if (url.pathname === '/stats') {
+			const all = [...(await this.ctx.storage.list({ prefix: 'r:' })).values()];
+			return Response.json(summarize(all));
 		}
 		return new Response('not found', { status: 404 });
 	}

@@ -45,6 +45,7 @@
 	let room = null; // last 'room' message
 	let rules = VERSUS_RULES;
 	let gravTimer = 0;
+	let held = null; // server messages waiting behind a round result
 	let lastRoundSeen = null;
 
 	function sides() {
@@ -101,7 +102,29 @@
 		$('them-name').textContent = them;
 		renderTime();
 		roundOverlay(m, v.me);
+		updateCount();
 		scheduleGravity();
+	}
+
+	// The 3-2-1 before a round: digits replace each other; nothing else moves.
+	let countTimer = 0;
+	function updateCount() {
+		clearTimeout(countTimer);
+		const v = sides();
+		const el = $('count');
+		const left = v && !v.match.roundOver ? (v.match.roundStartAt ?? 0) - serverNow() : 0;
+		if (left <= 0) {
+			el.hidden = true;
+			el.dataset.n = '';
+			return;
+		}
+		const n = Math.ceil(left / 1000);
+		if (el.dataset.n !== String(n)) {
+			el.innerHTML = `<span>${n}</span>`;
+			el.dataset.n = String(n);
+		}
+		el.hidden = false;
+		countTimer = setTimeout(() => (left - (n - 1) * 1000 <= 1000 && n === 1 ? render() : updateCount()), left - (n - 1) * 1000 + 5);
 	}
 
 	// Round clock, m:ss, from the server's clock. One timeout per second while a round runs.
@@ -132,15 +155,23 @@
 			return;
 		}
 		const ro = m.roundOver;
-		const won = ro.winner === me;
-		$('ov-title').textContent = m.over ? (won ? 'Match won' : 'Match lost') : ro.winner == null ? 'Double KO' : won ? 'Round won' : 'Round lost';
+		const who = ro.winner == null ? null : ro.winner === me ? 'You' : $('name-them').textContent;
+		$('ov-title').textContent = who == null ? 'Double KO' : `${who} won the ${m.over ? 'match' : 'round'}`;
 		$('ov-sub').textContent = `${m.score[me]} – ${m.score[1 - me]}`;
-		$('ov-next').textContent = m.over ? 'Back to the room' : 'Next round';
+		$('ov-next').hidden = !m.over; // rounds move on by themselves; only a finished match waits
 		$('ov-next').disabled = false;
 		ov.hidden = false;
-		if (lastRoundSeen !== m.round && mode === 'online') {
+		if (lastRoundSeen !== m.round) {
 			lastRoundSeen = m.round;
-			net.send({ t: 'tele', d: { ...core.telemetry(), reconnects: net.reconnects, round: m.round } });
+			// The winner's score blinks: replacement and opacity only.
+			if (ro.winner != null) {
+				const box = $(ro.winner === me ? 'score-you' : 'score-them');
+				box.classList.remove('win');
+				void box.offsetWidth;
+				box.classList.add('win');
+			}
+			if (mode === 'online') net.send({ t: 'tele', d: { ...core.telemetry(), reconnects: net.reconnects, round: m.round } });
+			if (mode === 'practice' && !m.over) practice.later();
 		}
 	}
 
@@ -302,6 +333,24 @@
 			banner(msg.why === 'full' ? 'This room is full.' : 'Something went wrong: ' + msg.why);
 			return;
 		}
+		// A round just ended and the next one arrived with it: keep the last boards and the result
+		// up until the countdown, holding every later message behind it so order is kept.
+		if (held) {
+			held.push(msg);
+			return;
+		}
+		if (msg.t === 'round' && msg.prev && core && core.confirmed) {
+			const wait = msg.startAt - COUNTDOWN_MS - serverNow();
+			if (wait > 30) {
+				held = [msg];
+				setTimeout(() => {
+					const q = held || [];
+					held = null;
+					for (const x of q) onServer(x);
+				}, wait);
+				return;
+			}
+		}
 		if (msg.t === 'fz' && msg.i === core.me) net.send({ t: 'sync' }); // we were only quiet: say so
 		if (msg.t === 'round' || msg.t === 'full') rules = msg.rules || rules;
 		if (msg.t === 'round') lastRoundSeen = null;
@@ -341,48 +390,103 @@
 		drawSettings();
 	}
 
-	function drawSettings() {
-		const o = room.o || {};
-		const host = room.host;
-		const pre = $('presets');
-		pre.innerHTML = '';
-		for (const p of PRESETS) {
-			const b = Object.assign(document.createElement('button'), { textContent: p.label, type: 'button', disabled: !host });
-			b.addEventListener('click', () => net.send({ t: 'set', o: { ...p.set } }));
-			pre.appendChild(b);
+	// —— Room settings, TETR.IO-style: a Match tab and a Game tab; the host edits a draft and saves ——
+	let draft = null; // the host's unsaved settings
+	let savedJSON = null; // room.o as last drawn
+	const sameO = (a, b) => JSON.stringify(a || {}) === JSON.stringify(b || {});
+	const fmtSet = (s, v) => (s.off != null && v === s.off ? 'off' : s.type === 'bool' ? (v ? 'on' : 'off') : `${v}${s.unit || ''}`);
+	for (const t of document.querySelectorAll('.tabs [data-tab]'))
+		t.addEventListener('click', () => {
+			for (const o of document.querySelectorAll('.tabs [data-tab]')) o.setAttribute('aria-selected', String(o === t));
+			$('tab-match').hidden = t.dataset.tab !== 'match';
+			$('tab-game').hidden = t.dataset.tab !== 'game';
+		});
+	$('save').addEventListener('click', () => {
+		if (draft) net.send({ t: 'set', o: draft });
+	});
+	function setDraft(k, v) {
+		draft = { ...draft };
+		if (JSON.stringify(v) === JSON.stringify(defaultOf(k))) delete draft[k];
+		else draft[k] = v;
+		saveState();
+	}
+	function saveState() {
+		const dirty = !sameO(draft, room.o);
+		$('save').disabled = !dirty;
+		$('save-note').textContent = dirty ? 'Unsaved changes. Saving un-readies both players.' : 'Saved.';
+	}
+	function seg(el, options, current, onPick, enabled) {
+		el.innerHTML = '';
+		for (const [v, label] of options) {
+			const b = Object.assign(document.createElement('button'), { type: 'button', textContent: label, disabled: !enabled });
+			b.setAttribute('aria-pressed', String(JSON.stringify(v) === JSON.stringify(current)));
+			b.addEventListener('click', () => {
+				onPick(v);
+				for (const o of el.children) o.setAttribute('aria-pressed', String(o === b));
+			});
+			el.appendChild(b);
 		}
+	}
+	function drawSettings() {
+		const host = room.host;
+		// A new value from the server replaces the draft unless the host is mid-edit.
+		if (!draft || savedJSON !== JSON.stringify(room.o || {})) {
+			if (!draft || sameO(draft, JSON.parse(savedJSON || '{}'))) draft = { ...(room.o || {}) };
+			savedJSON = JSON.stringify(room.o || {});
+		}
+		const val = (k) => (k in draft ? draft[k] : defaultOf(k));
+		const modeSet = SETTINGS.find((x) => x.k === 'mode');
+		const ftSet = SETTINGS.find((x) => x.k === 'firstTo');
+		seg($('pick-mode'), modeSet.options.map(([v, t]) => [v, t.replace(' (no ice, unrated)', '')]), val('mode'), (v) => setDraft('mode', v), host);
+		seg($('pick-ft'), ftSet.options, val('firstTo'), (v) => setDraft('firstTo', v), host);
+		seg($('presets'), PRESETS.map((p) => [p.id, p.label]), null, (id) => {
+			draft = { ...PRESETS.find((p) => p.id === id).set };
+			drawSettings();
+			saveState();
+		}, host);
 		const box = $('settings');
 		box.innerHTML = '';
 		let group = '';
-		for (const s of SETTINGS) {
-			if (s.group !== group) {
-				group = s.group;
+		for (const st of SETTINGS) {
+			if (st.k === 'mode' || st.k === 'firstTo') continue;
+			if (st.group !== group) {
+				group = st.group;
 				box.appendChild(Object.assign(document.createElement('h3'), { textContent: group }));
 			}
-			const val = s.k in o ? o[s.k] : defaultOf(s.k);
+			const v = val(st.k);
 			const row = document.createElement('div');
-			row.className = 'set' + (s.k in o ? ' changed' : '');
-			const id = 'set-' + s.k;
-			const label = Object.assign(document.createElement('label'), { htmlFor: id, textContent: s.label });
+			row.className = 'set-row' + (st.type === 'bool' || st.type === 'enum' ? ' toggle' : '') + (st.k in draft ? ' changed' : '');
+			const id = 'set-' + st.k;
+			const label = Object.assign(document.createElement('label'), { htmlFor: id, textContent: st.label });
+			row.appendChild(label);
 			let input;
-			if (s.type === 'bool') {
-				input = Object.assign(document.createElement('input'), { type: 'checkbox', checked: !!val });
-			} else if (s.type === 'enum') {
+			if (st.type === 'bool') {
+				input = Object.assign(document.createElement('input'), { type: 'checkbox', checked: !!v });
+				input.addEventListener('change', () => setDraft(st.k, input.checked));
+				row.appendChild(input);
+			} else if (st.type === 'enum') {
 				input = document.createElement('select');
-				for (const [v, t] of s.options) input.appendChild(Object.assign(document.createElement('option'), { value: JSON.stringify(v), textContent: t }));
-				input.value = JSON.stringify(val);
+				st.options.forEach(([ov, t], n) => input.appendChild(Object.assign(document.createElement('option'), { value: String(n), textContent: t })));
+				input.value = String(Math.max(0, st.options.findIndex(([ov]) => JSON.stringify(ov) === JSON.stringify(v))));
+				input.addEventListener('change', () => setDraft(st.k, st.options[Number(input.value)][0]));
+				row.appendChild(input);
 			} else {
-				input = Object.assign(document.createElement('input'), { type: 'number', min: s.min, max: s.max, step: s.step || 1, value: val });
+				input = Object.assign(document.createElement('input'), { type: 'range', min: st.min, max: st.max, step: st.step || 1, value: v });
+				const out = Object.assign(document.createElement('output'), { textContent: fmtSet(st, v) });
+				input.addEventListener('input', () => {
+					const n = Number(input.value);
+					out.textContent = fmtSet(st, n);
+					row.classList.toggle('changed', JSON.stringify(n) !== JSON.stringify(defaultOf(st.k)));
+					setDraft(st.k, n);
+				});
+				row.append(input, out);
 			}
 			input.id = id;
 			input.disabled = !host;
-			input.addEventListener('change', () => {
-				const v = s.type === 'bool' ? input.checked : s.type === 'enum' ? JSON.parse(input.value) : Number(input.value);
-				net.send({ t: 'set', o: { ...o, [s.k]: v } });
-			});
-			row.append(label, input);
 			box.appendChild(row);
 		}
+		$('save-row').hidden = !host;
+		if (host) saveState();
 	}
 
 	function copy(text, msg) {
@@ -434,7 +538,7 @@
 			this.mode = modeKey;
 			rules = { ...(modeKey === 'mines' ? MINES_RULES : VERSUS_RULES) };
 			const m = new VersusMatch({ rules, seed: Math.floor(Math.random() * 1e6) + 1, target: 7 });
-			m.startClock(Date.now());
+			m.startClock(Date.now(), COUNTDOWN_MS);
 			const preset = BOT_PRESETS[level] || BOT_PRESETS.normal;
 			this.preset = preset;
 			this.bot = new TiltBot({ ...preset, seed: Math.floor(Math.random() * 1e6) });
@@ -472,7 +576,7 @@
 			if (!m || m.roundOver || mode !== 'practice') return;
 			const p = this.preset;
 			if (p.mirror) return; // Mirror moves when you do
-			const ms = (p.secs * (0.6 + Math.random() * 0.8)) * 1000;
+			const ms = (p.secs * (0.6 + Math.random() * 0.8)) * 1000 + Math.max(0, (m.roundStartAt ?? 0) - Date.now());
 			this.timer = setTimeout(() => this.botMove(), ms);
 		},
 		botMove() {
@@ -492,12 +596,18 @@
 			const m = core.confirmed;
 			if (m.over) return this.start(this.level, this.mode);
 			m.newRound();
-			m.startClock(Date.now());
+			m.startClock(Date.now(), COUNTDOWN_MS);
 			render();
 			this.schedule();
 		},
+		/** A round ended: show the result, then the next round counts down by itself. */
+		later() {
+			clearTimeout(this.nextTimer);
+			this.nextTimer = setTimeout(() => mode === 'practice' && this.next(), RESULT_MS);
+		},
 		stop() {
 			clearTimeout(this.timer);
+			clearTimeout(this.nextTimer);
 			if (mode === 'practice') mode = null;
 		}
 	};
@@ -547,7 +657,7 @@
 
 	// Read-only handle for testing and for bug reports from the console.
 	window.vsDebug = { get core() { return core; }, get room() { return room; }, move: (a) => onMove(a) };
-	$('foot').textContent = 'Playtest build. Tell Krischan what broke.';
+	$('tester-code').textContent = testerCode(myId);
 	route();
 	// Canvas text uses Shippori; repaint once the font has arrived.
 	if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => render());

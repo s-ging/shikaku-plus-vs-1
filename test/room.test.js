@@ -107,9 +107,9 @@ test('two clients play a whole match through the room with no drift', () => {
 	const b = w.addClient(1, 'bbbbbbbb2', null);
 	w.run(500);
 	assert.equal(w.room.seats.length, 2);
-	a.sendUp({ t: 'set', o: { firstTo: 2, gravitySecs: 3, bogus: 9, hearts: 99 } });
+	a.sendUp({ t: 'set', o: { firstTo: 1, gravitySecs: 3, bogus: 9, hearts: 99 } });
 	w.run(500);
-	assert.deepEqual(w.room.o, { firstTo: 2, gravitySecs: 3, hearts: 5 }, 'host settings are sanitized');
+	assert.deepEqual(w.room.o, { firstTo: 1, gravitySecs: 3, hearts: 5 }, 'host settings are sanitized');
 	a.sendUp({ t: 'ready', v: true });
 	b.sendUp({ t: 'ready', v: true });
 	w.run(500);
@@ -119,7 +119,9 @@ test('two clients play a whole match through the room with no drift', () => {
 	w.run(30 * 60 * 1000, playLoop(w));
 	assert.equal(w.reports.length, 1, 'match finished and was reported');
 	const r = w.reports[0];
-	assert.ok(Math.max(...r.score) === 2);
+	assert.ok(Math.max(...r.score) === 1);
+	assert.equal(r.result, 'finished');
+	assert.match(r.seats[0].tester, /^[0-9A-F]{4}-[0-9A-F]{4}$/);
 	for (const c of w.clients) assert.equal(c.core.mismatches, 0, `seat ${c.seat} drifted`);
 	assert.ok(r.seats[0].moves.n > 20);
 	assert.ok(Math.max(...w.saved) < 16000, 'room fits comfortably in one storage value: ' + Math.max(...w.saved));
@@ -268,4 +270,52 @@ test('lag: a move made just before a gravity tick, arriving just after it, still
 	assert.equal(w.room.match.sides[0].econ.ticks, ticks + 1, 'only the move ticked seat 0; no gravity tick slipped in before it');
 	for (const c of [a, b]) assert.equal(c.core.mismatches, 0);
 	assert.equal(stateHash(a.core.confirmed), stateHash(w.room.match));
+});
+
+function startedWorld(o) {
+	const w = world({ latency: [40, 60] });
+	const a = w.addClient(0, 'aaaaaaaa1', null);
+	w.run(300);
+	const b = w.addClient(1, 'bbbbbbbb2', null);
+	w.run(300);
+	if (o) a.sendUp({ t: 'set', o });
+	w.run(300);
+	a.sendUp({ t: 'ready', v: true });
+	b.sendUp({ t: 'ready', v: true });
+	w.run(300);
+	a.sendUp({ t: 'start' });
+	w.run(200);
+	return { w, a, b };
+}
+
+test('countdown: nothing moves before the start; rounds then advance by themselves', () => {
+	const { w, a } = startedWorld({ firstTo: 3 });
+	const m = w.room.match;
+	assert.ok(m.roundStartAt > w.now + 2000, 'the round starts after a 3-second countdown');
+	const r = a.core.move(a.bot.decide(a.core.predicted.sides[0]) || { type: 'erase', x: 0, y: 0 });
+	assert.equal(r.moved, false, 'a move during the countdown is refused locally');
+	w.run(3500);
+	let firstEnd = null;
+	w.run(10 * 60 * 1000, (now) => {
+		playLoop(w)(now);
+		if (firstEnd == null && w.room.report.rounds.length) firstEnd = now;
+	});
+	assert.ok(w.room.report.rounds.length >= 2, 'more than one round was played with no "next" from anyone being needed');
+	for (const c of w.clients) assert.equal(c.core.mismatches, 0);
+});
+
+test('a match everyone leaves is recorded as abandoned; reports add up in /api/stats', async () => {
+	const { w } = startedWorld({ firstTo: 3 });
+	w.run(8000, playLoop(w));
+	w.drop(0);
+	w.drop(1);
+	w.run(100);
+	assert.equal(w.reports.length, 1);
+	assert.equal(w.reports[0].result, 'abandoned');
+	const { summarize } = await import('../worker/stats.js');
+	const s = summarize([...w.reports, { ...w.reports[0], result: 'finished', endedAt: 1, startedAt: 5 }]);
+	assert.equal(s.matches.total, 2);
+	assert.equal(s.matches.abandoned, 1);
+	assert.equal(s.testers.unique, 2);
+	assert.equal(s.matches.byFirstTo[3], 2);
 });
