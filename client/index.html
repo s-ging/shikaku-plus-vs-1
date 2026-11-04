@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1b1b1b">
+<title>Shikaku+ VS playtest</title>
+<style>
+:root { --bg: #1b1b1b; --card: #232323; --cell: #2b2b2b; --line: #333; --fg: #fff; --fg2: rgba(255,255,255,0.7); --amber: #d0b878; --you: #d08080; --mine: #d08080; --bank: #f0a040; --ice: #80b3e6; --slot: #2e2e2e; }
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-tap-highlight-color: transparent; }
+body { padding: 12px 16px 24px; max-width: 1040px; margin: 0 auto; }
+h1 { font-size: 20px; margin: 0 0 12px; font-weight: 600; letter-spacing: 0.01em; }
+h1 small { color: var(--fg2); font-weight: 400; font-size: 14px; }
+h2 { font-size: 15px; margin: 0 0 8px; color: var(--fg2); font-weight: 600; }
+[hidden] { display: none !important; }
+.panel { background: var(--card); border-radius: 8px; padding: 14px; margin-bottom: 12px; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+input, select, button { font: inherit; color: inherit; }
+input[type=text] { background: var(--cell); border: 1px solid var(--line); border-radius: 6px; padding: 9px 10px; min-width: 0; }
+button { background: var(--cell); border: 0; border-radius: 6px; padding: 10px 14px; cursor: pointer; min-height: 44px; }
+button.primary { background: var(--amber); color: #1a1605; }
+button:disabled { opacity: 0.45; cursor: default; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+.muted { color: var(--fg2); font-size: 13px; }
+.code { font: 600 22px/1 ui-monospace, Menlo, Consolas, monospace; letter-spacing: 0.12em; }
+.seats { display: grid; gap: 6px; margin: 8px 0; }
+.seat { display: flex; justify-content: space-between; background: var(--cell); padding: 8px 10px; border-radius: 6px; }
+.seat .ok { color: #88b098; } .seat .off { color: var(--fg2); }
+details summary { cursor: pointer; color: var(--fg2); padding: 6px 0; min-height: 32px; }
+.settings { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 4px 16px; }
+.settings h3 { grid-column: 1 / -1; font-size: 13px; color: var(--amber); margin: 10px 0 2px; font-weight: 600; }
+.set { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 4px 0; font-size: 14px; }
+.set select, .set input[type=number] { background: var(--cell); border: 1px solid var(--line); border-radius: 6px; padding: 5px 6px; max-width: 150px; }
+.set input[type=number] { width: 80px; }
+.set.changed label { color: var(--amber); }
+.arena { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+@media (max-width: 720px) { .arena { grid-template-columns: 1fr; } .card.them { order: -1; max-width: 62%; margin: 0 auto; } .card.them .foot { font-size: 12px; } }
+.card { background: var(--card); border-radius: 8px; padding: 8px 8px 0; position: relative; width: 100%; }
+.frame { display: grid; grid-template-columns: 10px minmax(0, 1fr) 10px; gap: 3px; }
+canvas { display: block; width: 100%; aspect-ratio: 1; touch-action: none; }
+.pole { display: flex; flex-direction: column; gap: 2px; padding: 2px 0; }
+.pole i { display: block; flex: 1 1 0; background: var(--slot); border-radius: 2px; position: relative; overflow: hidden; }
+.lives i { border-radius: 5px; }
+.lives i.on { background: var(--you); }
+.lives i .fill { position: absolute; left: 0; right: 0; bottom: 0; background: var(--you); opacity: 0.55; }
+.lives i .frost { position: absolute; left: 0; right: 0; bottom: 0; background: var(--ice); }
+.hz i.bank.on { background: var(--bank); }
+.hz i.batch.on { background: var(--mine); }
+.hz i.ice { flex: 4 1 0; }
+.hz i.ice.e2 { background: #8098b0; } .hz i.ice.e1 { background: #7cb3eb; } .hz i.ice.now { background: #fff; }
+.hz i:first-child { border-top-left-radius: 5px; border-top-right-radius: 5px; } .hz i:last-child { border-bottom-left-radius: 5px; border-bottom-right-radius: 5px; }
+.foot span { white-space: nowrap; }
+.foot { display: grid; grid-template-columns: 1fr auto 1fr; gap: 6px; align-items: center; padding: 8px 4px 10px; font-size: 13px; color: var(--fg2); }
+.foot .who { color: var(--fg); font-size: 16px; text-align: center; white-space: nowrap; }
+.foot .who b { font-weight: 600; color: var(--bank); margin-left: 6px; opacity: 0.6; }
+.foot .who b.hot { color: #fff; opacity: 1; }
+.pill { justify-self: end; display: flex; gap: 2px; }
+.pill i { width: 12px; height: 9px; background: var(--slot); border-radius: 2px; }
+.pill i.on { background: #7cb3eb; }
+.pill.held { outline: 1.5px solid #7cb3eb; outline-offset: 2px; border-radius: 4px; }
+.callout { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); font-weight: 700; font-size: 22px; letter-spacing: 0.06em; color: #fff; pointer-events: none; white-space: nowrap; text-shadow: 0 1px 0 #000; transition: opacity 0.5s, transform 0.5s; }
+.callout.out { opacity: 0; transform: translate(-50%, -80%); }
+.banner { background: #3a3220; color: var(--amber); border-radius: 6px; padding: 8px 10px; margin-bottom: 10px; font-size: 14px; }
+.overlay { position: absolute; inset: 0; background: rgba(27,27,27,0.9); border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; padding: 16px; z-index: 2; }
+.overlay h2 { color: var(--fg); font-size: 22px; margin: 0; }
+.score { text-align: center; font-size: 15px; color: var(--fg2); margin: 0 0 8px; }
+.score b { color: var(--fg); font-size: 20px; margin: 0 6px; }
+</style>
+</head>
+<body>
+<h1>Shikaku+ VS <small>playtest</small></h1>
+
+<section id="home" hidden>
+	<div class="panel">
+		<h2>Your name</h2>
+		<input type="text" id="name" maxlength="16" autocomplete="nickname" aria-label="Your name">
+	</div>
+	<div class="panel">
+		<h2>Play a friend</h2>
+		<div class="row">
+			<button class="primary" id="create">Create a room</button>
+			<span class="muted">or</span>
+			<input type="text" id="join-code" maxlength="4" placeholder="Room code" aria-label="Room code" style="width: 120px; text-transform: uppercase">
+			<button id="join">Join</button>
+		</div>
+	</div>
+	<div class="panel">
+		<h2>Practice against a bot</h2>
+		<p class="muted" style="margin: 0 0 8px">Runs on your device only. No connection needed.</p>
+		<div class="row">
+			<select id="bot-level" aria-label="Bot difficulty"></select>
+			<button id="practice">Play</button>
+		</div>
+	</div>
+</section>
+
+<section id="lobby" hidden>
+	<div class="panel">
+		<div class="row" style="justify-content: space-between">
+			<div><span class="muted">Room</span> <span class="code" id="room-code"></span></div>
+			<button id="copy-link">Copy link</button>
+		</div>
+		<div class="seats" id="seats"></div>
+		<div class="row">
+			<button id="ready">Ready</button>
+			<button class="primary" id="start" hidden>Start match</button>
+			<span class="muted" id="lobby-hint"></span>
+		</div>
+	</div>
+	<div class="panel">
+		<h2>Rules <span class="muted" id="rules-who"></span></h2>
+		<div class="row" id="presets"></div>
+		<details id="all-settings">
+			<summary>All settings</summary>
+			<div class="settings" id="settings"></div>
+		</details>
+	</div>
+	<div class="panel" id="admin-tools" hidden>
+		<h2>Admin</h2>
+		<div class="row"><button id="copy-report">Copy match report</button><button id="copy-reports">Copy recent matches</button><span class="muted" id="admin-msg"></span></div>
+	</div>
+</section>
+
+<section id="game" hidden>
+	<div id="banner" class="banner" hidden></div>
+	<p class="score" id="score"></p>
+	<div class="arena">
+		<div class="card you" id="card-you">
+			<div class="frame">
+				<div class="pole lives" id="you-lives" aria-label="Your hearts"></div>
+				<canvas id="you-board" aria-label="Your board"></canvas>
+				<div class="pole hz" id="you-hz" aria-label="Incoming at you"></div>
+			</div>
+			<div class="foot"><span id="you-info"></span><span class="who"><span id="you-name">You</span><b id="you-send"></b></span><span class="pill" id="you-frost" aria-label="Your frost"></span></div>
+			<div class="overlay" id="overlay" hidden>
+				<h2 id="ov-title"></h2>
+				<p id="ov-sub" class="muted"></p>
+				<button class="primary" id="ov-next">Next round</button>
+			</div>
+		</div>
+		<div class="card them" id="card-them">
+			<div class="frame">
+				<div class="pole lives" id="them-lives" aria-label="Their hearts"></div>
+				<canvas id="them-board" aria-label="Their board"></canvas>
+				<div class="pole hz" id="them-hz" aria-label="Incoming at them"></div>
+			</div>
+			<div class="foot"><span id="them-info"></span><span class="who"><span id="them-name">Them</span><b id="them-send"></b></span><span class="pill" id="them-frost" aria-label="Their frost"></span></div>
+		</div>
+	</div>
+	<div class="row" style="justify-content: center; margin-top: 12px">
+		<button id="leave">Leave</button>
+		<button id="g-report" hidden>Copy match report</button>
+	</div>
+	<div id="vote" class="panel" hidden style="margin-top: 12px; text-align: center">
+		<p style="margin: 0 0 8px">A player was disconnected for a while this round. Replay the round? Both players have to agree. No score changes.</p>
+		<div class="row" style="justify-content: center"><button class="primary" id="vote-yes">Replay the round</button><button id="vote-no">Keep playing</button></div>
+	</div>
+</section>
+
+<p class="muted" id="foot" style="text-align: center; margin-top: 16px"></p>
+<script src="/app.js"></script>
+</body>
+</html>

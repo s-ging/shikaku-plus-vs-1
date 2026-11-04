@@ -1,0 +1,22 @@
+// Cloudflare config for the Shikaku+ VS playtest. Deploy guide: DEPLOY.md.
+{
+	"name": "shikaku-vs-playtest",
+	"main": "worker/index.js",
+	"compatibility_date": "2025-09-01",
+	// The client is plain static files. Unknown paths such as /QWER serve index.html.
+	// Only /ws/* and /api/* reach the Worker, so loading the page costs no Worker time.
+	"assets": {
+		"directory": "./public",
+		"binding": "ASSETS",
+		"not_found_handling": "single-page-application",
+		"run_worker_first": ["/ws/*", "/api/*"]
+	},
+	"durable_objects": {
+		"bindings": [
+			{ "name": "ROOMS", "class_name": "Room" },
+			{ "name": "REPORTS", "class_name": "Reports" }
+		]
+	},
+	"migrations": [{ "tag": "v1", "new_sqlite_classes": ["Room", "Reports"] }]
+	// The admin secret is NOT here. Set it once with: npx wrangler secret put ADMIN_KEY
+}

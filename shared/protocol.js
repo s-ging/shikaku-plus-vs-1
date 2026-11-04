@@ -1,0 +1,88 @@
+// protocol.js — what goes over the wire. Kept tiny on purpose: a move is about
+// 60 bytes, the server's echo about 80. Full match state is only sent on join,
+// on reconnect, on a new round, and when a client reports that it drifted.
+//
+// Client → server
+//   hello  { t, id, name, k?, dev }      join or rejoin (id is a random per-browser id)
+//   set    { t, o }                      host only, in the lobby: setting overrides
+//   ready  { t, v }                      lobby ready toggle
+//   start  { t }                         host only, both ready
+//   mv     { t, s, a }                   a move; s = the client's own sequence number
+//   sync   { t }                         "my prediction says something happened": server catches up
+//   next   { t }                         ready for the next round
+//   vote   { t, v }                      remake-round vote
+//   resync { t }                         ask for a full state
+//   tele   { t, d }                      telemetry summary (at round end)
+//   report { t }                         admin only: the match report so far
+//
+// Server → client (sequenced ones carry n, the server's message number, and t, server time)
+//   room   { t, code, you, host, admin, phase, seats, o }       lobby / room state
+//   full   { t, n, st, o, phase }                               whole match state
+//   mv     { t, n, i, a, at, h, s? }                            an accepted move (s echoed to its sender)
+//   no     { t, s, why }                                        a refused move (only to its sender)
+//   tk     { t, n, at, h }                                      catch up to time `at` (gravity) — after a sync
+//   fz/th  { t, n, i, at, h }                                   a seat froze (disconnected) / thawed
+//   round  { t, n, st, remake? }                                a new round started
+//   vote   { t, open, yes? }                                    remake vote opened / result
+//   report { t, r }                                             admin: the report
+//   err    { t, why }
+
+/** Moves as tiny arrays: place ['p', ax, ay, bx, by], erase ['e', x, y]. */
+export function encodeAction(a) {
+	if (!a) return null;
+	return a.type === 'erase' ? ['e', a.x, a.y] : ['p', a.ax, a.ay, a.bx, a.by];
+}
+export function decodeAction(a) {
+	if (!Array.isArray(a)) return null;
+	const ok = (v) => Number.isInteger(v) && v >= 0 && v < 32;
+	if (a[0] === 'e' && a.length === 3 && ok(a[1]) && ok(a[2])) return { type: 'erase', x: a[1], y: a[2] };
+	if (a[0] === 'p' && a.length === 5 && a.slice(1).every(ok)) return { type: 'place', ax: a[1], ay: a[2], bx: a[3], by: a[4] };
+	return null;
+}
+
+/**
+ * An 8-hex fingerprint of what matters in a match. Built from a fixed field order so
+ * two machines that agree on the game always agree on the hash. FNV-1a, 32-bit.
+ */
+export function stateHash(m) {
+	const parts = [m.round, m.score[0], m.score[1], m.roundOver ? 1 : 0];
+	for (const s of m.sides) {
+		const e = s.econ;
+		parts.push(
+			s.boardIndex,
+			s.cleared,
+			e.hearts,
+			e.ticks,
+			e.pool,
+			e.frost,
+			e.rng.s,
+			s.rects.map((r) => `${r.x1}${r.y1}${r.x2}${r.y2}`).join('.'),
+			e.mines.map((x) => `${x.cell}:${x.fuse}`).join('.'),
+			e.ice.map((x) => `${x.cell}:${x.thaw}`).join('.'),
+			e.incoming.map((x) => `${x.count}:${x.eta}`).join('.')
+		);
+	}
+	const str = parts.join('|');
+	let h = 0x811c9dc5;
+	for (let i = 0; i < str.length; i++) {
+		h ^= str.charCodeAt(i);
+		h = Math.imul(h, 0x01000193) >>> 0;
+	}
+	return h.toString(16).padStart(8, '0');
+}
+
+/** Room codes: 4 letters, no look-alikes (no I, L, O). */
+export const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ';
+export const isRoomCode = (c) => typeof c === 'string' && /^[ABCDEFGHJKMNPQRSTUVWXYZ]{4}$/.test(c);
+export function newRoomCode(rand = Math.random) {
+	let c = '';
+	for (let i = 0; i < 4; i++) c += CODE_ALPHABET[Math.floor(rand() * CODE_ALPHABET.length)];
+	return c;
+}
+/** "/QWER" or "/QWER+secret" → { code, key } (key is only a hint; the server decides). */
+export function parseRoomPath(pathname) {
+	const raw = decodeURIComponent((pathname || '').replace(/^\/+/, '').split('/')[0] || '');
+	const [code, ...rest] = raw.split('+');
+	const up = (code || '').toUpperCase();
+	return isRoomCode(up) ? { code: up, key: rest.join('+') || null } : null;
+}

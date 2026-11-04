@@ -1,0 +1,11 @@
+{
+  "name": "shikaku-vs-playtest",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "build": "node build.mjs",
+    "dev": "node build.mjs && npx wrangler dev",
+    "deploy": "node build.mjs && npx wrangler deploy"
+  }
+}
