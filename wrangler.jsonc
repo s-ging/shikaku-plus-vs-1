@@ -25,3 +25,4 @@
 	"migrations": [{ "tag": "v1", "new_sqlite_classes": ["Room", "Reports"] }]
 	// The admin secret is NOT here. Set it once with: npx wrangler secret put ADMIN_KEY
 }
+
