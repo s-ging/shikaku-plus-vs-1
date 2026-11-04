@@ -3,17 +3,18 @@
 //   - a short flash (blast, defuse, icebreak) runs a few frames, then stops
 //   - flat fills and alpha only: no blur, no shadows, no gradients, no particles
 // Colors: lavender boxes in VS; red is mines, blue is ice, nothing else is saturated.
+// The VS lab's tokens (prototypes/vs-lab/src/ffpage.html in the wiki repo).
 export const BOARD_COLORS = {
 	cell: '#2b2b2b',
 	clue: '#ffffff',
 	box: '#a090c0',
-	boxClue: 'rgba(27,27,27,0.55)',
+	boxClue: 'rgba(0,0,0,0.35)',
 	mine: '#d08080',
-	ink: '#1b1b1b',
+	ink: '#121212',
 	ice: '#80b3e6',
-	drag: 'rgba(68,136,255,0.33)',
+	drag: 'rgba(68,136,255,0.3)',
 	dragLine: '#4488ff',
-	bad: 'rgba(255,85,85,0.45)'
+	bad: 'rgba(255,85,85,0.35)'
 };
 
 export class BoardPainter {
@@ -109,7 +110,7 @@ export class BoardPainter {
 
 	_box(x1, y1, x2, y2) {
 		const k = this.S / this.N;
-		const g = Math.max(3, Math.round(this.S / 80));
+		const g = Math.max(4, Math.round(this.S / 80));
 		return [x1 * k + g / 2, y1 * k + g / 2, (x2 - x1 + 1) * k - g, (y2 - y1 + 1) * k - g];
 	}
 	_cell(i) {
@@ -119,7 +120,7 @@ export class BoardPainter {
 	}
 	_rr(x, y, w, h) {
 		const c = this.ctx;
-		const r = Math.min(Math.max(3, (this.S / this.N) * 0.08), w / 2, h / 2);
+		const r = Math.min(Math.max(4, (this.S / this.N) * 0.08), w / 2, h / 2);
 		c.beginPath();
 		c.moveTo(x + r, y);
 		c.arcTo(x + w, y, x + w, y + h, r);
@@ -141,7 +142,7 @@ export class BoardPainter {
 		const nums = side.puzzle.nums;
 		const e = side.econ;
 		const k = this.S / N;
-		const font = (px) => `${Math.round(px)}px "Shippori Antique", system-ui, sans-serif`;
+		const font = (px) => `${Math.round(px)}px 'Shippori Antique B1', 'Hiragino Sans', system-ui, sans-serif`;
 		c.textAlign = 'center';
 		c.textBaseline = 'middle';
 
@@ -241,25 +242,52 @@ export class BoardPainter {
 		c.closePath();
 		c.fill();
 	}
+	/** Ice as in the lab: blue, ink hatching, an inset square, and a thaw wedge that grows as it melts. */
 	_ice(f) {
 		const c = this.ctx;
+		const C = BOARD_COLORS;
 		const [x, y, w, h] = this._cell(f.cell);
-		c.fillStyle = BOARD_COLORS.ice;
+		c.fillStyle = C.ice;
 		this._rr(x, y, w, h);
 		c.fill();
+		c.save();
+		this._rr(x, y, w, h);
+		c.clip();
+		c.strokeStyle = C.ink;
+		const step = Math.max(5, w / 7);
+		c.lineWidth = step * 0.45;
+		c.beginPath();
+		for (let t = -h; t < w + h; t += step) {
+			c.moveTo(x + t, y + h);
+			c.lineTo(x + t + h, y);
+		}
+		c.stroke();
+		c.restore();
+		const inset = w * 0.17;
+		const ix = x + inset;
+		const iy = y + inset;
+		const iw = w - inset * 2;
+		c.fillStyle = C.ink;
+		c.fillRect(ix - 2, iy - 2, iw + 4, iw + 4);
+		c.fillStyle = C.ice;
+		c.fillRect(ix, iy, iw, iw);
 		const total = this.rules?.thawPoints || 4;
-		const p = Math.max(0, Math.min(1, (total - f.thaw) / total));
+		const p = Math.max(0, Math.min(1, (total - f.thaw) / Math.max(1, total - 1)));
 		if (p > 0) {
-			const cx = x + w / 2;
-			const cy = y + h / 2;
-			c.fillStyle = BOARD_COLORS.ink;
-			c.globalAlpha = 0.55;
+			const b = iw * 0.16;
+			c.save();
+			c.beginPath();
+			c.rect(ix + b, iy + b, iw - 2 * b, iw - 2 * b);
+			c.clip();
+			c.fillStyle = C.ink;
+			const cx = ix + iw / 2;
+			const cy = iy + iw / 2;
 			c.beginPath();
 			c.moveTo(cx, cy);
-			c.arc(cx, cy, w * 0.3, -Math.PI / 2, -Math.PI / 2 - p * 6.283, true);
+			c.arc(cx, cy, iw, -Math.PI / 2, -Math.PI / 2 - p * 6.283, true);
 			c.closePath();
 			c.fill();
-			c.globalAlpha = 1;
+			c.restore();
 		}
 	}
 }

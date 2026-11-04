@@ -2,7 +2,10 @@
 // Rendering is on demand: a frame is drawn when something changes, never on a loop.
 (() => {
 	const $ = (id) => document.getElementById(id);
-	const show = (id) => ['home', 'lobby', 'game'].forEach((s) => ($(s).hidden = s !== id));
+	const show = (id) => {
+		['home', 'lobby', 'game'].forEach((s) => ($(s).hidden = s !== id));
+		$('brand').hidden = id === 'game';
+	};
 	const store = {
 		get: (k) => {
 			try {
@@ -67,6 +70,7 @@
 			const healable = i === e.hearts && rules.healPerfectBoards && (!rules.maxHealsPerRound || e.heals < rules.maxHealsPerRound);
 			const run = e.doOversThisBoard ? (cp && e.perfectRun >= cp ? cp : 0) : e.perfectRun;
 			seg.firstChild.style.height = healable ? `${(100 * run) / rules.healPerfectBoards}%` : '0';
+			if (healable && e.perfectRun > 0 && !e.doOversThisBoard) seg.classList.add('healing');
 			// Ice on the board frosts your top heart: one step per ice, toward losing the board.
 			const top = i === e.hearts - 1;
 			seg.lastChild.style.height = top ? `${(100 * Math.min(e.ice.length, rules.freezeOverAt)) / rules.freezeOverAt}%` : '0';
@@ -117,10 +121,14 @@
 		footer('you', v.me, v.you, v.pmatch);
 		footer('them', 1 - v.me, v.them, v.match);
 		const m = v.match;
-		$('score').innerHTML = `You <b>${m.score[v.me]}</b>–<b>${m.score[1 - v.me]}</b> ${mode === 'practice' ? 'Bot' : 'Them'} · first to ${m.target}${m.rush ? ' · RUSH' : ''}`;
+		$('score-you').textContent = m.score[v.me];
+		$('score-them').textContent = m.score[1 - v.me];
+		$('mode-line').textContent = `6×6 · Classic · FT${m.target}${m.rush ? ` · Rush ×${rules.rushMultiplier}` : ''}`;
+		$('brand').hidden = true;
 		if (mode === 'online' && room) {
 			const opp = room.seats[1 - v.me];
 			$('them-name').textContent = opp ? opp.name : 'Waiting';
+			$('them-label').textContent = opp ? opp.name : 'Them';
 			$('you-name').textContent = 'You';
 		}
 		roundOverlay(m, v.me);
@@ -484,6 +492,7 @@
 			banner(null);
 			$('vote').hidden = true;
 			$('them-name').textContent = `${preset.label} bot`;
+			$('them-label').textContent = 'Bot';
 			$('you-name').textContent = 'You';
 			this.schedule();
 			render();
@@ -571,4 +580,6 @@
 	window.vsDebug = { get core() { return core; }, get room() { return room; }, move: (a) => onMove(a) };
 	$('foot').textContent = 'Playtest build. Tell Krischan what broke.';
 	route();
+	// Canvas text uses Shippori; repaint once the font has arrived.
+	if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => render());
 })();
