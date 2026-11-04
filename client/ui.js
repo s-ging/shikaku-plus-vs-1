@@ -1,4 +1,6 @@
 // ui.js — the playtest client: home, lobby, match, practice. No framework.
+// The game screen is client/hud.js, the same one the lab uses; this file feeds it the
+// two boards (mine predicted, theirs confirmed) and handles the network.
 // Rendering is on demand: a frame is drawn when something changes, never on a loop.
 (() => {
 	const $ = (id) => document.getElementById(id);
@@ -38,7 +40,6 @@
 	}
 
 	// —— Views ——
-	const painters = [new BoardPainter($('you-board'), (a) => onMove(a)), new BoardPainter($('them-board'), null)];
 	let mode = null; // 'online' | 'practice'
 	let core = null; // ClientCore (online) or a practice adapter with the same shape
 	let room = null; // last 'room' message
@@ -52,87 +53,76 @@
 		return { me, you: core.predicted.sides[me], them: core.confirmed.sides[1 - me], match: core.confirmed, pmatch: core.predicted };
 	}
 
-	function poles(prefix, side) {
-		const e = side.econ;
-		const lives = $(prefix + '-lives');
-		if (lives.childElementCount !== rules.hearts) {
-			lives.innerHTML = '';
-			for (let i = 0; i < rules.hearts; i++) {
-				const seg = document.createElement('i');
-				seg.innerHTML = '<span class="fill"></span><span class="frost"></span>';
-				lives.appendChild(seg);
-			}
-		}
-		const segs = [...lives.children].reverse();
-		const cp = rules.healCheckpoint || 0;
-		segs.forEach((seg, i) => {
-			seg.className = i < e.hearts ? 'on' : '';
-			const healable = i === e.hearts && rules.healPerfectBoards && (!rules.maxHealsPerRound || e.heals < rules.maxHealsPerRound);
-			const run = e.doOversThisBoard ? (cp && e.perfectRun >= cp ? cp : 0) : e.perfectRun;
-			seg.firstChild.style.height = healable ? `${(100 * run) / rules.healPerfectBoards}%` : '0';
-			if (healable && e.perfectRun > 0 && !e.doOversThisBoard) seg.classList.add('healing');
-			// Ice on the board frosts your top heart: one step per ice, toward losing the board.
-			const top = i === e.hearts - 1;
-			seg.lastChild.style.height = top ? `${(100 * Math.min(e.ice.length, rules.freezeOverAt)) / rules.freezeOverAt}%` : '0';
-		});
-		const hz = $(prefix + '-hz');
-		const BANK = 12;
-		if (hz.childElementCount !== BANK + rules.batchSize + 1) {
-			hz.innerHTML = '';
-			for (let i = 0; i < BANK; i++) hz.appendChild(Object.assign(document.createElement('i'), { className: 'bank' }));
-			for (let i = 0; i < rules.batchSize; i++) hz.appendChild(Object.assign(document.createElement('i'), { className: 'batch' }));
-			hz.appendChild(Object.assign(document.createElement('i'), { className: 'ice' }));
-		}
-		const kids = [...hz.children];
-		const bank = e.bank;
-		kids.slice(0, BANK).reverse().forEach((s, i) => (s.className = 'bank' + (i < bank ? ' on' : '')));
-		const next = e.nextBatch;
-		kids.slice(BANK, BANK + rules.batchSize).reverse().forEach((s, i) => (s.className = 'batch' + (i < next ? ' on' : '')));
-		const soon = e.iceIncoming.length ? Math.min(...e.iceIncoming.map((w) => w.eta)) : null;
-		kids[kids.length - 1].className = 'ice' + (soon == null ? '' : soon <= 1 ? ' e1' : ' e2');
-	}
-
-	function footer(prefix, idx, side, m) {
-		const pv = m.attackPreview(idx);
-		const send = $(prefix + '-send');
-		send.textContent = `+${pv.send}`;
-		send.className = pv.counter > 0 ? 'hot' : '';
-		const pill = $(prefix + '-frost');
-		const size = rules.frostMeter || 0;
-		pill.hidden = !size;
-		if (size) {
-			if (pill.childElementCount !== size) pill.innerHTML = '<i></i>'.repeat(size);
-			const e = side.econ;
-			const full = Math.floor(e.frost / size);
-			[...pill.children].forEach((s, k) => (s.className = full > 0 || k < e.frost % size ? 'on' : ''));
-			const placed = side.rects.length;
-			pill.className = 'pill' + (e.frostHeld(Math.max(0, side.puzzle.layout.length - placed)) ? ' held' : '');
-		}
-		$(prefix + '-info').textContent = `Board ${side.boardIndex + 1}`;
-	}
+	// The shared screen. Screen 0 is my board (predicted, so my moves show at once); screen 1 is theirs.
+	const hud = createHud({
+		side: (i) => {
+			const v = sides();
+			return v ? (i === 0 ? v.you : v.them) : null;
+		},
+		rules: () => rules,
+		onMove: (a) => onMove(a),
+		canInput: () => !!core && !!core.predicted && !core.predicted.roundOver
+	});
+	let view = 'play';
+	let shownRound = null;
+	const setView = (v) => {
+		view = v;
+		hud.setView(v, rules.mode === 'mines');
+		for (const b of document.querySelectorAll('#views button')) b.setAttribute('aria-pressed', String(b.dataset.view === v));
+	};
+	for (const b of document.querySelectorAll('#views button')) b.addEventListener('click', () => setView(b.dataset.view));
+	const serverNow = () => (core && core.serverNow ? core.serverNow() : Date.now());
 
 	function render() {
 		const v = sides();
 		if (!v) return;
-		painters[0].set(v.you, rules);
-		painters[1].set(v.them, rules);
-		poles('you', v.you);
-		poles('them', v.them);
-		footer('you', v.me, v.you, v.pmatch);
-		footer('them', 1 - v.me, v.them, v.match);
 		const m = v.match;
+		const mines = rules.mode === 'mines';
+		if ($('stage').classList.contains('mines') !== mines) setView(view);
+		if (shownRound !== m.round + ':' + m.seed) {
+			shownRound = m.round + ':' + m.seed; // a new round or match: clear the lanes and flashes
+			hud.reset();
+		}
+		hud.render();
 		$('score-you').textContent = m.score[v.me];
 		$('score-them').textContent = m.score[1 - v.me];
-		$('mode-line').textContent = `6×6 · Classic · FT${m.target}${m.rush ? ` · Rush ×${rules.rushMultiplier}` : ''}`;
+		$('mode-title').textContent = mines ? 'Mines' : 'Versus';
+		$('mode-line').textContent = `${mines ? 'Mines · Unrated' : 'VS'} · 6×6 · FT${m.target}${m.rush ? ` · Rush ×${rules.rushMultiplier}` : ''}`;
 		$('brand').hidden = true;
+		let you = 'You';
+		let them = 'Them';
 		if (mode === 'online' && room) {
 			const opp = room.seats[1 - v.me];
-			$('them-name').textContent = opp ? opp.name : 'Waiting';
-			$('them-label').textContent = opp ? opp.name : 'Them';
-			$('you-name').textContent = 'You';
-		}
+			them = opp ? opp.name : 'Waiting';
+		} else if (mode === 'practice' && practice.preset) them = `${practice.preset.label} bot`;
+		$('name-you').textContent = you;
+		$('you-name').textContent = you;
+		$('name-them').textContent = them;
+		$('them-name').textContent = them;
+		renderTime();
 		roundOverlay(m, v.me);
 		scheduleGravity();
+	}
+
+	// Round clock, m:ss, from the server's clock. One timeout per second while a round runs.
+	let clockTimer = 0;
+	function renderTime() {
+		clearTimeout(clockTimer);
+		const v = sides();
+		if (!v) return;
+		const m = v.match;
+		const over = !!m.roundOver;
+		const ms = Math.max(0, serverNow() - (m.roundStartAt ?? serverNow()));
+		const t = `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, '0')}`;
+		// Rush: the clock turns white and says so, blinking on a 0.8s beat (same rule as VersusMatch.rush, asked about now).
+		const rush = !over && (rules.rushAfterSecs ? ms >= rules.rushAfterSecs * 1000 : !!m.rush);
+		for (const id of ['you-time', 'them-time']) {
+			const el = $(id);
+			if (over && el.textContent) continue; // keep the time the round ended on
+			el.textContent = rush ? `RUSH • ${t}` : t;
+			el.classList.toggle('rush', rush);
+		}
+		if (!over) clockTimer = setTimeout(renderTime, Math.max(50, 1000 - (ms % 1000)));
 	}
 
 	function roundOverlay(m, me) {
@@ -164,42 +154,23 @@
 		}, Math.min(ms, 60000));
 	}
 
-	// —— Animations: a callout over the board, short flashes on cells ——
-	function callout(idx, text) {
-		const card = $(idx === 0 ? 'card-you' : 'card-them');
-		const el = Object.assign(document.createElement('div'), { className: 'callout', textContent: text });
-		el.style.marginTop = card.querySelectorAll('.callout').length * 28 + 'px';
-		card.appendChild(el);
-		setTimeout(() => el.classList.add('out'), 700);
-		setTimeout(() => el.remove(), 1300);
-	}
 	/** Animate events for one seat (0 = me, 1 = them in screen terms). */
 	function animate(events, onlyScreen) {
 		const v = sides();
-		if (!v) return;
-		for (const e of events || []) {
+		if (!v || !events || !events.length) return;
+		const screenOf = (e) => {
 			const seat = e.side === 'you' ? 0 : e.side === 'them' ? 1 : -1;
-			if (seat < 0) continue;
+			if (seat < 0) return -1;
 			const screen = seat === v.me ? 0 : 1;
-			if (onlyScreen != null && screen !== onlyScreen) continue;
-			const p = painters[screen];
-			if (e.kind === 'mineExplode') p.flash('blast', e.cell);
-			else if (e.kind === 'defuse') p.flash('ring', e.cell);
-			else if (e.kind === 'forceBreak') {
-				p.flash('break', e.cell);
-				if (e.earned) callout(screen, 'BREAK');
-			} else if (e.kind === 'clutch') callout(screen, e.cancelled ? `CLUTCH −${e.cancelled}` : 'CLUTCH');
-			else if (e.kind === 'send' && e.pass > 0) callout(screen, e.counter ? `COUNTER-SPIKE ${e.pass}` : `SENT ${e.pass}`);
-			else if (e.kind === 'frostFire') callout(screen, `FROST ${e.count}`);
-			else if (e.kind === 'frozenOut') callout(screen, 'FROZEN OVER');
-			else if (e.kind === 'heal' && e.healed) callout(screen, 'HEALED');
-		}
+			return onlyScreen != null && screen !== onlyScreen ? -2 : screen;
+		};
+		hud.animate(events.filter((e) => screenOf(e) !== -2), screenOf);
 	}
 
 	function onMove(action) {
 		if (!core) return;
 		const r = core.move(action);
-		if (!r.moved && action.type === 'place' && (r.denied === 'ice' || r.denied === 'invalid')) painters[0].deny(action.ax, action.ay, action.bx, action.by);
+		if (!r.moved && action.type === 'place' && (r.denied === 'ice' || r.denied === 'invalid')) hud.deny(action, r.denied);
 		if (r.moved) animate(r.events, 0);
 		if (mode === 'practice') practice.afterYou();
 		render();
@@ -349,14 +320,14 @@
 		$('seats').innerHTML = '';
 		room.seats.forEach((s, i) => {
 			const d = document.createElement('div');
-			d.className = 'seat';
+			d.className = 'lobby-seat';
 			d.innerHTML = `<span></span><span class="${s.ready ? 'ok' : 'off'}">${s.connected ? (s.ready ? 'Ready' : 'Not ready') : 'Disconnected'}</span>`;
 			d.firstChild.textContent = `${s.name}${i === 0 ? ' (host)' : ''}${i === room.you ? ' · you' : ''}`;
 			$('seats').appendChild(d);
 		});
 		if (room.seats.length < 2) {
 			const d = document.createElement('div');
-			d.className = 'seat';
+			d.className = 'lobby-seat';
 			d.innerHTML = '<span class="off">Waiting for a second player. Send them the link.</span>';
 			$('seats').appendChild(d);
 		}
@@ -458,9 +429,10 @@
 		bot: null,
 		timer: 0,
 		level: 'normal',
-		start(level) {
+		start(level, modeKey = 'vs') {
 			this.level = level;
-			rules = { ...VERSUS_RULES };
+			this.mode = modeKey;
+			rules = { ...(modeKey === 'mines' ? MINES_RULES : VERSUS_RULES) };
 			const m = new VersusMatch({ rules, seed: Math.floor(Math.random() * 1e6) + 1, target: 7 });
 			m.startClock(Date.now());
 			const preset = BOT_PRESETS[level] || BOT_PRESETS.normal;
@@ -491,9 +463,6 @@
 			show('game');
 			banner(null);
 			$('vote').hidden = true;
-			$('them-name').textContent = `${preset.label} bot`;
-			$('them-label').textContent = 'Bot';
-			$('you-name').textContent = 'You';
 			this.schedule();
 			render();
 		},
@@ -521,7 +490,7 @@
 		},
 		next() {
 			const m = core.confirmed;
-			if (m.over) return this.start(this.level);
+			if (m.over) return this.start(this.level, this.mode);
 			m.newRound();
 			m.startClock(Date.now());
 			render();
@@ -548,7 +517,7 @@
 	$('join-code').addEventListener('keydown', (e) => e.key === 'Enter' && joinIt());
 	$('practice').addEventListener('click', () => {
 		store.set('vs.name', $('name').value.slice(0, 16));
-		practice.start($('bot-level').value);
+		practice.start($('bot-level').value, $('practice-mode').value);
 	});
 	function go(path) {
 		store.set('vs.name', $('name').value.slice(0, 16));

@@ -16,6 +16,12 @@ const STALE_MS = 20000; // no ping or message this long = really gone (a phone t
 const REMAKE_AFTER_MS = 10000; // a seat gone this long in one round may call a remake vote
 const VOTE_MS = 20000;
 const NAME_MAX = 16;
+// Gravity and lag (2026-11-05). A move carries the time it was made (the client's estimate of
+// server time). The server honours it if it's no older than LAG_MS, and pays the OTHER seat's
+// gravity LAG_MS late, so a move made just before a tick, still on its way, resets that tick
+// instead of losing to it. The sender's own gravity is paid up to its message: one seat's
+// messages arrive in order. Cost: about 15 bytes more per message; nothing runs while idle.
+const LAG_MS = 250;
 
 const cleanName = (s) =>
 	String(s || '')
@@ -123,7 +129,7 @@ export class RoomCore {
 	_resume(i, now) {
 		const seat = this.seats[i];
 		if (!this.match || this.phase !== 'match' || seat.left == null) return;
-		this.match.catchUp(now);
+		const g = this._pay(now, i, now);
 		const gap = now - (seat.goneFrom ?? seat.left); // counted from when we last heard from them
 		seat.gone += gap;
 		seat.goneRound += gap;
@@ -131,7 +137,7 @@ export class RoomCore {
 		seat.goneFrom = null;
 		seat.connected = true;
 		this.match.thawSide(i, now);
-		this._all(this._seq({ t: 'th', i, at: now }), seat.id);
+		this._all(this._seq({ t: 'th', i, at: now, g }), seat.id);
 		if (seat.goneRound >= REMAKE_AFTER_MS && !this.match.roundOver && !this.vote) this.vote = { yes: [null, null], until: now + VOTE_MS };
 	}
 
@@ -166,10 +172,10 @@ export class RoomCore {
 			this.seats.splice(i, 1);
 		} else if (this.match && this.phase === 'match') {
 			seat.left = now;
-			this.match.catchUp(now);
-			this.match.freezeSide(i, now);
+			const g = this._pay(now);
+			this.match.freezeSide(i, g);
 			// Sent to the frozen seat too: if its socket was only quiet, it hears this and answers.
-			this._all(this._seq({ t: 'fz', i, at: now }));
+			this._all(this._seq({ t: 'fz', i, at: g }));
 		}
 		this._roomAll();
 	}
@@ -207,8 +213,7 @@ export class RoomCore {
 				break;
 			case 'sync':
 				if (!this.match || this.phase !== 'match') return;
-				this.match.catchUp(now);
-				this._all(this._seq({ t: 'tk', at: now }));
+				this._all(this._seq({ t: 'tk', i, at: now, g: this._pay(now, i, now) }));
 				this._afterChange(now);
 				break;
 			case 'next':
@@ -259,20 +264,38 @@ export class RoomCore {
 		seat.lastS = msg.s;
 		const action = decodeAction(msg.a);
 		const ticksBefore = m.sides.map((s) => s.econ.ticks).join();
-		m.catchUp(now);
-		const r = action && !m.roundOver ? m.act(i, action, now) : { moved: false, denied: 'bad' };
+		// The move's own time, if it's believable: no older than LAG_MS, never before this seat's
+		// last message, never in the future.
+		const claimed = Number.isFinite(msg.at) ? Math.round(msg.at) : now;
+		const at = Math.min(now, Math.max(claimed, now - LAG_MS, seat.lastAt || 0));
+		const g = this._pay(now, i, at);
+		const r = action && !m.roundOver ? m.act(i, action, at) : { moved: false, denied: 'bad' };
 		if (!r.moved) {
 			this._to(seat.id, { t: 'no', s: msg.s, why: r.denied || 'invalid' });
 			// If the catch-up paid gravity ticks, keep everyone in step; otherwise send nothing more.
-			if (m.sides.map((s) => s.econ.ticks).join() !== ticksBefore) this._all(this._seq({ t: 'tk', at: now }));
+			if (m.sides.map((s) => s.econ.ticks).join() !== ticksBefore) this._all(this._seq({ t: 'tk', i, at, g }));
 			this._afterChange(now);
 			return;
 		}
 		this._time(i, now);
-		const echo = this._seq({ t: 'mv', i, a: encodeAction(action), at: now });
+		const echo = this._seq({ t: 'mv', i, a: encodeAction(action), at, g });
 		this._to(seat.id, { ...echo, s: msg.s });
 		this._all(echo, seat.id);
 		this._afterChange(now);
+	}
+
+	/**
+	 * Pay gravity: everyone up to now − LAG_MS, then seat i up to its own time `at`.
+	 * Returns the horizon, which goes in the message so clients make the same two calls.
+	 */
+	_pay(now, i = null, at = now) {
+		const g = now - LAG_MS;
+		this.match.catchUp(g);
+		if (i != null) {
+			this.match.catchUp(at, i);
+			this.seats[i].lastAt = Math.max(this.seats[i].lastAt || 0, at);
+		}
+		return g;
 	}
 
 	/** Move-timing summary per seat: the raw material for spotting solver-like play. No arrays kept. */

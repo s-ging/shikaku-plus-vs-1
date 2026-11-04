@@ -14,7 +14,8 @@ const strip = (src) =>
 		.replace(/^export\s+(?=(const|function|class|let|async))/gm, '');
 const MODULES = ['puzzle.js', 'game.js', 'economy.js', 'match.js', 'versus.js', 'versus-match.js'];
 const mods = MODULES.map((f) => `// ===== engine/${f} =====\n` + strip(readFileSync(join(engine, f), 'utf8'))).join('\n');
-const html = `${readFileSync(join(here, 'page.html'), 'utf8')}\n<script>\n${mods}\n</script>\n<script>\n${readFileSync(join(here, 'app.js'), 'utf8')}\n</script>\n`;
+const hud = strip(readFileSync(join(here, '..', 'client', 'hud.js'), 'utf8')); // the shared screen
+const html = `${readFileSync(join(here, 'page.html'), 'utf8')}\n<script>\n${mods}\n// ===== client/hud.js =====\n${hud}\n</script>\n<script>\n${readFileSync(join(here, 'app.js'), 'utf8')}\n</script>\n`;
 mkdirSync(join(here, 'dist'), { recursive: true });
 const out = join(here, 'dist', 'vs-lab.html');
 writeFileSync(out, html);

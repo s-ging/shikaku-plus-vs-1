@@ -2,11 +2,12 @@
 // client (to draw the menu) and the server (to accept only these keys, in range).
 // The rules themselves live in ../engine/versus.js (VERSUS_RULES); this is
 // only the list of knobs a room may turn, and the presets.
-import { VERSUS_RULES } from '../engine/versus.js';
+import { VERSUS_RULES, MINES_RULES } from '../engine/versus.js';
 
 /** Every setting a room may change. Anything not listed here is fixed at VERSUS_RULES. */
 export const SETTINGS = [
 	// Match
+	{ k: 'mode', group: 'Match', label: 'Mode', type: 'enum', options: [['vs', 'Shikaku+ VS'], ['mines', 'Shikaku+ Mines (no ice, unrated)']], def: 'vs' },
 	{ k: 'firstTo', group: 'Match', label: 'First to', type: 'int', min: 1, max: 9, def: 7 },
 	{ k: 'hearts', group: 'Match', label: 'Hearts', type: 'int', min: 1, max: 5 },
 	{ k: 'gravitySecs', group: 'Match', label: 'Gravity: a tick every', type: 'num', min: 0, max: 10, step: 0.5, unit: 's', off: 0 },
@@ -42,6 +43,7 @@ export const defaultOf = (k) => (k in VERSUS_RULES ? VERSUS_RULES[k] : BY_KEY.ge
 /** Named starting points. Default is VERSUS_RULES untouched. */
 export const PRESETS = [
 	{ id: 'default', label: 'Default', set: {} },
+	{ id: 'mines', label: 'Mines', set: { mode: 'mines' } },
 	{ id: 'spiky', label: 'Spiky', set: { counterRate: 1, cancelOrder: 'orangeFirst' } },
 	{ id: 'calm', label: 'No gravity', set: { gravitySecs: 0 } },
 	{ id: 'short', label: 'Quick (first to 3)', set: { firstTo: 3, rushAfterSecs: 120 } }
@@ -69,8 +71,9 @@ export function sanitize(input) {
 	return out;
 }
 
-/** The rules a match runs with: VERSUS_RULES plus the room's sanitized overrides (firstTo is not a rule). */
+/** The rules a match runs with: the mode's rules plus the room's sanitized overrides (firstTo is not a rule). */
 export function rulesFor(overrides) {
-	const { firstTo, ...rest } = sanitize(overrides);
-	return { rules: { ...VERSUS_RULES, ...rest }, firstTo: firstTo ?? 7 };
+	const { firstTo, mode, ...rest } = sanitize(overrides);
+	const base = mode === 'mines' ? MINES_RULES : VERSUS_RULES;
+	return { rules: { ...base, ...rest }, firstTo: firstTo ?? 7 };
 }

@@ -241,3 +241,31 @@ test('a player keeps playing through a dropout; queued moves land on reconnect, 
 	assert.equal(b.core.mismatches, 0);
 	assert.equal(stateHash(b.core.confirmed), stateHash(w.room.match));
 });
+
+test('lag: a move made just before a gravity tick, arriving just after it, still resets the tick', () => {
+	const w = world({ latency: [150, 40] });
+	const a = w.addClient(0, 'aaaaaaaa1', null);
+	w.run(500); // a joins first, so a is seat 0 even though its line is slower
+	const b = w.addClient(1, 'bbbbbbbb2', null);
+	w.run(1000);
+	a.sendUp({ t: 'ready', v: true });
+	b.sendUp({ t: 'ready', v: true });
+	w.run(1000);
+	a.sendUp({ t: 'start' });
+	w.run(400);
+	const m = w.room.match;
+	assert.ok(m, 'match started');
+	const step = m.rules.gravitySecs * 1000;
+	const due = m.sides[0].gAt + step;
+	const ticks = m.sides[0].econ.ticks;
+	// Seat 0 moves 50ms before its tick is due; its message takes 150ms to arrive.
+	w.run(due - 50 - w.now);
+	assert.ok(a.core.move(a.bot.decide(a.core.predicted.sides[0])).moved);
+	// Seat 1's move lands at the server in between, after the tick was due.
+	w.run(40);
+	b.core.move(b.bot.decide(b.core.predicted.sides[1]));
+	w.run(1000);
+	assert.equal(w.room.match.sides[0].econ.ticks, ticks + 1, 'only the move ticked seat 0; no gravity tick slipped in before it');
+	for (const c of [a, b]) assert.equal(c.core.mismatches, 0);
+	assert.equal(stateHash(a.core.confirmed), stateHash(w.room.match));
+});

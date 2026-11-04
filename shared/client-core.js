@@ -47,7 +47,7 @@ export class ClientCore {
 			// A new round drops them: they belonged to the board that just ended.
 			this.pending = msg.t === 'full' ? this.pending.filter((p) => p.s > (msg.ls || 0)) : [];
 			this.seq = Math.max(this.seq, msg.ls || 0); // after a reload our counter restarts; the server's wins
-			for (const p of this.pending) this.send({ t: 'mv', s: p.s, a: encodeAction(p.a) });
+			for (const p of this.pending) this.send({ t: 'mv', s: p.s, a: encodeAction(p.a), at: Math.round(p.at) });
 			this.waitingFull = false;
 			this._repredict();
 			return [];
@@ -62,7 +62,9 @@ export class ClientCore {
 		if (msg.n !== this.n + 1) return this._askFull('gap');
 		this.n = msg.n;
 		const c = this.confirmed;
-		const events = c.catchUp(msg.at);
+		// The same two catch-ups the server made: everyone to the horizon g, the sender to its own time.
+		const events = c.catchUp(msg.g ?? msg.at);
+		if (msg.i != null && msg.g != null) events.push(...c.catchUp(msg.at, msg.i));
 		if (msg.t === 'mv') {
 			const r = c.act(msg.i, decodeAction(msg.a), msg.at);
 			events.push(...r.events);
@@ -85,14 +87,14 @@ export class ClientCore {
 	move(action) {
 		const p = this.predicted;
 		if (!p || p.roundOver || p.over) return { moved: false, events: [] };
-		const at = this.serverNow();
+		const at = Math.round(this.serverNow());
 		const events = p.catchUp(at);
 		const r = p.act(this.me, action, at);
 		r.events = [...events, ...r.events];
 		if (!r.moved) return r;
 		const s = ++this.seq;
 		this.pending.push({ s, a: action, at, sentAt: this.now() });
-		this.send({ t: 'mv', s, a: encodeAction(action) });
+		this.send({ t: 'mv', s, a: encodeAction(action), at: Math.round(at) }); // the time it was made: see LAG_MS in room-core.js
 		return r;
 	}
 

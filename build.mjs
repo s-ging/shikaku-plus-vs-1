@@ -21,7 +21,7 @@ const files = [
 	'shared/settings.js',
 	'shared/protocol.js',
 	'shared/client-core.js',
-	'client/board.js',
+	'client/hud.js',
 	'client/ui.js'
 ];
 mkdirSync('public', { recursive: true });

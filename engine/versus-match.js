@@ -120,6 +120,10 @@ export class VersusMatch {
 			const s = new VersusSide(ss.name, rules, 1);
 			Object.assign(s.econ, JSON.parse(JSON.stringify(ss.econ)));
 			s.econ.rng.s = ss.rng;
+			// Rooms saved by an older engine lack newer fields: default them so they keep playing.
+			if (!Array.isArray(s.econ._clutch)) s.econ._clutch = [];
+			if (typeof s.econ.combo !== 'number') s.econ.combo = 0;
+			if (typeof s.econ.armed !== 'number') s.econ.armed = 0;
 			s.boardIndex = ss.boardIndex;
 			s.cleared = ss.cleared;
 			s.deal(cachedBoard(st.roundSeed, ss.boardIndex));
@@ -178,15 +182,22 @@ export class VersusMatch {
 			s.frozenAt = null;
 		}
 	}
-	catchUp(now) {
+	/**
+	 * only (optional): pay just that side. The server pays the OTHER seat's gravity a little
+	 * late (so a move made just before a tick, still on its way, can reset it) and the sender's
+	 * up to its own message: a seat's own messages arrive in order. Ticks are owed up to `now`,
+	 * never past it, so two horizons can coexist; both sides of the wire replay the same calls.
+	 */
+	catchUp(now, only = null) {
 		const out = [];
 		if (now == null) return out;
 		this.clock = Math.max(this.clock ?? now, now);
 		const step = (this.rules.gravitySecs || 0) * 1000;
 		if (!step || this.over || this.roundOver) return out;
 		this.sides.forEach((s, i) => {
+			if (only != null && i !== only) return;
 			if (s.frozenAt != null || s.gAt == null) return;
-			let owed = Math.floor((this.clock - s.gAt) / step);
+			let owed = Math.floor((now - s.gAt) / step);
 			while (owed-- > 0 && !this.roundOver) {
 				s.gAt += step;
 				const tag = (side, evs) => evs.forEach((e) => out.push({ side: side.name, ...e }));
