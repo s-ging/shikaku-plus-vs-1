@@ -65,13 +65,32 @@ button { cursor: pointer; }
 .mid p { margin: 2px 0 0; color: var(--fg2); font-size: 14px; }
 
 /* —— Seats: the callout lane sits above the card, the card covers its lower edge —— */
-.arena { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px; }
+.stage { display: grid; gap: 18px 28px; align-items: start; }
+.vs-head { grid-area: head; }
+#seat-you { grid-area: you; }
+#seat-them { grid-area: them; }
+.stage.spec { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: 'head head' 'you them'; }
+.stage.play { grid-template-columns: minmax(0, 1fr) minmax(0, 520px) minmax(0, 1fr); grid-template-areas: '. head .' '. you them'; }
+.stage.play #seat-them { width: min(200px, 100%); }
 .seat { min-width: 0; display: flex; flex-direction: column; }
+/* The mini board: same parts, scaled down; icons and the clock drop out. */
+.seat.mini { --pw: 6px; }
+.seat.mini .lane { height: 18px; font-size: 11px; padding: 0 3px; }
+.seat.mini .call, .seat.mini .combo { bottom: 3px; }
+.seat.mini .card { padding: 5px 5px 0; border-radius: 7px; }
+.seat.mini .foot { padding: 5px 2px 6px; grid-template-columns: minmax(0, 1fr) auto; gap: 4px; }
+.seat.mini .foot .who { font-size: 11px; }
+.seat.mini .foot .time, .seat.mini .icepole svg { display: none; }
+.seat.mini .hearts { gap: 3px; }
+.seat.mini .hearts i { width: 7px; height: 7px; }
+.seat.mini .icepole i.full { outline-width: 1px; outline-offset: 1px; }
 .lane { position: relative; z-index: 0; height: 30px; display: flex; align-items: flex-end; justify-content: space-between; padding: 0 6px; font-family: var(--font-call); font-size: 19px; line-height: 1; letter-spacing: 0.06em; white-space: nowrap; }
 .calls { position: relative; flex: 1 1 auto; height: 100%; min-width: 0; }
-.call { position: absolute; left: 0; bottom: 5px; animation: call-life var(--life, 1.2s) linear forwards; will-change: transform, opacity; }
+.call { position: absolute; left: 0; bottom: 5px; animation: call-rise 0.16s ease-out; will-change: transform, opacity; }
+.call.fade { animation: call-fade 0.7s ease-in forwards; }
 .call.knocked { animation: knock 0.18s ease-out forwards; }
-@keyframes call-life { 0% { transform: translateY(130%); opacity: 1; } 14% { transform: translateY(0); } 72% { opacity: 1; } 100% { transform: translateY(0); opacity: 0; } }
+@keyframes call-rise { from { transform: translateY(130%); } to { transform: translateY(0); } }
+@keyframes call-fade { from { opacity: 1; } to { opacity: 0; } }
 @keyframes knock { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-90%); opacity: 0; } }
 .combo { position: relative; bottom: 5px; flex: 0 0 auto; transition: opacity 0.3s; }
 .combo.gone { opacity: 0; }
@@ -88,30 +107,39 @@ button { cursor: pointer; }
 .card { background: var(--card); border-radius: 10px; padding: 10px 10px 0; min-width: 0; position: relative; z-index: 1; }
 canvas.board { display: block; width: 100%; height: auto; aspect-ratio: 1; touch-action: none; }
 
-/* —— Poles: both snap to the board's cell rows —— */
-.frame { position: relative; display: grid; grid-template-columns: 12px minmax(0, 1fr) 12px; gap: var(--fgap, 4px); align-items: stretch; }
+/* —— Poles: pills on tinted tracks. Every gap is the board's cell gap, so the pills
+   snap to the cell rows (ice: 1 pill per row; mines: 3 per row). --k = cell size. —— */
+.frame { position: relative; display: grid; grid-template-columns: var(--pw, 12px) minmax(0, 1fr) var(--pw, 12px); gap: var(--fgap, 4px); align-items: start; }
 .pole { display: flex; flex-direction: column; gap: var(--cgap, 4px); padding: var(--pinset, 3px) 0; }
-.pole > div { flex: 1 1 0; display: flex; flex-direction: column; gap: 2px; min-height: 0; }
-.pole i { display: block; flex: 1 1 0; background: var(--slot); border-radius: 2px; position: relative; overflow: hidden; }
-.pole .fill { position: absolute; inset: 0; transform-origin: bottom; transform: scaleY(0); transition: transform 0.25s ease-out; }
-/* Right: 12 bank (orange) + 6 batch (red), 3 dashes per cell row */
-.hazards i.bank.on { background: var(--bank); }
-.hazards i.bank.over { animation: blink 0.5s steps(2, jump-none) infinite; }
-.hazards i.batch.on { background: var(--mine); }
-/* Left: ice. Top 3 rows = your frost (out), bottom 3 rows = ice coming at you (in) */
-.icepole i { border-radius: var(--prad, 4px); overflow: visible; }
-.icepole i .fill { border-radius: inherit; background: var(--slate); }
+.track { display: flex; flex-direction: column; gap: var(--cgap, 4px); border-radius: 999px; }
+.pole i { display: block; position: relative; border-radius: 999px; }
+.hazards i { height: calc(var(--k, 60px) / 3 - var(--cgap, 4px)); }
+.icepole i { height: calc(var(--k, 60px) - var(--cgap, 4px)); }
+.track.bank { background: #3a3528; }
+.track.batch { background: #3a2a2a; }
+.track.out, .track.in { background: #29343f; }
+/* Right: 12 bank (gold) over 6 batch (red) */
+.hazards i.on { background: #d0b878; }
+.hazards .batch i.on { background: #d08080; }
+.hazards i.over { animation: blink 0.5s steps(2, jump-none) infinite; }
+/* Left: ice. Top 3 rows = your frost (attack, ◇+), bottom 3 = ice coming at you (defense, △!).
+   Both fill toward the middle, where the icons sit. */
+.icepole svg { position: absolute; left: 50%; width: min(9px, calc(var(--pw, 12px) - 3px)); height: auto; transform: translateX(-50%); color: rgba(255, 255, 255, 0.75); pointer-events: none; }
+.icepole .out svg { bottom: 3px; }
+.icepole .in svg { top: 3px; }
+.icepole .fill { position: absolute; left: 0; right: 0; top: 0; height: 0; border-radius: 999px; background: var(--slate); }
 .icepole i.near .fill { animation: near 0.42s steps(1, end) infinite; }
 @keyframes near { 0% { background: var(--frost); } 50% { background: #ffffff; } }
 .icepole i.full .fill { background: var(--frost); }
 .icepole i.full { outline: 1.5px solid var(--frost); outline-offset: 2px; }
-.icepole i.in.eta2 { background: var(--slate); }
-.icepole i.in.eta1 { background: var(--frost); animation: blink 0.36s steps(2, jump-none) infinite; }
-.icepole i.in.over { animation: overblink 0.3s steps(1, end) infinite; }
+.icepole i.full svg, .icepole .in i.eta2 svg, .icepole .in i.eta1 svg { color: rgba(0, 0, 0, 0.6); }
+.icepole .in i.eta2 { background: var(--slate); }
+.icepole .in i.eta1 { background: var(--frost); animation: blink 0.36s steps(2, jump-none) infinite; }
+.icepole .in i.over { animation: overblink 0.3s steps(1, end) infinite; }
 @keyframes overblink { 50% { background: #ffffff; } }
-.icepole i.in.landed { animation: landed 0.3s ease-out; }
+.icepole .in i.landed { animation: landed 0.3s ease-out; }
 @keyframes landed { 0% { opacity: 0.2; } 100% { opacity: 1; } }
-.icepole.fired i.out { animation: fired 0.35s ease-out; }
+.icepole.fired .out { animation: fired 0.35s ease-out; }
 @keyframes fired { 0% { opacity: 0.25; } 100% { opacity: 1; } }
 @keyframes blink { 50% { opacity: 0.4; } }
 
@@ -180,12 +208,19 @@ legend { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; col
 .tools .btn { font-size: 12.5px; padding: 5px 10px; }
 
 @media (prefers-reduced-motion: reduce) {
-	.call { animation-name: call-fade; }
-	@keyframes call-fade { 0%, 72% { opacity: 1; } 100% { opacity: 0; } }
+	.call { animation: none; }
 	.flick, .combo.bump, .hearts i.healing .fill, .pole i, .icepole i .fill { animation: none !important; }
 }
 @media (max-width: 760px) {
-	.arena { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+	.stage.spec { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'head' 'you' 'them'; gap: 14px; }
+	/* Phone, playing: the opponent is a mini board up in the header. */
+	.stage.play { grid-template-columns: minmax(0, 1fr) 112px; grid-template-areas: 'head them' 'you you'; gap: 12px 12px; align-items: end; }
+	.stage.play #seat-them { width: 112px; }
+	.stage.play .vs-head { display: grid; grid-template-columns: auto auto; grid-template-areas: 'mid mid' 'a b'; justify-content: start; gap: 8px 14px; align-self: center; }
+	.stage.play .vs-head .mid { grid-area: mid; text-align: left; }
+	.stage.play .vs-head .pl:first-child { grid-area: a; }
+	.stage.play .vs-head .pl:last-child { grid-area: b; }
+	.stage.play .box { width: 30px; height: 30px; font-size: 16px; }
 	.lab { grid-template-columns: minmax(0, 1fr); }
 	.vs-head { flex-wrap: nowrap; gap: 10px; }
 	.box { width: 36px; height: 36px; font-size: 18px; }
@@ -198,6 +233,7 @@ legend { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; col
 </style>
 
 <div class="wrap">
+	<div class="stage play" id="stage">
 	<header class="vs-head">
 		<div class="pl"><span id="name-you">You</span><span class="box you num" id="score-you">0</span></div>
 		<div class="mid">
@@ -207,8 +243,7 @@ legend { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; col
 		<div class="pl"><span class="box them num" id="score-them">0</span><span id="name-them">Bot</span></div>
 	</header>
 
-	<main class="arena">
-		<section class="seat" aria-label="Your board">
+		<section class="seat" id="seat-you" aria-label="Your board">
 			<div class="lane"><div class="calls" id="you-calls" aria-live="polite"></div><div class="combo" id="you-combo" hidden><span></span></div></div>
 			<div class="card" id="you-card">
 				<div class="frame">
@@ -229,7 +264,7 @@ legend { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; col
 				</div>
 			</div>
 		</section>
-		<section class="seat" aria-label="Bot board">
+		<section class="seat mini" id="seat-them" aria-label="Bot board">
 			<div class="lane"><div class="calls" id="them-calls"></div><div class="combo" id="them-combo" hidden><span></span></div></div>
 			<div class="card" id="them-card">
 				<div class="frame">
@@ -244,11 +279,12 @@ legend { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; col
 				</div>
 			</div>
 		</section>
-	</main>
+	</div>
 
 	<p class="hint">Drag to place a box, tap one to erase it. Your board ticks when you move and every 3 seconds anyway. Mines land in clumps in the biggest open box: cover them to defuse. Clear boards in a row for a combo; only a mine going off or freezing over breaks it.</p>
 	<div class="controls">
 		<div class="seg" id="presets" role="group" aria-label="Bot difficulty"></div>
+		<div class="seg" id="views" role="group" aria-label="Layout"><button type="button" data-view="play" aria-pressed="true">Play view</button><button type="button" data-view="spec" aria-pressed="false">Spectator view</button></div>
 		<button class="btn" id="watch" aria-pressed="false">Watch bots</button>
 		<button class="btn" id="pause">Pause</button>
 		<button class="btn" id="restart">New match</button>
@@ -268,9 +304,10 @@ legend { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; col
 		<div class="panel">
 			<h3>Rules lab</h3>
 			<div class="note">
-				<p><b>Above the board.</b> Left: what your last move did (SENT, COUNTER-SPIKE, CLUTCH). It rises from behind the board and fades; a new one knocks the old one off. Colour is how many mines it sent: grey up to 4, amber 5–8, red 9–15, white-hot 16+ or in a rush. Right: your combo, clears in a row, shown from 2. It adds +1 at 2, +2 at 4, +3 at 6, +4 at 8 and up. Medium moments blink twice, big three times, max four.</p>
-				<p><b>Left pole, ice.</b> Top half is your frost: each row is one ice, filling as you charge it. One point short it blinks; full, it's outlined and fires on your next move (or with your clear on your last 4 boxes). Bottom half is ice coming at you: slate lands in 2 moves, blinking blue lands next move; the bottom row flashes white when more than 3 are coming.</p>
-				<p><b>Right pole, mines.</b> 18 dashes, 3 per row: orange is the bank (12; the top blinks past 12), red is the batch landing on your next move. Hearts are the dots in the footer; a lost one fills back per perfect board.</p>
+				<p><b>Above the board.</b> Left: what your last move did (SENT, COUNTER-SPIKE, CLUTCH). It rises from behind the board and fades; a new one knocks the old one off. Colour is how many mines it sent: grey up to 4, amber 5–8, red 9–15, white-hot 16+ or in a rush. Right: your combo, clears in a row, shown from 2. It adds +1 at 2, +2 at 4, +3 at 6, +4 at 8 and up. Medium moments blink twice, big three times, max four. ICEBREAK is blue: ice you broke.</p>
+				<p><b>Left pole, ice.</b> Top half (◇+, attack) is your frost: each row is one ice, filling down toward the middle as you charge it. One point short it blinks; full, it's outlined and fires on your next move (or with your clear on your last 4 boxes). Bottom half (△!, danger) is ice coming at you: slate lands in 2 moves, blinking blue lands next move; the bottom row flashes white when more than 3 are coming.</p>
+				<p><b>Views.</b> Play view keeps your board where solo has it, with the opponent as a mini board (beside you on desktop, in the header on a phone). Spectator view puts both boards side by side; Watch bots switches to it.</p>
+				<p><b>Right pole, mines.</b> 18 pills, 3 per row: gold is the bank (12; the top blinks past 12), red is the batch landing on your next move. Hearts are the dots in the footer; a lost one fills back per perfect board.</p>
 			</div>
 			<div class="groups" id="groups"></div>
 			<div class="tools">
