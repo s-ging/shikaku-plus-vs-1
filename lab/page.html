@@ -1,0 +1,286 @@
+<title>Shikaku+ VS Lab</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Antique&family=Shippori+Antique+B1&family=Shippori+Mincho+B1:wght@600;800&display=swap">
+<style>
+/* Shikaku+ VS lab on the vs-1 engine. Dark-only, matching the VS comps.
+   Every animation here moves transform or opacity only (low-end guardrail). */
+:root {
+	--bg: #1c1c1c;
+	--card: #161616;
+	--cell: #2b2b2b;
+	--hatch: #1d1d1d;
+	--fg: #ffffff;
+	--fg2: rgba(255, 255, 255, 0.62);
+	--fg3: rgba(255, 255, 255, 0.4);
+	--you: #d08080;
+	--them: #80b3e6;
+	--mine: #d08080;
+	--ice: #80b3e6;
+	--ink: #121212;
+	--accent: #d0b878;
+	--bank: #f0a040;
+	--slot: #262626;
+	--slate: #8098b0; /* ice that's coming or charging */
+	--frost: #7cb3eb; /* ice one step away: about to fire, or landing next move */
+	--hot: #fff6e6; /* white-hot */
+	--num-on-block: rgba(0, 0, 0, 0.35);
+	--drag-fill: rgba(68, 136, 255, 0.3);
+	--drag-stroke: #4488ff;
+	--invalid-fill: rgba(255, 85, 85, 0.35);
+	--overlay: rgba(18, 18, 22, 0.88);
+	--font-ui: 'Shippori Antique B1', 'Hiragino Sans', system-ui, sans-serif;
+	--font-call: 'Shippori Antique', 'Shippori Antique B1', 'Hiragino Sans', system-ui, sans-serif;
+	--font-brand: 'Shippori Mincho B1', 'Hiragino Mincho ProN', Georgia, serif;
+	color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+	background: var(--bg);
+	color: var(--fg);
+	font-family: var(--font-ui);
+	font-size: 14px;
+	line-height: 1.45;
+	margin: 0;
+	padding-left: max(16px, env(safe-area-inset-left, 0px));
+	padding-right: max(16px, env(safe-area-inset-right, 0px));
+	padding-block: 20px 36px;
+}
+button, select, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--drag-stroke); outline-offset: 2px; }
+.num { font-variant-numeric: tabular-nums; }
+.wrap { max-width: 1000px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
+
+/* —— Score header —— */
+.vs-head { display: flex; align-items: center; justify-content: center; gap: 18px; flex-wrap: wrap; }
+.pl { display: flex; align-items: center; gap: 12px; font-size: 18px; }
+.box { width: 46px; height: 46px; border-radius: 6px; display: grid; place-items: center; font-size: 22px; color: var(--ink); }
+.box.you { background: var(--you); }
+.box.them { background: var(--them); }
+.mid { text-align: center; padding: 0 8px; }
+.mid h1 { font-family: var(--font-brand); font-weight: 800; font-size: 28px; margin: 0; line-height: 1.1; }
+.mid p { margin: 2px 0 0; color: var(--fg2); font-size: 14px; }
+
+/* —— Seats: the callout lane sits above the card, the card covers its lower edge —— */
+.arena { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px; }
+.seat { min-width: 0; display: flex; flex-direction: column; }
+.lane { position: relative; z-index: 0; height: 30px; display: flex; align-items: flex-end; justify-content: space-between; padding: 0 6px; font-family: var(--font-call); font-size: 19px; line-height: 1; letter-spacing: 0.06em; white-space: nowrap; }
+.calls { position: relative; flex: 1 1 auto; height: 100%; min-width: 0; }
+.call { position: absolute; left: 0; bottom: 5px; animation: call-life var(--life, 1.2s) linear forwards; will-change: transform, opacity; }
+.call.knocked { animation: knock 0.18s ease-out forwards; }
+@keyframes call-life { 0% { transform: translateY(130%); opacity: 1; } 14% { transform: translateY(0); } 72% { opacity: 1; } 100% { transform: translateY(0); opacity: 0; } }
+@keyframes knock { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-90%); opacity: 0; } }
+.combo { position: relative; bottom: 5px; flex: 0 0 auto; transition: opacity 0.3s; }
+.combo.gone { opacity: 0; }
+.combo.bump { animation: bump 0.18s ease-out; }
+@keyframes bump { 40% { transform: scale(1.14); } }
+.t0 { color: rgba(255, 255, 255, 0.5); }
+.t1 { color: #d0b878; }
+.t2 { color: #d08080; }
+.t3 { color: var(--hot); }
+.ti { color: var(--frost); }
+.flick { animation: flick 0.16s steps(1, end) var(--n, 2); }
+@keyframes flick { 50% { opacity: 0.12; } }
+
+.card { background: var(--card); border-radius: 10px; padding: 10px 10px 0; min-width: 0; position: relative; z-index: 1; }
+canvas.board { display: block; width: 100%; height: auto; aspect-ratio: 1; touch-action: none; }
+
+/* —— Poles: both snap to the board's cell rows —— */
+.frame { position: relative; display: grid; grid-template-columns: 12px minmax(0, 1fr) 12px; gap: var(--fgap, 4px); align-items: stretch; }
+.pole { display: flex; flex-direction: column; gap: var(--cgap, 4px); padding: var(--pinset, 3px) 0; }
+.pole > div { flex: 1 1 0; display: flex; flex-direction: column; gap: 2px; min-height: 0; }
+.pole i { display: block; flex: 1 1 0; background: var(--slot); border-radius: 2px; position: relative; overflow: hidden; }
+.pole .fill { position: absolute; inset: 0; transform-origin: bottom; transform: scaleY(0); transition: transform 0.25s ease-out; }
+/* Right: 12 bank (orange) + 6 batch (red), 3 dashes per cell row */
+.hazards i.bank.on { background: var(--bank); }
+.hazards i.bank.over { animation: blink 0.5s steps(2, jump-none) infinite; }
+.hazards i.batch.on { background: var(--mine); }
+/* Left: ice. Top 3 rows = your frost (out), bottom 3 rows = ice coming at you (in) */
+.icepole i { border-radius: var(--prad, 4px); overflow: visible; }
+.icepole i .fill { border-radius: inherit; background: var(--slate); }
+.icepole i.near .fill { animation: near 0.42s steps(1, end) infinite; }
+@keyframes near { 0% { background: var(--frost); } 50% { background: #ffffff; } }
+.icepole i.full .fill { background: var(--frost); }
+.icepole i.full { outline: 1.5px solid var(--frost); outline-offset: 2px; }
+.icepole i.in.eta2 { background: var(--slate); }
+.icepole i.in.eta1 { background: var(--frost); animation: blink 0.36s steps(2, jump-none) infinite; }
+.icepole i.in.over { animation: overblink 0.3s steps(1, end) infinite; }
+@keyframes overblink { 50% { background: #ffffff; } }
+.icepole i.in.landed { animation: landed 0.3s ease-out; }
+@keyframes landed { 0% { opacity: 0.2; } 100% { opacity: 1; } }
+.icepole.fired i.out { animation: fired 0.35s ease-out; }
+@keyframes fired { 0% { opacity: 0.25; } 100% { opacity: 1; } }
+@keyframes blink { 50% { opacity: 0.4; } }
+
+/* —— Footer: name, time, hearts —— */
+.foot { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; padding: 10px 6px 12px; font-size: 13px; color: var(--fg2); }
+.foot .who { color: var(--fg); font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.foot .time { font-size: 14px; }
+.hearts { justify-self: end; display: inline-flex; gap: 6px; }
+.hearts i { width: 13px; height: 13px; border-radius: 50%; display: block; position: relative; overflow: hidden; box-shadow: inset 0 0 0 1.5px var(--fg3); }
+.hearts i.on { background: var(--you); box-shadow: none; }
+.hearts i .fill { position: absolute; inset: 0; background: var(--you); transform-origin: bottom; transform: scaleY(0); transition: transform 0.45s ease-in; }
+.hearts i.healing .fill { animation: heartbeat 1.1s linear infinite; }
+@keyframes heartbeat { 0% { opacity: 0.35; } 8% { opacity: 1; } 16% { opacity: 0.5; } 26% { opacity: 1; } 42% { opacity: 0.35; } 100% { opacity: 0.35; } }
+.hearts.healed i.on { animation: heal 0.7s ease-out; }
+@keyframes heal { 35% { transform: scale(1.5); } }
+
+.shot { position: fixed; left: -7px; top: -7px; width: 14px; height: 14px; border-radius: 3px; background: var(--bank); pointer-events: none; z-index: 5; }
+.shot.big { width: 20px; height: 20px; left: -10px; top: -10px; }
+.shot.frost { background: var(--frost); }
+
+.overlay { position: absolute; inset: 0; background: var(--overlay); border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; padding: 20px; z-index: 4; }
+.overlay h2 { font-family: var(--font-brand); font-size: 32px; margin: 0; }
+.overlay p { margin: 0; color: var(--fg2); }
+.btn { border: 0; border-radius: 6px; background: var(--cell); padding: 7px 14px; }
+.btn.primary { background: var(--accent); color: var(--ink); }
+.controls { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; align-items: center; }
+#watch-row { margin-top: -10px; }
+.watch-label { font-size: 13px; color: var(--fg2); }
+#watch[aria-pressed='true'] { background: var(--you); color: var(--ink); }
+.seg { display: inline-flex; background: var(--card); border-radius: 6px; padding: 3px; flex-wrap: wrap; }
+.seg button { border: 0; background: transparent; color: var(--fg2); padding: 5px 11px; border-radius: 4px; }
+.seg button[aria-pressed='true'] { background: var(--accent); color: var(--ink); }
+.shake-big { animation: shake-big 0.42s cubic-bezier(.36,.07,.19,.97); }
+.shake-small { animation: shake-small 0.22s ease-out; }
+@keyframes shake-big {
+	10%, 90% { transform: translate(-2px, 1px); }
+	20%, 80% { transform: translate(4px, -2px); }
+	30%, 50%, 70% { transform: translate(-7px, 2px); }
+	40%, 60% { transform: translate(7px, -1px); }
+}
+@keyframes shake-small { 30% { transform: translate(0, 2px); } 60% { transform: translate(0, -1px); } }
+.hint { text-align: center; color: var(--fg3); font-size: 12.5px; margin: -8px auto 0; max-width: 72ch; }
+
+/* —— Lab —— */
+.lab { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 20px; align-items: start; }
+.panel { background: var(--card); border-radius: 10px; padding: 14px 16px; min-width: 0; }
+.panel h3 { font-family: var(--font-brand); font-size: 16px; margin: 0 0 10px; }
+.log { list-style: none; margin: 0; padding: 0; max-height: 340px; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; }
+.log li { display: grid; grid-template-columns: 38px minmax(0, 1fr); gap: 8px; color: var(--fg2); }
+.log li .who { color: var(--fg3); }
+.log li.you .who { color: var(--you); }
+.log li.them .who { color: var(--them); }
+.log li.match { color: var(--fg); }
+.note { border-left: 2px solid var(--accent); padding: 2px 0 2px 10px; color: var(--fg2); font-size: 12.5px; margin: 0 0 12px; max-width: 72ch; }
+.note p { margin: 0 0 6px; }
+.groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px 22px; }
+fieldset { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+legend { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); padding: 0; margin-bottom: 4px; }
+.row { display: grid; grid-template-columns: minmax(0, 1fr) 88px 44px; gap: 8px; align-items: center; font-size: 12.5px; }
+.row.toggle { grid-template-columns: minmax(0, 1fr) auto; }
+.row label { color: var(--fg2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row output { text-align: right; font-variant-numeric: tabular-nums; }
+.row input[type='range'] { width: 100%; accent-color: var(--accent); }
+.row select { background: var(--cell); border: 0; border-radius: 6px; padding: 3px 6px; max-width: 190px; }
+.tools { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+.tools .btn { font-size: 12.5px; padding: 5px 10px; }
+
+@media (prefers-reduced-motion: reduce) {
+	.call { animation-name: call-fade; }
+	@keyframes call-fade { 0%, 72% { opacity: 1; } 100% { opacity: 0; } }
+	.flick, .combo.bump, .hearts i.healing .fill, .pole i, .icepole i .fill { animation: none !important; }
+}
+@media (max-width: 760px) {
+	.arena { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+	.lab { grid-template-columns: minmax(0, 1fr); }
+	.vs-head { flex-wrap: nowrap; gap: 10px; }
+	.box { width: 36px; height: 36px; font-size: 18px; }
+	.pl { font-size: 14px; gap: 8px; }
+	.mid { padding: 0; }
+	.mid h1 { font-size: 21px; }
+	.mid p { font-size: 11.5px; }
+	.lane { font-size: 17px; }
+}
+</style>
+
+<div class="wrap">
+	<header class="vs-head">
+		<div class="pl"><span id="name-you">You</span><span class="box you num" id="score-you">0</span></div>
+		<div class="mid">
+			<h1>Versus</h1>
+			<p id="mode-line">6×6 · Classic · FT7</p>
+		</div>
+		<div class="pl"><span class="box them num" id="score-them">0</span><span id="name-them">Bot</span></div>
+	</header>
+
+	<main class="arena">
+		<section class="seat" aria-label="Your board">
+			<div class="lane"><div class="calls" id="you-calls" aria-live="polite"></div><div class="combo" id="you-combo" hidden><span></span></div></div>
+			<div class="card" id="you-card">
+				<div class="frame">
+					<div class="pole icepole" id="you-ice" aria-label="Ice: your frost on top, ice coming at you below"></div>
+					<canvas class="board" id="you-board" aria-label="Your Shikaku board"></canvas>
+					<div class="pole hazards" id="you-hazards" aria-label="Incoming mines"></div>
+				</div>
+				<div class="foot">
+					<span class="who" id="you-name">You</span>
+					<span class="time num" id="you-time">0:00</span>
+					<span class="hearts" id="you-hearts" aria-label="Hearts"></span>
+				</div>
+				<div class="overlay" id="overlay" hidden>
+					<h2 id="ov-title">Round won</h2>
+					<p id="ov-sub"></p>
+					<button class="btn primary" id="ov-next">Next round</button>
+					<button class="btn" id="ov-log">Copy round log</button>
+				</div>
+			</div>
+		</section>
+		<section class="seat" aria-label="Bot board">
+			<div class="lane"><div class="calls" id="them-calls"></div><div class="combo" id="them-combo" hidden><span></span></div></div>
+			<div class="card" id="them-card">
+				<div class="frame">
+					<div class="pole icepole" id="them-ice" aria-label="Ice: frost on top, ice coming in below"></div>
+					<canvas class="board" id="them-board" aria-label="Bot board"></canvas>
+					<div class="pole hazards" id="them-hazards" aria-label="Incoming mines"></div>
+				</div>
+				<div class="foot">
+					<span class="who" id="them-name">Bot</span>
+					<span class="time num" id="them-time">0:00</span>
+					<span class="hearts" id="them-hearts" aria-label="Hearts"></span>
+				</div>
+			</div>
+		</section>
+	</main>
+
+	<p class="hint">Drag to place a box, tap one to erase it. Your board ticks when you move and every 3 seconds anyway. Mines land in clumps in the biggest open box: cover them to defuse. Clear boards in a row for a combo; only a mine going off or freezing over breaks it.</p>
+	<div class="controls">
+		<div class="seg" id="presets" role="group" aria-label="Bot difficulty"></div>
+		<button class="btn" id="watch" aria-pressed="false">Watch bots</button>
+		<button class="btn" id="pause">Pause</button>
+		<button class="btn" id="restart">New match</button>
+	</div>
+	<div class="controls" id="watch-row" hidden>
+		<span class="watch-label">Left bot</span>
+		<div class="seg" id="left-presets" role="group" aria-label="Left bot difficulty"></div>
+		<span class="watch-label">Speed</span>
+		<div class="seg" id="speeds" role="group" aria-label="Playback speed"></div>
+	</div>
+
+	<section class="lab">
+		<div class="panel">
+			<h3>Match log</h3>
+			<ul class="log" id="log"></ul>
+		</div>
+		<div class="panel">
+			<h3>Rules lab</h3>
+			<div class="note">
+				<p><b>Above the board.</b> Left: what your last move did (SENT, COUNTER-SPIKE, CLUTCH). It rises from behind the board and fades; a new one knocks the old one off. Colour is how many mines it sent: grey up to 4, amber 5–8, red 9–15, white-hot 16+ or in a rush. Right: your combo, clears in a row, shown from 2. It adds +1 at 2, +2 at 4, +3 at 6, +4 at 8 and up. Medium moments blink twice, big three times, max four.</p>
+				<p><b>Left pole, ice.</b> Top half is your frost: each row is one ice, filling as you charge it. One point short it blinks; full, it's outlined and fires on your next move (or with your clear on your last 4 boxes). Bottom half is ice coming at you: slate lands in 2 moves, blinking blue lands next move; the bottom row flashes white when more than 3 are coming.</p>
+				<p><b>Right pole, mines.</b> 18 dashes, 3 per row: orange is the bank (12; the top blinks past 12), red is the batch landing on your next move. Hearts are the dots in the footer; a lost one fills back per perfect board.</p>
+			</div>
+			<div class="groups" id="groups"></div>
+			<div class="tools">
+				<button class="btn" id="t-mines">Send me 4 mines</button>
+				<button class="btn" id="t-ice">Send me 2 ice</button>
+				<button class="btn" id="t-bot">Send bot 4 mines</button>
+				<button class="btn" id="t-reset">Reset rules</button>
+				<button class="btn" id="t-copy">Copy rules JSON</button>
+				<button class="btn" id="t-log">Copy round log</button>
+			</div>
+		</div>
+	</section>
+</div>

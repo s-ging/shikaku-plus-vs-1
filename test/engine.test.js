@@ -82,7 +82,7 @@ test('thaw (old rules, thawSendsIce): adjacent placement −2, thaw-out sends 1 
 });
 
 test('perfect clear (old rules, perfectSendsIce 1) sends 4 mines + 1 ice; a do-over makes it 4 mines only', () => {
-	const e = p({ perfectSendsIce: 1 });
+	const e = p({ perfectSendsIce: 1, comboTable: [] });
 	e.onBoardCleared();
 	assert.deepEqual(e.drainOut(), { mines: 4, ice: 1 });
 	e.onErase();
@@ -339,8 +339,8 @@ test('defuse-clear: mines defused by the clearing box add to the attack; clutch 
 	assert.equal(clear.sendMines, e.rules.clearSend + 2);
 });
 
-test('frost: early defuses charge it, it fires when full, holds on the last 4 boxes and fires with the clear', () => {
-	const e = p();
+test('frost (no arming delay): early defuses charge it, it fires when full, holds on the last 4 boxes and fires with the clear', () => {
+	const e = p({ frostArmMoves: 0 });
 	e.mines = [0, 1, 2, 3].map((cell) => ({ cell, fuse: 3 }));
 	e.onPlacement([0, 1, 2, 3], []);
 	assert.equal(e.frost, 4);
@@ -497,4 +497,33 @@ test('snapshot round-trip: a restored match plays on identically', () => {
 	}
 	assert.deepEqual(b.toState(), a.toState());
 	assert.ok(JSON.stringify(st).length < 6000, 'snapshot stays small: ' + JSON.stringify(st).length);
+});
+
+test('frost arms for one move mid-board, then fires; held ice shows armed and fires with the clear', () => {
+	const e = p();
+	e.frost = 4;
+	assert.deepEqual(e.settleFrost(6, false), []);
+	assert.equal(e.armed, 1, 'armed, not fired');
+	assert.deepEqual(e.settleFrost(6, false), [{ kind: 'frostFire', count: 1, withClear: false }]);
+	assert.equal(e.armed, 0);
+	e.frost = 9;
+	e.settleFrost(3, false);
+	assert.equal(e.armed, 2, 'held on the last boxes shows armed');
+	assert.deepEqual(e.settleFrost(0, true), [{ kind: 'frostFire', count: 2, withClear: true }]);
+	assert.equal(e.frost, 1);
+});
+
+test('combo: clears in a row add to the attack on a capped ramp; damage breaks it, do-overs do not', () => {
+	const e = p({ healPerfectBoards: 0 });
+	const sends = [];
+	for (let i = 0; i < 10; i++) {
+		if (i === 3) e.onErase(); // a do-over keeps the combo
+		sends.push(e.onBoardCleared()[0].sendMines);
+	}
+	assert.deepEqual(sends, [4, 5, 5, 6, 6, 7, 7, 8, 8, 8]);
+	e.mines = [{ cell: 0, fuse: 1 }];
+	const ev = e.tick(FREE);
+	assert.ok(ev.some((x) => x.kind === 'comboBreak' && x.combo === 10));
+	assert.equal(e.combo, 0);
+	assert.equal(e.onBoardCleared()[0].sendMines, 4);
 });

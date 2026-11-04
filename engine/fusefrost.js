@@ -70,6 +70,13 @@ export const FF_RULES = {
 	frostMaxHeld: 12, // 3 ice: one clear alone can never freeze someone over
 	// Clutch: a mine covered on its very last tick cancels this many of your own incoming.
 	clutchCancels: 1,
+	// Combo (Krischan, 2026-11-05): clears in a row. Only damage breaks it (a mine going off on
+	// you, or freezing over); do-overs don't, because Shikaku needs them. The payout is added to
+	// each clear's attack and is capped (a Jstris-style slow ramp): index = combo count.
+	comboTable: [0, 0, 1, 1, 2, 2, 3, 3, 4], // combo 1: +0, 2–3: +1, 4–5: +2, 6–7: +3, 8+: +4
+	// A full frost ice mid-board is armed for one move (outlined), then fires: every send gets a
+	// visible armed moment. Held ice on the last boxes fires with the clear as before.
+	frostArmMoves: 1,
 	// Defuse-clear: each mine defused by the box that finishes the board adds this many
 	// mines to the clear's attack. Flat, never a multiplier (counter-spikes are big already).
 	defuseClearBonus: 1,
@@ -133,6 +140,8 @@ export class FFPlayer {
 		this._bankCold = 0;
 		this._defusedThisMove = 0;
 		this.frost = 0;
+		this.armed = 0;
+		this.combo = 0;
 		this.graceLeft = 0;
 		this.outMines = 0;
 		this.outIce = 0;
@@ -311,7 +320,11 @@ export class FFPlayer {
 		this._defusedThisMove = 0;
 		this.graceLeft = r.clearGrace ? r.clearGrace : 0; // first move on the new board is safe
 		this.stats.frozenOut = (this.stats.frozenOut || 0) + 1;
-		return [{ kind: 'frozenOut', pauseMs: r.frozenPauseMs }];
+		const ev = [{ kind: 'frozenOut', pauseMs: r.frozenPauseMs }];
+		if (this.combo) ev.push({ kind: 'comboBreak', combo: this.combo });
+		this.combo = 0;
+		this.armed = 0;
+		return ev;
 	}
 
 	/** Frost settles after each move: fires when full, or holds near the end of a board. */
@@ -322,10 +335,18 @@ export class FFPlayer {
 		const r = this.rules;
 		if (!r.frostMeter) return [];
 		let count = 0;
-		if (cleared || !this.frostHeld(boxesLeft)) {
-			count = Math.floor(this.frost / r.frostMeter);
-			this.frost -= count * r.frostMeter;
-		} else this.frost = Math.min(this.frost, r.frostMaxHeld);
+		const full = () => Math.floor(this.frost / r.frostMeter);
+		if (cleared) {
+			count = full(); // the cannon: everything charged goes out with the clear
+			this.armed = 0;
+		} else if (this.frostHeld(boxesLeft)) {
+			this.frost = Math.min(this.frost, r.frostMaxHeld);
+			this.armed = full(); // held, shown armed, fires with the clear
+		} else if (r.frostArmMoves) {
+			count = this.armed; // armed last move: fire now
+			this.armed = full() - count; // newly completed: armed, fires next move
+		} else count = full();
+		if (count) this.frost -= count * r.frostMeter;
 		if (!count) return [];
 		this.outIce += count;
 		this.stats.sentIce += count;
@@ -398,7 +419,10 @@ export class FFPlayer {
 		const perfect = this.doOversThisBoard === 0;
 		const defuseBonus = (r.defuseClearBonus || 0) * this._defusedThisMove;
 		this._defusedThisMove = 0;
-		this.outMines += r.clearSend + defuseBonus;
+		this.combo++;
+		const t = r.comboTable || [];
+		const comboBonus = t.length ? t[Math.min(this.combo, t.length - 1)] : 0;
+		this.outMines += r.clearSend + defuseBonus + comboBonus;
 		if (perfect) {
 			this.outIce += r.perfectSendsIce;
 			this.stats.perfects++;
@@ -425,7 +449,7 @@ export class FFPlayer {
 		const wiped = (r.clearWipesPool ? this.pool : 0) + (r.clearWipesIncoming ? this.incomingTotal : 0);
 		if (r.clearWipesPool) this.pool = 0;
 		if (r.clearWipesIncoming) this.incoming = [];
-		return [{ kind: 'clear', wiped, perfect, perfectRun: this.perfectRun, sendMines: r.clearSend + defuseBonus, defuseBonus, sendIce: perfect ? r.perfectSendsIce : 0 }, ...ev];
+		return [{ kind: 'clear', wiped, perfect, perfectRun: this.perfectRun, sendMines: r.clearSend + defuseBonus + comboBonus, defuseBonus, combo: this.combo, comboBonus, sendIce: perfect ? r.perfectSendsIce : 0 }, ...ev];
 	}
 
 	drainOut() {
@@ -461,6 +485,8 @@ export class FFPlayer {
 			const cap = r.maxHeartsPerMove || blown.length;
 			this.hearts -= Math.min(blown.length, cap);
 			for (const m of blown) ev.push({ kind: 'mineExplode', cell: m.cell, hearts: this.hearts, together: blown.length });
+			if (this.combo) ev.push({ kind: 'comboBreak', combo: this.combo });
+			this.combo = 0;
 		}
 
 		// 2) Passive thaw (sends nothing)
