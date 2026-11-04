@@ -1,10 +1,10 @@
 // settings.js — the room settings a host can change before a match, shared by the
 // client (to draw the menu) and the server (to accept only these keys, in range).
-// The rules themselves live in ../engine/fusefrost.js (FF_RULES); this is
+// The rules themselves live in ../engine/versus.js (VERSUS_RULES); this is
 // only the list of knobs a room may turn, and the presets.
-import { FF_RULES } from '../engine/fusefrost.js';
+import { VERSUS_RULES } from '../engine/versus.js';
 
-/** Every setting a room may change. Anything not listed here is fixed at FF_RULES. */
+/** Every setting a room may change. Anything not listed here is fixed at VERSUS_RULES. */
 export const SETTINGS = [
 	// Match
 	{ k: 'firstTo', group: 'Match', label: 'First to', type: 'int', min: 1, max: 9, def: 7 },
@@ -37,9 +37,9 @@ export const SETTINGS = [
 ];
 
 const BY_KEY = new Map(SETTINGS.map((s) => [s.k, s]));
-export const defaultOf = (k) => (k in FF_RULES ? FF_RULES[k] : BY_KEY.get(k)?.def);
+export const defaultOf = (k) => (k in VERSUS_RULES ? VERSUS_RULES[k] : BY_KEY.get(k)?.def);
 
-/** Named starting points. Default is FF_RULES untouched. */
+/** Named starting points. Default is VERSUS_RULES untouched. */
 export const PRESETS = [
 	{ id: 'default', label: 'Default', set: {} },
 	{ id: 'spiky', label: 'Spiky', set: { counterRate: 1, cancelOrder: 'orangeFirst' } },
@@ -69,8 +69,8 @@ export function sanitize(input) {
 	return out;
 }
 
-/** The rules a match runs with: FF_RULES plus the room's sanitized overrides (firstTo is not a rule). */
+/** The rules a match runs with: VERSUS_RULES plus the room's sanitized overrides (firstTo is not a rule). */
 export function rulesFor(overrides) {
 	const { firstTo, ...rest } = sanitize(overrides);
-	return { rules: { ...FF_RULES, ...rest }, firstTo: firstTo ?? 7 };
+	return { rules: { ...VERSUS_RULES, ...rest }, firstTo: firstTo ?? 7 };
 }

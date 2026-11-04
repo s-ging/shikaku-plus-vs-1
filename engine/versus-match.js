@@ -1,16 +1,16 @@
-// ffmatch.js — Fuse & Frost match. Each board ticks on its OWN player's moves,
+// versus-match.js — the Shikaku+ VS match. Each board ticks on its OWN player's moves,
 // so incoming mines land when you move (Tetris garbage) and you can always stop
 // and plan. Faster players simply attack more often.
 import { Rect } from './puzzle.js';
 import { commit, isSolved } from './game.js';
 import { rectCellsOf, edgeCellsOf, coveredSet, unplacedGivens } from './economy.js';
 import { vsBoard, ReplayBot } from './match.js';
-import { FF_RULES, FFPlayer } from './fusefrost.js';
+import { VERSUS_RULES, VersusPlayer } from './versus.js';
 
-export class FFSide {
+export class VersusSide {
 	constructor(name, rules, seed) {
 		this.name = name;
-		this.econ = new FFPlayer(rules, seed);
+		this.econ = new VersusPlayer(rules, seed);
 		this.boardIndex = 0;
 		this.cleared = 0;
 		this.puzzle = null;
@@ -66,7 +66,7 @@ function cachedBoard(roundSeed, index) {
 }
 const ECON_SKIP = new Set(['rules', 'rng', 'seed']);
 
-export class FFMatch {
+export class VersusMatch {
 	/**
 	 * Compact, JSON-safe snapshot of the whole match: what the server sends so clients
 	 * can snap to the truth. Boards aren't sent; they're regenerated from their seed.
@@ -102,8 +102,8 @@ export class FFMatch {
 			})
 		};
 	}
-	static fromState(st, rules = FF_RULES) {
-		const m = Object.create(FFMatch.prototype);
+	static fromState(st, rules = VERSUS_RULES) {
+		const m = Object.create(VersusMatch.prototype);
 		m.rules = rules;
 		m.seed = st.seed;
 		m.target = st.target;
@@ -117,7 +117,7 @@ export class FFMatch {
 		m.clock = st.clock ?? undefined;
 		m.roundStartAt = st.roundStartAt ?? undefined;
 		m.sides = st.sides.map((ss, i) => {
-			const s = new FFSide(ss.name, rules, 1);
+			const s = new VersusSide(ss.name, rules, 1);
 			Object.assign(s.econ, JSON.parse(JSON.stringify(ss.econ)));
 			s.econ.rng.s = ss.rng;
 			s.boardIndex = ss.boardIndex;
@@ -132,7 +132,7 @@ export class FFMatch {
 		return m;
 	}
 
-	constructor({ rules = FF_RULES, seed = 1, target = 7 } = {}) {
+	constructor({ rules = VERSUS_RULES, seed = 1, target = 7 } = {}) {
 		this.rules = rules;
 		this.seed = seed;
 		this.target = target;
@@ -146,8 +146,8 @@ export class FFMatch {
 		this.round++;
 		this.roundSeed = this.seed * 1000 + this.round;
 		this.sides = [
-			new FFSide('you', this.rules, this.roundSeed * 3 + 1),
-			new FFSide('them', this.rules, this.roundSeed * 3 + 2)
+			new VersusSide('you', this.rules, this.roundSeed * 3 + 1),
+			new VersusSide('them', this.rules, this.roundSeed * 3 + 2)
 		];
 		for (const s of this.sides) s.deal(cachedBoard(this.roundSeed, 0));
 		this.roundOver = null;

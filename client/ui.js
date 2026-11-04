@@ -42,7 +42,7 @@
 	let mode = null; // 'online' | 'practice'
 	let core = null; // ClientCore (online) or a practice adapter with the same shape
 	let room = null; // last 'room' message
-	let rules = FF_RULES;
+	let rules = VERSUS_RULES;
 	let gravTimer = 0;
 	let lastRoundSeen = null;
 
@@ -460,8 +460,8 @@
 		level: 'normal',
 		start(level) {
 			this.level = level;
-			rules = { ...FF_RULES };
-			const m = new FFMatch({ rules, seed: Math.floor(Math.random() * 1e6) + 1, target: 7 });
+			rules = { ...VERSUS_RULES };
+			const m = new VersusMatch({ rules, seed: Math.floor(Math.random() * 1e6) + 1, target: 7 });
 			m.startClock(Date.now());
 			const preset = BOT_PRESETS[level] || BOT_PRESETS.normal;
 			this.preset = preset;

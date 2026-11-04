@@ -1,4 +1,4 @@
-// fusefrost.js — Fuse & Frost: the stripped-down VS economy (2026-10-29).
+// versus.js — Shikaku+ VS: the rules and one player's economy (first built 2026-10-29).
 //
 //   Mines (active):  sent by clears, land when YOU move, fuse down on your moves,
 //                    cover with a finished rect to defuse, explode = −1 heart.
@@ -10,7 +10,7 @@
 // Every mutation returns events { kind, ...data }. Cells are i = y * N + x.
 import { BoardCompletionSolver, EconRng } from './economy.js';
 
-export const FF_RULES = {
+export const VERSUS_RULES = {
 	hearts: 3,
 	freezeOverAt: 4,
 	// What reaching freezeOverAt ice does (2026-11-04, Krischan): 'loseBoard' = the board is lost
@@ -77,6 +77,10 @@ export const FF_RULES = {
 	// A full frost ice mid-board is armed for one move (outlined), then fires: every send gets a
 	// visible armed moment. Held ice on the last boxes fires with the clear as before.
 	frostArmMoves: 1,
+	// Deflect (Krischan, 2026-11-05): when your frost fires, it first cancels ice coming at you,
+	// soonest first, one for one; only the rest goes out. Clean play is your defence against ice,
+	// the way your clears cancel mines.
+	frostDeflects: true,
 	// Defuse-clear: each mine defused by the box that finishes the board adds this many
 	// mines to the clear's attack. Flat, never a multiplier (counter-spikes are big already).
 	defuseClearBonus: 1,
@@ -115,8 +119,20 @@ export const FF_RULES = {
 	solverBudget: 20000
 };
 
-export class FFPlayer {
-	constructor(rules = FF_RULES, seed = 1) {
+// Shikaku+ Mines (Krischan, 2026-11-05): mines only, no ice at all, unrated. Every ice source is off.
+export const MINES_RULES = {
+	...VERSUS_RULES,
+	mode: 'mines',
+	frostMeter: 0,
+	perfectSendsIce: 0,
+	thawSendsIce: false,
+	forceBreakSendsIce: false,
+	icebreakSpills: false,
+	bankFreezeEvery: 0
+};
+
+export class VersusPlayer {
+	constructor(rules = VERSUS_RULES, seed = 1) {
 		this.rules = rules;
 		this.seed = seed;
 		this.reset();
@@ -142,6 +158,7 @@ export class FFPlayer {
 		this.frost = 0;
 		this.armed = 0;
 		this.combo = 0;
+		this._clutch = []; // clutches waiting on this move's tick: they only count if nothing goes off
 		this.graceLeft = 0;
 		this.outMines = 0;
 		this.outIce = 0;
@@ -214,7 +231,7 @@ export class FFPlayer {
 		const ay = anchor[1].reduce((s, c) => s + Math.floor(c / N), 0) / anchor[1].length;
 		const dist = (c) => Math.abs((c % N) - ax) + Math.abs(Math.floor(c / N) - ay);
 		const inside = this._shuffle([...anchor[1]]);
-		const rest = open.filter((c) => regionOf[c] !== anchor[0]).sort((a, b) => dist(a) - dist(b));
+		const rest = open.filter((c) => regionOf[c] !== anchor[0]).map((c, i) => [c, i]).sort((a, b) => dist(a[0]) - dist(b[0]) || a[1] - b[1]).map(([c]) => c); // explicit tiebreak: same order in every language
 		return [...inside, ...rest].slice(0, n);
 	}
 	_shuffle(a) {
@@ -299,7 +316,7 @@ export class FFPlayer {
 		const t = Math.min(left, this.pool);
 		this.pool -= t;
 		left -= t;
-		for (const p of [...this.incoming].sort((a, b) => a.eta - b.eta)) {
+		for (const p of this.incoming.map((q, i) => [q, i]).sort((a, b) => a[0].eta - b[0].eta || a[1] - b[1]).map(([q]) => q)) {
 			if (left <= 0) break;
 			const k = Math.min(left, p.count);
 			p.count -= k;
@@ -348,9 +365,17 @@ export class FFPlayer {
 		} else count = full();
 		if (count) this.frost -= count * r.frostMeter;
 		if (!count) return [];
+		let deflected = 0;
+		if (r.frostDeflects && this.iceIncoming.length) {
+			deflected = Math.min(count, this.iceIncoming.length);
+			const soonest = this.iceIncoming.map((w, i) => [w, i]).sort((a, b) => a[0].eta - b[0].eta || a[1] - b[1]).slice(0, deflected).map(([w]) => w);
+			this.iceIncoming = this.iceIncoming.filter((w) => !soonest.includes(w));
+			count -= deflected;
+			this.stats.deflected = (this.stats.deflected || 0) + deflected;
+		}
 		this.outIce += count;
 		this.stats.sentIce += count;
-		return [{ kind: 'frostFire', count, withClear: !!cleared }];
+		return [{ kind: 'frostFire', count, deflected, withClear: !!cleared }];
 	}
 
 	/** New board: re-aim telegraphed ice at cells that exist on it. */
@@ -382,7 +407,9 @@ export class FFPlayer {
 			const clutch = this.mines[i].fuse === 1;
 			const fresh = this.mines[i].fuse >= r.mineFuse;
 			ev.push({ kind: 'defuse', cell: this.mines[i].cell, clutch, fresh });
-			if (clutch && r.clutchCancels) ev.push({ kind: 'clutch', cell: this.mines[i].cell, cancelled: this.cancelAny(r.clutchCancels) });
+			// The clutch is only a clutch if nothing goes off this move (Krischan, 2026-11-05: calling
+			// it a clutch while you lose a heart is lying). It waits for this move's tick.
+			if (clutch && r.clutchCancels) this._clutch.push(this.mines[i].cell);
 			else if (r.frostMeter && (r.defuseTiers ? fresh : !clutch)) this.frost += r.frostEarlyDefuse;
 			this._defusedThisMove++;
 			this.mines.splice(i, 1);
@@ -487,6 +514,11 @@ export class FFPlayer {
 			for (const m of blown) ev.push({ kind: 'mineExplode', cell: m.cell, hearts: this.hearts, together: blown.length });
 			if (this.combo) ev.push({ kind: 'comboBreak', combo: this.combo });
 			this.combo = 0;
+		}
+		// Clutches from this move stand only if nothing went off.
+		if (this._clutch && this._clutch.length) {
+			if (!blown.length) for (const cell of this._clutch) ev.push({ kind: 'clutch', cell, cancelled: this.cancelAny(r.clutchCancels) });
+			this._clutch = [];
 		}
 
 		// 2) Passive thaw (sends nothing)

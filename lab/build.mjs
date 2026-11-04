@@ -12,7 +12,7 @@ const strip = (src) =>
 	src
 		.replace(/^import[\s\S]*?from\s+['"][^'"]+['"];?[ \t]*$/gm, '')
 		.replace(/^export\s+(?=(const|function|class|let|async))/gm, '');
-const MODULES = ['puzzle.js', 'game.js', 'economy.js', 'match.js', 'fusefrost.js', 'ffmatch.js'];
+const MODULES = ['puzzle.js', 'game.js', 'economy.js', 'match.js', 'versus.js', 'versus-match.js'];
 const mods = MODULES.map((f) => `// ===== engine/${f} =====\n` + strip(readFileSync(join(engine, f), 'utf8'))).join('\n');
 const html = `${readFileSync(join(here, 'page.html'), 'utf8')}\n<script>\n${mods}\n</script>\n<script>\n${readFileSync(join(here, 'app.js'), 'utf8')}\n</script>\n`;
 mkdirSync(join(here, 'dist'), { recursive: true });

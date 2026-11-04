@@ -1,10 +1,10 @@
-// fusefrost.test.js — Fuse & Frost rules. Run: node --test test/*.test.js
+// engine.test.js — Shikaku+ VS rules. Run: node --test test/*.test.js
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { FF_RULES, FFPlayer } from '../engine/fusefrost.js';
-import { FFMatch, TiltBot } from '../engine/ffmatch.js';
+import { VERSUS_RULES, MINES_RULES, VersusPlayer } from '../engine/versus.js';
+import { VersusMatch, TiltBot } from '../engine/versus-match.js';
 
-const p = (patch = {}) => new FFPlayer({ ...FF_RULES, ...patch }, 5);
+const p = (patch = {}) => new VersusPlayer({ ...VERSUS_RULES, ...patch }, 5);
 const FREE = [...Array(36).keys()];
 const kinds = (ev) => ev.map((e) => e.kind);
 
@@ -100,7 +100,7 @@ test('KO (old freezeOver ko): hearts at 0, or 4 ice at once', () => {
 });
 
 test('match: hazards never land on clue cells or solved rects', () => {
-	const m = new FFMatch({ seed: 3 });
+	const m = new VersusMatch({ seed: 3 });
 	const s = m.sides[0];
 	m.sides[1].econ.outMines = 0;
 	s.econ.receiveMines(6);
@@ -114,7 +114,7 @@ test('match: hazards never land on clue cells or solved rects', () => {
 });
 
 test('match: a round KO fully resets both players', () => {
-	const m = new FFMatch({ seed: 4 });
+	const m = new VersusMatch({ seed: 4 });
 	m.sides[1].econ.hearts = 1;
 	m.sides[1].econ.mines = [{ cell: m.sides[1].landable()[0], fuse: 1 }];
 	const r = m.sides[1].puzzle.layout.find((x) => !x.has(m.sides[1].econ.mines[0].cell % 6, Math.floor(m.sides[1].econ.mines[0].cell / 6)));
@@ -240,7 +240,7 @@ test('defaults: ice lands after 2 moves and stacks without a cap; heal needs 4 p
 });
 
 test('counter-spike (full send-back): a clear cancels the orange bank and sends it back on top', () => {
-	const m = new FFMatch({ seed: 9, rules: { ...FF_RULES, counterRate: 1 } });
+	const m = new VersusMatch({ seed: 9, rules: { ...VERSUS_RULES, counterRate: 1 } });
 	const you = m.sides[0];
 	const them = m.sides[1];
 	you.econ.incoming = [{ count: 10, eta: 50 }]; // far away: stays orange the whole board
@@ -294,7 +294,7 @@ test('rule C: a bank of 4+ left sitting for 6 moves queues an ice', () => {
 });
 
 test('idle tick: the clock moves without a move, so stalling stops working', () => {
-	const m = new FFMatch({ seed: 12 });
+	const m = new VersusMatch({ seed: 12 });
 	const e = m.sides[0].econ;
 	e.mines = [{ cell: m.sides[0].landable()[0], fuse: 1 }];
 	const r = m.idleTick(0);
@@ -304,7 +304,7 @@ test('idle tick: the clock moves without a move, so stalling stops working', () 
 
 test('icebreaker never leaves you with no legal box (three ice on the last two boxes)', async () => {
 	const { vsBoard } = await import('../engine/match.js');
-	const m = new FFMatch({ seed: 416076 });
+	const m = new VersusMatch({ seed: 416076 });
 	m.newRound();
 	const s = m.sides[0];
 	s.boardIndex = 4;
@@ -344,12 +344,12 @@ test('frost (no arming delay): early defuses charge it, it fires when full, hold
 	e.mines = [0, 1, 2, 3].map((cell) => ({ cell, fuse: 3 }));
 	e.onPlacement([0, 1, 2, 3], []);
 	assert.equal(e.frost, 4);
-	assert.deepEqual(e.settleFrost(5, false), [{ kind: 'frostFire', count: 1, withClear: false }]);
+	assert.deepEqual(e.settleFrost(5, false), [{ kind: 'frostFire', count: 1, deflected: 0, withClear: false }]);
 	assert.equal(e.frost, 0);
 	e.frost = 7;
 	assert.deepEqual(e.settleFrost(3, false), []); // held
 	assert.equal(e.frost, 7);
-	assert.deepEqual(e.settleFrost(0, true), [{ kind: 'frostFire', count: 1, withClear: true }]);
+	assert.deepEqual(e.settleFrost(0, true), [{ kind: 'frostFire', count: 1, deflected: 0, withClear: true }]);
 	assert.equal(e.frost, 3);
 	e.frost = 30;
 	e.settleFrost(2, false);
@@ -368,9 +368,9 @@ test('clutch: a mine covered on its last tick cancels one incoming, from the red
 	const e = p();
 	e.incoming = [{ count: 3, eta: 1 }];
 	e.mines = [{ cell: 0, fuse: 1 }];
-	const ev = e.onPlacement([0], []);
+	const ev = [...e.onPlacement([0], []), ...e.tick(FREE)]; // a clutch resolves on this move's tick
 	assert.deepEqual(ev.find((x) => x.kind === 'clutch'), { kind: 'clutch', cell: 0, cancelled: 1 });
-	assert.equal(e.incomingTotal, 2);
+	assert.equal(e.incomingTotal + e.pool + e.mines.length, 2);
 	assert.equal(e.frost, 0); // clutch is defense, not frost
 });
 
@@ -407,7 +407,7 @@ test('heal checkpoint: after 2 perfect boards a sloppy clear drops the run to 2,
 });
 
 test('freeze-over loses the board: no KO, mines return to red, next board, pause', () => {
-	const m = new FFMatch({ seed: 21 });
+	const m = new VersusMatch({ seed: 21 });
 	m.startClock(1000);
 	const s = m.sides[0];
 	const e = s.econ;
@@ -433,7 +433,7 @@ test('no spill: icebroken ice is gone for good', () => {
 });
 
 test('red first: a clear cancels the red batch before the orange bank, and sends nothing back by default', () => {
-	const m = new FFMatch({ seed: 9 });
+	const m = new VersusMatch({ seed: 9 });
 	const you = m.sides[0];
 	for (const r of you.puzzle.layout.slice(0, -1)) m.act(0, { type: 'place', ax: r.x1, ay: r.y1, bx: r.x2, by: r.y2 });
 	you.econ.pool = 3;
@@ -454,7 +454,7 @@ test('icebreak on the last boxes earns frost; defuse tiers: only a fresh defuse 
 });
 
 test('gravity is lazy: owed ticks are paid from timestamps, and a frozen side owes nothing', () => {
-	const m = new FFMatch({ seed: 4 });
+	const m = new VersusMatch({ seed: 4 });
 	m.startClock(0);
 	const t0 = m.sides[0].econ.ticks;
 	m.catchUp(9500); // 3 ticks at 3s
@@ -469,7 +469,7 @@ test('gravity is lazy: owed ticks are paid from timestamps, and a frozen side ow
 });
 
 test('snapshot round-trip: a restored match plays on identically', () => {
-	const a = new FFMatch({ seed: 77 });
+	const a = new VersusMatch({ seed: 77 });
 	a.startClock(0);
 	const bots = [new TiltBot({ seed: 1 }), new TiltBot({ seed: 2 })];
 	let t = 0;
@@ -479,7 +479,7 @@ test('snapshot round-trip: a restored match plays on identically', () => {
 		a.act(k % 2, bots[k % 2].decide(a.sides[k % 2]), t);
 	}
 	const st = JSON.parse(JSON.stringify(a.toState()));
-	const b = FFMatch.fromState(st, a.rules);
+	const b = VersusMatch.fromState(st, a.rules);
 	assert.deepEqual(b.toState(), a.toState());
 	const moves = [];
 	const bots2 = [new TiltBot({ seed: 5 }), new TiltBot({ seed: 6 })];
@@ -504,12 +504,12 @@ test('frost arms for one move mid-board, then fires; held ice shows armed and fi
 	e.frost = 4;
 	assert.deepEqual(e.settleFrost(6, false), []);
 	assert.equal(e.armed, 1, 'armed, not fired');
-	assert.deepEqual(e.settleFrost(6, false), [{ kind: 'frostFire', count: 1, withClear: false }]);
+	assert.deepEqual(e.settleFrost(6, false), [{ kind: 'frostFire', count: 1, deflected: 0, withClear: false }]);
 	assert.equal(e.armed, 0);
 	e.frost = 9;
 	e.settleFrost(3, false);
 	assert.equal(e.armed, 2, 'held on the last boxes shows armed');
-	assert.deepEqual(e.settleFrost(0, true), [{ kind: 'frostFire', count: 2, withClear: true }]);
+	assert.deepEqual(e.settleFrost(0, true), [{ kind: 'frostFire', count: 2, deflected: 0, withClear: true }]);
 	assert.equal(e.frost, 1);
 });
 
@@ -529,7 +529,7 @@ test('combo: clears in a row add to the attack on a capped ramp; damage breaks i
 });
 
 test('gravity: a move resets the timer, so a tick never lands right after a move', () => {
-	const m = new FFMatch({ seed: 7 });
+	const m = new VersusMatch({ seed: 7 });
 	m.startClock(0);
 	const s = m.sides[0];
 	const placed = () => new Set(s.rects.map((r) => [r.x1, r.y1, r.x2, r.y2].join()));
@@ -545,4 +545,43 @@ test('gravity: a move resets the timer, so a tick never lands right after a move
 	assert.equal(m.catchUp(5899).filter((e) => e.side === 'you' && e.kind === 'gravity').length, 0);
 	assert.equal(m.catchUp(5900).filter((e) => e.side === 'you' && e.kind === 'gravity').length, 1, 'ticks 3s after the last move');
 	assert.equal(s.econ.ticks, ticks + 1);
+});
+
+test('clutch only counts on a move where nothing goes off', () => {
+	const e = p();
+	e.incoming = [{ count: 5, eta: 3 }];
+	e.mines = [{ cell: 0, fuse: 1 }, { cell: 9, fuse: 1 }];
+	const ev = [...e.onPlacement([0], []), ...e.tick(FREE)];
+	assert.ok(ev.some((x) => x.kind === 'mineExplode'));
+	assert.ok(!ev.some((x) => x.kind === 'clutch'), 'no clutch when a mine blew on the same move');
+	assert.equal(e.incomingTotal, 5, 'and nothing was cancelled');
+	const f = p();
+	f.incoming = [{ count: 5, eta: 3 }];
+	f.mines = [{ cell: 0, fuse: 1 }];
+	const ev2 = [...f.onPlacement([0], []), ...f.tick(FREE)];
+	assert.deepEqual(ev2.filter((x) => x.kind === 'clutch').map((x) => x.cancelled), [1]);
+	assert.equal(f.incomingTotal, 4);
+});
+
+test('frost deflects incoming ice first, soonest first; only the rest goes out', () => {
+	const e = p({ frostArmMoves: 0 });
+	e.iceIncoming = [{ eta: 2, target: -1 }, { eta: 1, target: -1 }];
+	e.frost = 12;
+	assert.deepEqual(e.settleFrost(10, false), [{ kind: 'frostFire', count: 1, deflected: 2, withClear: false }]);
+	assert.equal(e.iceIncoming.length, 0);
+	assert.equal(e.outIce, 1);
+	const f = p({ frostArmMoves: 0 });
+	f.iceIncoming = [{ eta: 2, target: -1 }, { eta: 1, target: -1 }];
+	f.frost = 4;
+	f.settleFrost(10, false);
+	assert.deepEqual(f.iceIncoming.map((w) => w.eta), [2], 'the soonest one is deflected');
+});
+
+test('Mines mode has no ice source at all', () => {
+	const m = new VersusMatch({ rules: MINES_RULES, seed: 3 });
+	const bots = [new TiltBot({ seed: 1, misplay: 0.2 }), new TiltBot({ seed: 2, misplay: 0.2 })];
+	let ice = 0;
+	for (let g = 0; g < 4000 && !m.roundOver; g++) for (const e of m.act(g % 2, bots[g % 2].decide(m.sides[g % 2])).events) if (e.kind === 'iceIncoming' || e.kind === 'frozen') ice++;
+	assert.ok(m.roundOver, 'the round ends');
+	assert.equal(ice, 0);
 });

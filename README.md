@@ -2,8 +2,11 @@
 
 A standalone browser build of Shikaku+ VS for playing friends online, across any mix of devices, to find network and device problems before the Flutter port. Built 2026-11-04. Deploy: [DEPLOY.md](DEPLOY.md).
 
-This repo is separate from the app (`s-ging/shikaku-plus`), the landing page and the wiki (`s-ging/shikaku-plus-info`). The game rules are in [engine/](engine/): a copy of the wiki's VS lab engine (`prototypes/vs-lab/src/`), so the server and the client run identical rules. `engine/puzzle.js` and `engine/game.js` are unchanged copies of the landing page's generator and rules; don't edit them here.
+This repo is separate from the app (`s-ging/shikaku-plus`), the landing page and the wiki (`s-ging/shikaku-plus-info`). The game rules are in [engine/](engine/), and this repo is their home: the server, the client and the lab all run this one copy. `engine/puzzle.js` and `engine/game.js` are unchanged copies of the landing page's generator and rules; don't edit them here.
 
+Two modes run on the same engine: **Shikaku+ VS**, the complete experience (`VERSUS_RULES`), and **Shikaku+ Mines**, mines only with no ice, unrated (`MINES_RULES`).
+
+The **lab** in [lab/](lab/) is where rules and HUD get tried first: one self-contained page with bots, sliders and a match log. Build it with `node lab/build.mjs`; it is published as Krischan's lab artifact. 
 ## How it works
 
 - **One Cloudflare Worker.** It serves two static files (`public/index.html` and `public/app.js`). Only `/ws/*` and `/api/*` run Worker code.
@@ -13,7 +16,7 @@ This repo is separate from the app (`s-ging/shikaku-plus`), the landing page and
   - The server applies it with the same engine, in one order for both players, and echoes it with an 8-hex state hash (about 80 bytes).
   - Each client replays the echoes on its `confirmed` copy. A hash that doesn't match means drift: the client asks for a full state and counts a mismatch in telemetry.
   - Full state (about 5 KB) only goes out on join, reconnect, a new round, or drift.
-- **Always-on gravity, lazily.** Every `gravitySecs` your board ticks once, moves or not. Nothing runs a clock: whoever handles the next message pays the ticks owed since the last one, from timestamps (`FFMatch.catchUp`). Clients predict the same ticks locally.
+- **Gravity, lazily.** After `gravitySecs` with no move, your board ticks once; every move resets that timer (like Tetris lock delay), so a tick never lands a hair after a move. Nothing runs a clock: whoever handles the next message pays the ticks owed since the last one, from timestamps (`VersusMatch.catchUp`). Clients predict the same ticks locally.
 - **Bad connections keep playing.** Your board keeps working through lag or a dropout. Moves made while offline queue up and are resent on reconnect, and the server applies each move once (`lastS`).
 - **Dropping out.** Only after 20s of silence is a player treated as gone: their board and gravity freeze, while the other player keeps attacking into their bank.
 - **Remake vote.** Gone 10s or more in one round: on return, both players are offered a replay of the round with no score change. Votes are logged.
@@ -34,7 +37,8 @@ This repo is separate from the app (`s-ging/shikaku-plus`), the landing page and
 | `client/ui.js`, `client/index.html` | Home, lobby, match, practice. Plain JS, no framework |
 | `build.mjs` | Stitches everything into `public/app.js` (one script, two requests per page). Uses esbuild if installed |
 | `dev-server.mjs` | Run it all locally with no Cloudflare and no dependencies |
-| `engine/` | The rules: `fusefrost.js` (economy), `ffmatch.js` (match, bots, snapshots, gravity) and the generator they use |
+| `engine/` | The rules: `versus.js` (economy), `versus-match.js` (match, bots, snapshots, gravity) and the generator they use |
+| `lab/` | The lab page: `page.html`, `app.js`, `build.mjs` (bundles the engine into one file) |
 | `test/engine.test.js` | The rules' tests |
 | `test/room.test.js` | Two real clients play through the real room with lag: full match, dropout, silent socket, remake vote, queued moves |
 

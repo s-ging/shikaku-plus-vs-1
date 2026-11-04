@@ -3,7 +3,7 @@
 //   - a short flash (blast, defuse, icebreak) runs a few frames, then stops
 //   - flat fills and alpha only: no blur, no shadows, no gradients, no particles
 // Colors: lavender boxes in VS; red is mines, blue is ice, nothing else is saturated.
-// The VS lab's tokens (prototypes/vs-lab/src/ffpage.html in the wiki repo).
+// The VS lab's tokens (lab/page.html in this repo).
 export const BOARD_COLORS = {
 	cell: '#2b2b2b',
 	clue: '#ffffff',

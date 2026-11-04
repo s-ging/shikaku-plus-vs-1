@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { RoomCore } from '../worker/room-core.js';
 import { ClientCore, stateHash } from '../shared/client-core.js';
-import { TiltBot } from '../engine/ffmatch.js';
+import { TiltBot } from '../engine/versus-match.js';
 
 function world({ latency = [40, 140], o = { firstTo: 2 } } = {}) {
 	let now = 1_000_000;

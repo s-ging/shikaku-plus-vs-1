@@ -5,9 +5,9 @@
 //   per move:   1 message in (~60 B), 1 message out to each seat (~80 B), one state
 //               hash (~2 KB of string building), one storage write of the room (~6 KB).
 //   idle room:  nothing runs. No timers, no alarms. Gravity is paid lazily from
-//               timestamps when the next message arrives (FFMatch.catchUp).
+//               timestamps when the next message arrives (VersusMatch.catchUp).
 //   per match:  one report sent to the Reports object at the end.
-import { FFMatch } from '../engine/ffmatch.js';
+import { VersusMatch } from '../engine/versus-match.js';
 import { decodeAction, encodeAction, stateHash } from '../shared/protocol.js';
 import { rulesFor, sanitize } from '../shared/settings.js';
 
@@ -44,7 +44,7 @@ export class RoomCore {
 			_roundLogged: false
 		});
 		if (saved) Object.assign(this, saved);
-		this.match = this.matchState ? FFMatch.fromState(this.matchState, rulesFor(this.o).rules) : null;
+		this.match = this.matchState ? VersusMatch.fromState(this.matchState, rulesFor(this.o).rules) : null;
 	}
 
 	// —— persistence ——
@@ -236,7 +236,7 @@ export class RoomCore {
 	_startMatch(now) {
 		const { rules, firstTo } = rulesFor(this.o);
 		const seed = (Math.floor(now / 1000) % 1000000) + 1;
-		this.match = new FFMatch({ rules, seed, target: firstTo });
+		this.match = new VersusMatch({ rules, seed, target: firstTo });
 		this.match.startClock(now);
 		this.phase = 'match';
 		this.next = [false, false];

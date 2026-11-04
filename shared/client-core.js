@@ -10,7 +10,7 @@
 //
 // Drift check: every sequenced server message carries an 8-hex state hash. If ours
 // differs, we count a mismatch and ask for a full state.
-import { FFMatch } from '../engine/ffmatch.js';
+import { VersusMatch } from '../engine/versus-match.js';
 import { decodeAction, encodeAction, stateHash } from './protocol.js';
 
 export class ClientCore {
@@ -41,7 +41,7 @@ export class ClientCore {
 	handle(msg) {
 		if (msg.t === 'full' || msg.t === 'round') {
 			this.rules = msg.rules || this.rules;
-			this.confirmed = FFMatch.fromState(msg.st, this.rules);
+			this.confirmed = VersusMatch.fromState(msg.st, this.rules);
 			this.n = msg.n;
 			// Keep the moves the server hasn't seen yet (made during a dropout) and send them again.
 			// A new round drops them: they belonged to the board that just ended.
@@ -141,7 +141,7 @@ export class ClientCore {
 		return [];
 	}
 	_repredict() {
-		const p = FFMatch.fromState(this.confirmed.toState(), this.rules);
+		const p = VersusMatch.fromState(this.confirmed.toState(), this.rules);
 		for (const q of this.pending) {
 			p.catchUp(q.at);
 			p.act(this.me, q.a, q.at);

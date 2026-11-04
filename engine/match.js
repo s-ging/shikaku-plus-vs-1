@@ -275,7 +275,7 @@ export class ReplayBot {
 		// Prefer defusing the most urgent mine.
 		let pick = null;
 		if (side.econ.mines.length && this._roll(this.defuseFirst)) {
-			const mines = [...side.econ.mines].sort((a, b) => a.fuse - b.fuse);
+			const mines = side.econ.mines.map((m, i) => [m, i]).sort((a, b) => a[0].fuse - b[0].fuse || a[1] - b[1]).map(([m]) => m); // explicit tiebreak: stable in every language
 			for (const m of mines) {
 				pick = todo.find((s) => s.has(m.cell % N, Math.floor(m.cell / N)));
 				if (pick) break;

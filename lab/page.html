@@ -145,7 +145,10 @@ canvas.board { display: block; width: 100%; height: auto; aspect-ratio: 1; touch
 /* —— Footer: name, time, hearts —— */
 .foot { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px; padding: 10px 6px 12px; font-size: 13px; color: var(--fg2); }
 .foot .who { color: var(--fg); font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.foot .time { font-size: 14px; margin-right: 6px; }
+.foot .time { font-size: 14px; margin-right: 6px; white-space: nowrap; }
+.foot .time.rush { color: #ffffff; animation: rush 0.8s steps(1, end) infinite; }
+@keyframes rush { 50% { opacity: 0.45; } }
+.stage.mines .icepole { visibility: hidden; } /* Mines: no ice anywhere */
 .hearts { justify-self: end; display: inline-flex; gap: 6px; }
 .hearts i { width: 13px; height: 13px; border-radius: 50%; display: block; position: relative; overflow: hidden; box-shadow: inset 0 0 0 1.5px var(--fg3); }
 .hearts i.on { background: var(--you); box-shadow: none; }
@@ -236,8 +239,8 @@ legend { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; col
 	<header class="vs-head">
 		<div class="pl"><span id="name-you">You</span><span class="box you num" id="score-you">0</span></div>
 		<div class="mid">
-			<h1>Versus</h1>
-			<p id="mode-line">6×6 · Classic · FT7</p>
+			<h1 id="mode-title">Versus</h1>
+			<p id="mode-line">VS · 6×6 · FT7</p>
 		</div>
 		<div class="pl"><span class="box them num" id="score-them">0</span><span id="name-them">Bot</span></div>
 	</header>
@@ -283,6 +286,7 @@ legend { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; col
 	<p class="hint">Drag to place a box, tap one to erase it. Your board ticks when you move, or after 3 seconds without a move. Mines land in clumps in the biggest open box: cover them to defuse. Clear boards in a row for a combo; only a mine going off or freezing over breaks it.</p>
 	<div class="controls">
 		<div class="seg" id="presets" role="group" aria-label="Bot difficulty"></div>
+		<div class="seg" id="modes" role="group" aria-label="Mode"><button type="button" data-mode="vs" aria-pressed="true">VS</button><button type="button" data-mode="mines" aria-pressed="false">Mines</button></div>
 		<div class="seg" id="views" role="group" aria-label="Layout"><button type="button" data-view="play" aria-pressed="true">Play view</button><button type="button" data-view="spec" aria-pressed="false">Spectator view</button></div>
 		<button class="btn" id="watch" aria-pressed="false">Watch bots</button>
 		<button class="btn" id="pause">Pause</button>
@@ -303,9 +307,11 @@ legend { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; col
 		<div class="panel">
 			<h3>Rules lab</h3>
 			<div class="note">
-				<p><b>Above the board.</b> Left: what your last move did (SENT, COUNTER-SPIKE, CLUTCH). It rises from behind the board and fades; a new one knocks the old one off. Colour is how many mines it sent: grey up to 4, amber 5–8, red 9–15, white-hot 16+ or in a rush. Right: your combo, clears in a row, shown from 2. It adds +1 at 2, +2 at 4, +3 at 6, +4 at 8 and up. Medium moments blink twice, big three times, max four. ICEBREAK is blue: ice you broke.</p>
-				<p><b>Left pole, ice.</b> Top half (◆, attack) is your frost: each row is one ice, filling down toward the middle as you charge it. One point short it blinks; full, it's outlined and fires on your next move (or with your clear on your last 4 boxes). Bottom half (▲, danger) is ice coming at you: slate lands in 2 moves, blinking blue lands next move; the bottom row flashes white when more than 3 are coming.</p>
-				<p><b>Views.</b> Play view keeps your board where solo has it, with the opponent as a mini board (beside you on desktop, in the header on a phone). Spectator view puts both boards side by side; Watch bots switches to it.</p>
+				<p><b>Above the board.</b> Left: what your last move did (SENT, COUNTER-SPIKE, CLUTCH). It rises from behind the board and fades; a new one knocks the old one off. Colour is how many mines it sent: grey up to 4, amber 5–8, red 9–15, white-hot 16+ or in a rush. Right: your combo, clears in a row, shown from 2. It adds +1 at 2, +2 at 4, +3 at 6, +4 at 8 and up. Medium moments blink twice, big three times, max four. CLUTCH only shows on a move where nothing went off. ICEBREAK is blue: ice you broke.</p>
+				<p><b>Left pole, ice.</b> Top half (◆, attack) is your frost: each row is one ice, filling down toward the middle as you charge it. One point short it blinks; full, it's outlined and fires on your next move (or with your clear on your last 4 boxes). When it fires, it first deflects ice coming at you, one for one, soonest first (DEFLECT, in blue); only the rest goes out. Bottom half (▲, danger) is ice coming at you: slate lands in 2 moves, blinking blue lands next move; the bottom row flashes white when more than 3 are coming.</p>
+				<p><b>Modes.</b> VS is the complete experience. Mines is mines only: no ice, no frost, unrated.</p>
+				<p><b>Rush.</b> The clock turns white and reads RUSH • 3:32, blinking on a 0.8s beat.</p>
+				<p><b>Views.</b> Play view keeps your board where solo has it, with the opponent as a mini board without clues (beside you on desktop, in the header on a phone). Spectator view puts both boards side by side; Watch bots switches to it.</p>
 				<p><b>Right pole, mines.</b> 18 pills, 3 per row: gold is the bank (12; the top blinks past 12), red is the batch landing on your next move. Hearts are the dots in the footer; a lost one fills back per perfect board.</p>
 			</div>
 			<div class="groups" id="groups"></div>

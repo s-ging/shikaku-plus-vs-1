@@ -6,7 +6,10 @@
 //   timers  one gravity timeout per due tick (every gravitySecs), one clock-text timeout per second while a round runs
 //   DOM     poles, hearts and combo update on events only; callouts are one element per moment
 (() => {
-	const RULES = { ...FF_RULES };
+	const RULES = { ...VERSUS_RULES };
+	// Two modes on one engine: Shikaku+ VS (everything) and Shikaku+ Mines (mines only, no ice, unrated).
+	let mode = 'vs';
+	const modeRules = () => (mode === 'mines' ? MINES_RULES : VERSUS_RULES);
 	let presetKey = 'normal';
 	const BOT = { ...BOT_PRESETS.normal };
 	let botBoard = 0; // board index the bot last moved on (for its read pause)
@@ -296,7 +299,8 @@
 			for (const f of e.ice) this.drawIce(f);
 			for (const m of e.mines) this.drawMine(m, now);
 
-			// Clues
+			// Clues. The mini board leaves them out: you read its pressure, not its puzzle.
+			if (!this.canvas.closest('.seat').classList.contains('mini')) {
 			c.font = `${Math.max(this.S < 240 ? 6 : 12, k * 0.42)}px ${FONT()}`;
 			c.textAlign = 'center';
 			c.textBaseline = 'middle';
@@ -307,6 +311,7 @@
 					c.fillStyle = cellUnderBlock(x, y, side.rects) ? C['num-on-block'] : C.fg;
 					c.fillText(String(v), x * k + k / 2, y * k + k / 2 + 1);
 				}
+			}
 
 			if (this.drag) {
 				const d = this.drag;
@@ -463,7 +468,7 @@
 			case 'mineExplode': return e.together > 1 ? `mine exploded with ${e.together - 1} more (one heart lost for all), ${e.hearts} left` : `mine exploded, ${e.hearts} heart${e.hearts === 1 ? '' : 's'} left`;
 			case 'iceBlocked': return 'ice dropped: too many on the way';
 			case 'rectsBlown': return `blast removed ${e.count} box${e.count > 1 ? 'es' : ''}`;
-			case 'defuse': return e.clutch ? 'CLUTCH: defused a mine on its last tick' : e.fresh ? 'defused a fresh mine (+1 frost)' : 'defused a mine';
+			case 'defuse': return e.clutch ? 'defused a mine on its last tick' : e.fresh ? 'defused a fresh mine (+1 frost)' : 'defused a mine';
 			case 'iceIncoming': return `ice incoming, lands in ${e.eta} moves`;
 			case 'frozen': return 'a cell froze';
 			case 'thaw': return e.source === 'active' ? 'broke ice by building next to it' : 'ice melted';
@@ -473,7 +478,7 @@
 			case 'heal': return e.boards ? (e.healed ? `${e.boards} perfect boards in a row: healed a heart` : `${e.boards} perfect boards in a row (hearts already full)`) : e.healed ? `${e.streak}x streak: healed a heart` : `${e.streak}x streak (hearts already full)`;
 			case 'send': return e.cancelled ? `attack ${e.count}${e.rush ? ' (rush)' : ''}: cancelled ${e.cancelled} of yours, sent ${e.pass}` : `sent ${e.count} mines${e.rush ? ' (rush)' : ''}`;
 			case 'sendIce': return `sent ${e.count} ice`;
-			case 'frostFire': return `frost fired: ${e.count} ice${e.withClear ? ', with the clear' : ''}`;
+			case 'frostFire': return `frost fired${e.deflected ? `: deflected ${e.deflected} incoming ice` : ''}${e.count ? `${e.deflected ? ', ' : ': '}sent ${e.count} ice` : ''}${e.withClear ? ', with the clear' : ''}`;
 			case 'clutch': return e.cancelled ? `clutch: cancelled ${e.cancelled} incoming` : 'clutch (nothing incoming to cancel)';
 			case 'bankFreeze': return `bank of ${e.bank} sat too long: ice on the way`;
 			case 'frozenOut': return 'froze over: board lost, its mines go back to the red batch';
@@ -519,7 +524,10 @@
 					calls[si].push({ text: `${label} ${e.pass}`, tier, blinks: Math.max(BLINKS[tier], counter ? 2 : 0), life: label === 'SENT' ? 800 : 1200 });
 				}
 				if (e.kind === 'clutch') calls[si].push({ text: e.cancelled ? `CLUTCH −${e.cancelled}` : 'CLUTCH', tier: 1, blinks: 2, life: 1200 });
-				if (e.kind === 'frostFire') frostShot(si, e.count);
+				if (e.kind === 'frostFire') {
+					frostShot(si, e.count);
+					if (e.deflected) calls[si].push({ text: e.deflected > 1 ? `DEFLECT ×${e.deflected}` : 'DEFLECT', tier: 'i', blinks: 0, life: 1200 });
+				}
 				if (e.kind === 'forceBreak') breaks[si]++;
 				if (e.kind === 'frozenOut') calls[si].push({ text: 'FROZEN OVER', tier: 'i', blinks: 0, life: 1200 });
 				if (e.kind === 'heal' && e.healed) {
@@ -810,7 +818,7 @@
 			renderHearts(i);
 			renderCombo(i);
 		}
-		$('mode-line').textContent = `6×6 · Classic · FT${match.target}${match.rush ? ` · Rush ×${RULES.rushMultiplier}` : ''}`;
+		$('mode-line').textContent = `${mode === 'mines' ? 'Mines · Unrated' : 'VS'} · 6×6 · FT${match.target}${match.rush ? ` · Rush ×${RULES.rushMultiplier}` : ''}`;
 	}
 	// Round clock, m:ss. One timeout per second while the round runs; none while paused or over.
 	let clockTimer = 0;
@@ -819,8 +827,15 @@
 		if (!match) return;
 		const ms = Math.max(0, (endAt ?? clock()) - (match.roundStartAt ?? 0));
 		const t = `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, '0')}`;
-		$('you-time').textContent = t;
-		$('them-time').textContent = t;
+		// Rush: the clock turns white and says so, blinking on a 0.8s beat.
+		// The engine's clock only moves when something happens, so ask about now (same rule as VersusMatch.rush).
+		const r = RULES;
+		const rush = !match.roundOver && (r.rushAfterSecs ? ms >= r.rushAfterSecs * 1000 : !!match.rush);
+		for (const id of ['you-time', 'them-time']) {
+			const el = $(id);
+			el.textContent = rush ? `RUSH • ${t}` : t;
+			el.classList.toggle('rush', rush);
+		}
 		if (!paused && endAt == null) clockTimer = setTimeout(renderTimer, Math.max(50, (1000 - (ms % 1000)) / speed));
 	}
 
@@ -849,7 +864,7 @@
 
 	function buildRoundLog(end) {
 		const diff = {};
-		for (const k of Object.keys(RULES)) if (JSON.stringify(RULES[k]) !== JSON.stringify(FF_RULES[k])) diff[k] = RULES[k];
+		for (const k of Object.keys(RULES)) if (JSON.stringify(RULES[k]) !== JSON.stringify(VERSUS_RULES[k])) diff[k] = RULES[k];
 		const { label, ...botStats } = BOT;
 		return {
 			lab: 'Shikaku+ VS lab (vs-1 engine)',
@@ -906,7 +921,7 @@
 	}
 	function newMatch() {
 		const seed = Math.floor(Math.random() * 1e6) + 1;
-		match = new FFMatch({ rules: RULES, seed });
+		match = new VersusMatch({ rules: RULES, seed });
 		bot = new TiltBot({ ...BOT, seed: seed + 17 });
 		leftBot = new TiltBot({ ...LEFT, seed: seed + 5 });
 		logItems.length = 0;
@@ -937,8 +952,9 @@
 	let view = 'play';
 	function setView(v) {
 		view = v;
-		$('stage').className = 'stage ' + v;
+		$('stage').className = 'stage ' + v + (mode === 'mines' ? ' mines' : '');
 		$('seat-them').classList.toggle('mini', v === 'play');
+		kick();
 		for (const b of document.querySelectorAll('#views button')) b.setAttribute('aria-pressed', String(b.dataset.view === v));
 	}
 	for (const b of document.querySelectorAll('#views button')) b.addEventListener('click', () => setView(b.dataset.view));
@@ -1014,7 +1030,7 @@
 
 	// —— Rules lab ——
 	const pct = (v) => Math.round(v * 100) + '%';
-	const COMBO_ON = FF_RULES.comboTable;
+	const COMBO_ON = VERSUS_RULES.comboTable;
 	const GROUPS = [
 		['Bot', [
 			{ o: BOT, k: 'secs', label: 'Seconds per move', min: 0.6, max: 4, step: 0.1, fmt: (v) => v.toFixed(1) + 's' },
@@ -1042,6 +1058,7 @@
 		]],
 		['Frost and clutch', [
 			{ k: 'frostMeter', label: 'Frost meter size', min: 0, max: 8, step: 1, fmt: (v) => (v ? `${v} pts = 1 ice` : 'off') },
+			{ k: 'frostDeflects', label: 'Frost deflects incoming ice first', toggle: true },
 			{ k: 'frostArmMoves', label: 'Full frost waits', min: 0, max: 1, step: 1, fmt: (v) => (v ? '1 move (armed)' : 'fires at once') },
 			{ k: 'frostHoldAtBoxesLeft', label: 'Frost holds on last N boxes', min: 0, max: 8, step: 1, fmt: (v) => (v ? String(v) : 'never') },
 			{ k: 'defuseTiers', label: 'Fresh defuse charges frost', toggle: true },
@@ -1138,8 +1155,19 @@
 	$('t-mines').addEventListener('click', () => handle(tag('you', match.sides[0].econ.receiveMines(4))));
 	$('t-ice').addEventListener('click', () => handle(tag('you', match.sides[0].econ.receiveIce(2, match.sides[0].landable()))));
 	$('t-bot').addEventListener('click', () => handle(tag('them', match.sides[1].econ.receiveMines(4))));
+	for (const b of document.querySelectorAll('#modes button'))
+		b.addEventListener('click', () => {
+			mode = b.dataset.mode;
+			for (const o of document.querySelectorAll('#modes button')) o.setAttribute('aria-pressed', String(o === b));
+			for (const k of Object.keys(RULES)) delete RULES[k];
+			Object.assign(RULES, modeRules());
+			$('mode-title').textContent = mode === 'mines' ? 'Mines' : 'Versus';
+			setView(view);
+			buildRules();
+			newMatch();
+		});
 	$('t-reset').addEventListener('click', () => {
-		Object.assign(RULES, FF_RULES);
+		Object.assign(RULES, modeRules());
 		buildRules();
 		regravity();
 		renderHud();
