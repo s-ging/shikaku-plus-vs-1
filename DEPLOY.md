@@ -2,7 +2,7 @@
 
 Written for Krischan, on Windows. About 15 minutes the first time, one command after that.
 
-What you get: `https://shikaku-vs-playtest.<your-name>.workers.dev`. Anyone with the link can create or join a room. Nothing touches `shikaku.plus`, the app or the landing page.
+What you get: `https://shikaku-plus-vs-1.<your-name>.workers.dev`. Anyone with the link can create or join a room. Nothing touches `shikaku.plus`, the app or the landing page.
 
 ## Once
 
@@ -76,6 +76,15 @@ Nothing, on the Workers Free plan. Durable Objects are included on Free with SQL
 That's over 150 matches a day before anything stops. Planned use is 20 to 50 matches over two weeks. If a limit is ever hit, new requests fail for the rest of that day (UTC); nothing is charged.
 
 Source: [Durable Objects pricing](https://developers.cloudflare.com/durable-objects/platform/pricing/).
+
+## Deploying from the Cloudflare dashboard instead (Git integration)
+
+If you connected this repo in the dashboard (Workers & Pages → Create → Import a repository):
+
+- The Worker's name must be `shikaku-plus-vs-1`, the same as `name` in `wrangler.jsonc`.
+- **Build command:** leave empty. **Deploy command:** `npx wrangler deploy`. Wrangler runs `node build.mjs` by itself first.
+- Root directory: `/`.
+- Still set the secret: Worker → Settings → Variables and Secrets → add `ADMIN_KEY` as a **Secret**.
 
 ## If something goes wrong
 
