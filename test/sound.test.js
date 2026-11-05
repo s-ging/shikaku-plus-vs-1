@@ -59,6 +59,28 @@ test('different seeds give different noise (the place variants are not identical
 	assert.notDeepEqual(render(s, {}, checked.pack.models, 11), render(s, {}, checked.pack.models, 12));
 });
 
+test('a combo note mixed once and reused sounds exactly like one rendered fresh', () => {
+	const c = checked.pack.sounds.combo, mix = {};
+	for (const tr of S.steps(c.ladder)) {
+		S.setSeed(41);
+		const shared = S.renderSound(c, { transpose: tr, mix }, checked.pack.models);
+		S.setSeed(41);
+		assert.deepEqual(shared, S.renderSound(c, { transpose: tr }, checked.pack.models), `combo +${tr}`);
+	}
+});
+
+test('each sound is stored only as finely as its high cut needs', () => {
+	const r = Object.fromEntries(Object.entries(checked.pack.sounds).map(([k, v]) => [k, S.rateFor(v)]));
+	assert.deepEqual(r, { place: 16000, refused: 12000, clear: 16000, boom: 24000, sent: 16000, combo: 12000 });
+	const n = 4800, d = new Float32Array(n);
+	for (let i = 0; i < n; i++) d[i] = Math.sin((2 * Math.PI * 3000 * i) / S.SR) * 0.5;
+	const o = S.downsample(d, 4); // 12kHz keeps a 3kHz tone
+	let peak = 0;
+	for (let i = 100; i < o.length; i++) peak = Math.max(peak, Math.abs(o[i]));
+	assert.equal(o.length, n / 4);
+	assert.ok(peak > 0.4 && peak < 0.55, `peak ${peak}`);
+});
+
 test('downsample2 halves the clip and keeps a tone below 10kHz', () => {
 	const n = 4800, d = new Float32Array(n);
 	for (let i = 0; i < n; i++) d[i] = Math.sin((2 * Math.PI * 1000 * i) / S.SR) * 0.5;
@@ -118,18 +140,20 @@ test('a hostile pack is tamed, not trusted', () => {
 });
 
 test('budget: what the base pack costs to ship, render and hold', () => {
-	let ms = 0, samples = 0;
+	let ms = 0, samples = 0, seconds = 0;
+	const mix = {};
 	for (const [, snd, opt] of clips(checked.pack.sounds)) {
+		const rate = S.rateFor(snd);
 		const t = performance.now();
-		const d = S.trimTail(S.downsample2(render(snd, opt, checked.pack.models)));
+		const d = S.trimTail(S.downsample(render(snd, snd === checked.pack.sounds.combo ? { ...opt, mix } : opt, checked.pack.models), S.SR / rate));
 		ms += performance.now() - t;
 		samples += d.length;
+		seconds += d.length / rate;
 	}
 	const shipped = JSON.stringify({ pack: { sounds: checked.pack.sounds }, models: checked.pack.models }).length;
-	// place ×4 groups and refused get 3 variants each in the game (client/sound.js)
 	const memKB = (samples * 4) / 1024;
-	console.log(`  sound budget: ${clips(checked.pack.sounds).length} clips, ${ms.toFixed(0)} ms to render here, ${(samples / 24000).toFixed(1)} s of audio, ${memKB.toFixed(0)} KB at 24kHz, ${(shipped / 1024).toFixed(1)} KB of pack`);
+	console.log(`  sound budget: ${clips(checked.pack.sounds).length} clips, ${ms.toFixed(0)} ms to render here, ${seconds.toFixed(1)} s of audio, ${memKB.toFixed(0)} KB, ${(shipped / 1024).toFixed(1)} KB of pack`);
 	assert.ok(shipped < 24 * 1024, 'pack under 24 KB before gzip');
-	assert.ok(memKB < 2048, 'clips under 2 MB');
+	assert.ok(memKB < 900, 'clips under 900 KB (Krischan\'s retuned lengths will bring this down further)');
 	assert.ok(ms < 3000, 'renders in under 3 s here (old phones: about 10–20× longer, spread over idle time)');
 });

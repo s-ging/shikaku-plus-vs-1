@@ -1,8 +1,10 @@
 // sound.js — plays the sound pack. Build once, replay forever (game/sound.md in the wiki).
 //
 //   Rendering  every clip is rendered by shared/sound/synth.js once, one clip per idle
-//              moment after the page loads (place and refused first), then halved to
-//              24kHz and trimmed at −50dB. Nothing is synthesized during play.
+//              moment after the page loads (place and refused first), then stored at the
+//              rate its high cut needs (12, 16 or 24kHz) and trimmed at −50dB. When a 3-2-1
+//              starts, whatever is left renders right away. Nothing is synthesized during play.
+//   Variety    one clip per sound; the pack's pitch wobble varies each play for free.
 //   Playing    one AudioBufferSource per sound, pitch by playback speed, one master gain.
 //              At most 8 at once; the same clip won't restart within 30ms.
 //   Not ready  a clip that isn't rendered yet is skipped and moved to the front of the
@@ -21,9 +23,8 @@ export function createSound(rawPack) {
 	const read = SoundPack.read(rawPack);
 	const pack = read.ok ? read.pack : { sounds: {}, models: {} };
 	const sounds = pack.sounds;
-	const RATE = 24000;
 	const MAX_VOICES = 8;
-	const VARIANTS = { place: 3, refused: 3 }; // a fresh-sounding clack each time, as the lab plays it
+	// One clip per sound: the pack's pitch wobble already varies every play for free (Krischan, 2026-11-06).
 	const SILENT = ['ice', 'mineTick', 'defuse', 'mineReceived', 'bank', 'queue', 'frostWarning', 'countdown', 'rush', 'win', 'lose'];
 
 	const pref = (k, dflt) => {
@@ -50,25 +51,30 @@ export function createSound(rawPack) {
 	function job(key, sound, opt, seed) {
 		if (sound && sound.layers.length) jobs.set(key, { sound, opt, seed });
 	}
-	for (let v = 0; v < VARIANTS.place; v++) for (let g = 0; g < 4; g++) sounds.place && job(`place:${g}:${v}`, sounds.place, S.placeOpt(sounds.place, g), 11 + v);
-	for (let v = 0; v < VARIANTS.refused; v++) job(`refused:${v}`, sounds.refused, {}, 21 + v);
+	// Queue order: what a round is likely to need first.
+	for (let g = 0; g < 4; g++) sounds.place && job(`place:${g}`, sounds.place, S.placeOpt(sounds.place, g), 11);
+	job('refused', sounds.refused, {}, 21);
 	job('clear', sounds.clear, {}, 31);
 	if (sounds.combo) {
 		const on = sounds.combo.seq && sounds.combo.seq.on;
-		for (const tr of on ? new Set(S.steps(sounds.combo.ladder)) : [0]) job(`combo:${tr}`, sounds.combo, { transpose: tr }, 41);
+		const mix = {}; // the combo's notes share one mix (synth.js renderSound)
+		for (const tr of on ? new Set(S.steps(sounds.combo.ladder)) : [0]) job(`combo:${tr}`, sounds.combo, { transpose: tr, mix }, 41);
 	}
-	job('boom', sounds.boom, {}, 51);
 	if (sounds.sent) {
 		job('sent:1', sounds.sent, {}, 61);
 		for (const k of Object.keys(sounds.sent.sizes || {})) job(`sent:${k}`, sounds.sent.sizes[k], {}, 61);
 	}
+	job('boom', sounds.boom, {}, 51);
 	const queue = [...jobs.keys()];
+	const rates = new Map();
 
 	function render(key) {
 		const j = jobs.get(key);
 		if (!j || data.has(key)) return;
 		S.setSeed(j.seed);
-		let d = S.trimTail(S.downsample2(S.renderSound(j.sound, j.opt, pack.models)));
+		const rate = S.rateFor(j.sound);
+		let d = S.trimTail(S.downsample(S.renderSound(j.sound, j.opt, pack.models), S.SR / rate));
+		rates.set(key, rate);
 		for (let i = 0; i < d.length; i++) if (!isFinite(d[i])) {
 			d = null; // a pack that makes an unstable filter: drop that clip, keep the game going
 			break;
@@ -79,11 +85,12 @@ export function createSound(rawPack) {
 	}
 
 	let idleBusy = false;
+	let hurry = false; // the 3-2-1 is on: finish the queue now, one clip per task so the digits keep ticking
 	const idle = typeof requestIdleCallback === 'function' ? (f) => requestIdleCallback(f, { timeout: 500 }) : (f) => setTimeout(f, 30);
 	function pump() {
 		if (idleBusy || !soundOn || !queue.length) return;
 		idleBusy = true;
-		idle(() => {
+		(hurry ? (f) => setTimeout(f, 0) : idle)(() => {
 			idleBusy = false;
 			if (!soundOn || !queue.length) return;
 			render(queue[0]);
@@ -136,8 +143,16 @@ export function createSound(rawPack) {
 		if (b) return b;
 		const d = data.get(key);
 		if (!d) return null;
-		b = ctx.createBuffer(1, d.length, RATE);
-		b.getChannelData(0).set(d);
+		const rate = rates.get(key);
+		try {
+			b = ctx.createBuffer(1, d.length, rate);
+			b.getChannelData(0).set(d);
+		} catch {
+			// Old Safari only takes 22.05kHz and up: stretch the clip to 24kHz for it.
+			const u = S.resample(d, rate / 24000);
+			b = ctx.createBuffer(1, u.length, 24000);
+			b.getChannelData(0).set(u);
+		}
 		buffers.set(key, b);
 		return b;
 	}
@@ -150,7 +165,6 @@ export function createSound(rawPack) {
 		} catch {}
 	}
 
-	let rr = 0;
 	function play(key, sound, rate) {
 		buzz(sound);
 		if (!soundOn || !jobs.has(key)) return;
@@ -191,10 +205,10 @@ export function createSound(rawPack) {
 	function place(size) {
 		const s = sounds.place;
 		if (!s) return;
-		play(`place:${S.placeGroup(size)}:${rr++ % VARIANTS.place}`, s, S.placeRate(s, size));
+		play(`place:${S.placeGroup(size)}`, s, S.placeRate(s, size));
 	}
 	function refused() {
-		if (sounds.refused) play(`refused:${rr++ % VARIANTS.refused}`, sounds.refused, 1);
+		if (sounds.refused) play('refused', sounds.refused, 1);
 	}
 	function combo(count) {
 		const s = sounds.combo;
@@ -242,8 +256,17 @@ export function createSound(rawPack) {
 		save('vs.vibe', vibeOn);
 	}
 
+	/** The 3-2-1 has started: render whatever is left now, before play begins. */
+	function prepare() {
+		if (hurry || !queue.length) return;
+		hurry = true;
+		idleBusy = false; // a pending idle callback just finds the queue shorter
+		pump();
+	}
+
 	pump();
 	return {
+		prepare,
 		place, refused, combo, sent, event, setSound, setVibrate, SILENT,
 		get soundOn() { return soundOn; },
 		get vibrateOn() { return vibeOn; },
@@ -252,9 +275,10 @@ export function createSound(rawPack) {
 		/** For tests and the budget: render everything now. */
 		renderAll() {
 			for (const k of [...jobs.keys()]) render(k);
-			let samples = 0;
-			for (const d of data.values()) if (d) samples += d.length;
-			return { clips: data.size, bytes: samples * 4, seconds: samples / RATE };
+			let bytes = 0,
+				seconds = 0;
+			for (const [k, d] of data) if (d) (bytes += d.length * 4), (seconds += d.length / rates.get(k));
+			return { clips: data.size, bytes, seconds };
 		}
 	};
 }

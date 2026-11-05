@@ -245,6 +245,8 @@ export const SoundSynth = (() => {
 		}
 	}
 
+	const keepOf = (S) => !!(S.seq && S.seq.keepLength);
+
 	/**
 	 * One finished clip for a sound. opt: { tail, room, transpose }.
 	 * Returns a Float32Array at 48kHz, peak 0.9 × the sound's volume.
@@ -256,8 +258,15 @@ export const SoundSynth = (() => {
 		let o;
 		if (S.seq && S.seq.on) {
 			const st = steps(S.seq.steps).map((v) => v + (opt.transpose || 0));
-			const base = mixLayers(S.layers, tail, models),
-				last = S.seq.lastTail !== 1 ? mixLayers(S.layers, tail * S.seq.lastTail, models) : base;
+			// opt.mix: a cache shared across a combo's ladder notes. With keepLength off every note
+			// is the same mix pitched, so it's mixed once (same seed, same layers: same samples).
+			const mc = opt.mix,
+				base = mc && mc.base ? mc.base : mixLayers(S.layers, tail, models),
+				last = mc && mc.last ? mc.last : S.seq.lastTail !== 1 ? mixLayers(S.layers, tail * S.seq.lastTail, models) : base;
+			if (mc && !keepOf(S)) {
+				mc.base = base;
+				mc.last = last;
+			}
 			const gap = Math.round((S.seq.gap / 1000) * SR);
 			const keep = S.seq.keepLength,
 				memo = {};
@@ -337,15 +346,27 @@ export const SoundSynth = (() => {
 		return ld.length ? ld[(idx - 1) % ld.length] : 0;
 	}
 
-	/** Halve a 48kHz clip to 24kHz: low-pass at 10.8kHz twice, then keep every other sample. */
-	function downsample2(d) {
-		const t = Float32Array.from(d);
-		biquad(t, 'lowpass', 10800, 0.54);
-		biquad(t, 'lowpass', 10800, 1.31);
-		const o = new Float32Array(Math.ceil(t.length / 2));
-		for (let i = 0; i < o.length; i++) o[i] = t[i * 2];
+	/**
+	 * Store a sound only as finely as its high cut needs (Krischan, 2026-11-06): 12kHz for a
+	 * cut at 5.4kHz or below, 16kHz up to 7.2kHz, otherwise 24kHz. Nothing above the high cut
+	 * is left to keep, so this costs nothing you can hear.
+	 */
+	const rateFor = (S) => {
+		const hc = S && S.fx ? S.fx.highcut : 20000;
+		return hc <= 5400 ? 12000 : hc <= 7200 ? 16000 : 24000;
+	};
+
+	/** Reduce a 48kHz clip to 48000/factor: low-pass at 0.45× the new rate (4 poles), then keep every factor-th sample. */
+	function downsample(d, factor) {
+		const t = Float32Array.from(d),
+			fc = (0.45 * SR) / factor;
+		biquad(t, 'lowpass', fc, 0.54);
+		biquad(t, 'lowpass', fc, 1.31);
+		const o = new Float32Array(Math.ceil(t.length / factor));
+		for (let i = 0; i < o.length; i++) o[i] = t[i * factor];
 		return o;
 	}
+	const downsample2 = (d) => downsample(d, 2);
 
 	/** Cut the silent end: everything after the last sample above −50dB of the peak. */
 	function trimTail(d, db = -50) {
@@ -362,6 +383,6 @@ export const SoundSynth = (() => {
 	return {
 		SR, HOP, setSeed, renderSound, renderLayer, mixLayers, transposeLayers, steps, biquad, resample, norm,
 		PLACE_GROUPS, placeGroup, placeOpt, placeRate, sentFrom, sentSound, COMBO_WRAP, comboPlan, comboTranspose,
-		downsample2, trimTail
+		downsample, downsample2, rateFor, trimTail
 	};
 })();

@@ -192,6 +192,7 @@
 			el.dataset.n = String(n);
 		}
 		el.hidden = false;
+		sound.prepare(); // any clip not rendered yet gets rendered now, while nothing can be played
 		countTimer = setTimeout(() => (left - (n - 1) * 1000 <= 1000 && n === 1 ? render() : updateCount()), left - (n - 1) * 1000 + 5);
 	}
 
