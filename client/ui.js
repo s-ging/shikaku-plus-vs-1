@@ -33,6 +33,27 @@
 	const myId = store.get('vs.id') || (store.set('vs.id', rid()), store.get('vs.id') || rid());
 	const myName = () => ($('name').value || store.get('vs.name') || 'Player').slice(0, 16);
 
+	// —— Sound: the base pack is inlined by build.mjs (SOUND_PACK); see client/sound.js ——
+	const sound = createSound(typeof SOUND_PACK !== 'undefined' ? SOUND_PACK : null);
+	function showSoundToggles() {
+		const sb = $('sound-toggle');
+		sb.textContent = sound.soundOn ? 'Sound: on' : 'Sound: off';
+		sb.setAttribute('aria-pressed', String(sound.soundOn));
+		const vb = $('vibe-toggle');
+		vb.hidden = !sound.canVibrate; // iPhone web pages can't vibrate
+		vb.textContent = sound.vibrateOn ? 'Vibration: on' : 'Vibration: off';
+		vb.setAttribute('aria-pressed', String(sound.vibrateOn));
+	}
+	$('sound-toggle').addEventListener('click', () => {
+		sound.setSound(!sound.soundOn);
+		showSoundToggles();
+	});
+	$('vibe-toggle').addEventListener('click', () => {
+		sound.setVibrate(!sound.vibrateOn);
+		showSoundToggles();
+	});
+	showSoundToggles();
+
 	function device() {
 		const n = navigator;
 		const c = n.connection || {};
@@ -171,6 +192,7 @@
 			el.dataset.n = String(n);
 		}
 		el.hidden = false;
+		sound.prepare(); // any clip not rendered yet gets rendered now, while nothing can be played
 		countTimer = setTimeout(() => (left - (n - 1) * 1000 <= 1000 && n === 1 ? render() : updateCount()), left - (n - 1) * 1000 + 5);
 	}
 
@@ -245,13 +267,18 @@
 			const screen = seat === v.me ? 0 : 1;
 			return onlyScreen != null && screen !== onlyScreen ? -2 : screen;
 		};
+		for (const e of events) if (screenOf(e) === 0) sound.event(e); // your own board only
 		hud.animate(events.filter((e) => screenOf(e) !== -2), screenOf);
 	}
 
 	function onMove(action) {
 		if (!core || mode === 'replay') return;
 		const r = core.move(action);
-		if (!r.moved && action.type === 'place' && (r.denied === 'ice' || r.denied === 'invalid')) hud.deny(action, r.denied);
+		if (!r.moved && action.type === 'place' && (r.denied === 'ice' || r.denied === 'invalid')) {
+			hud.deny(action, r.denied);
+			sound.refused();
+		}
+		if (r.moved && action.type === 'place') sound.place((Math.abs(action.bx - action.ax) + 1) * (Math.abs(action.by - action.ay) + 1));
 		if (r.moved) animate(r.events, 0);
 		if (mode === 'practice') practice.afterYou();
 		render();

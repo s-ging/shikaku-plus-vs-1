@@ -22,11 +22,21 @@ const files = [
 	'shared/protocol.js',
 	'shared/client-core.js',
 	'shared/replay.js',
+	'shared/sound/synth.js',
+	'shared/sound/pack.js',
+	'client/sound.js',
 	'client/hud.js',
 	'client/ui.js'
 ];
 mkdirSync('public', { recursive: true });
-const js = '"use strict";\n' + files.map((f) => `// ===== ${f} =====\n` + strip(readFileSync(f, 'utf8'))).join('\n');
+// The base sound pack goes inline (no extra request): sounds/base.json, checked and
+// trimmed to what the game renders. Replace that file with a pack from the Sound Lab to
+// change the sounds.
+const { SoundPack } = await import('./shared/sound/pack.js');
+const packRead = SoundPack.read(readFileSync('sounds/base.json', 'utf8'));
+if (!packRead.ok) throw new Error('sounds/base.json: ' + packRead.errors.join(', '));
+const soundPack = { format: 'shikaku-sound-pack', version: 1, sampleRate: 48000, pack: { sounds: packRead.pack.sounds }, models: packRead.pack.models };
+const js = '"use strict";\nconst SOUND_PACK = ' + JSON.stringify(soundPack) + ';\n' + files.map((f) => `// ===== ${f} =====\n` + strip(readFileSync(f, 'utf8'))).join('\n');
 writeFileSync('public/app.js', js);
 writeFileSync('public/index.html', readFileSync('client/index.html', 'utf8'));
 
