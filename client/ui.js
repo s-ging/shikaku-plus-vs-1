@@ -62,7 +62,7 @@
 		},
 		rules: () => rules,
 		onMove: (a) => onMove(a),
-		canInput: () => !!core && !!core.predicted && !core.predicted.roundOver
+		canInput: () => mode !== 'replay' && !!core && !!core.predicted && !core.predicted.roundOver
 	});
 	let view = 'play';
 	let shownRound = null;
@@ -96,6 +96,7 @@
 			const opp = room.seats[1 - v.me];
 			them = opp ? opp.name : 'Waiting';
 		} else if (mode === 'practice' && practice.preset) them = `${practice.preset.label} bot`;
+		else if (mode === 'replay' && rp.data) [you, them] = rp.data.header.names.map((n) => n || 'Player');
 		$('name-you').textContent = you;
 		$('you-name').textContent = you;
 		$('name-them').textContent = them;
@@ -155,10 +156,13 @@
 			return;
 		}
 		const ro = m.roundOver;
-		const who = ro.winner == null ? null : ro.winner === me ? 'You' : $('name-them').textContent;
+		const who = ro.winner == null ? null : mode === 'replay' ? $(ro.winner === 0 ? 'name-you' : 'name-them').textContent : ro.winner === me ? 'You' : $('name-them').textContent;
 		$('ov-title').textContent = who == null ? 'Double KO' : `${who} won the ${m.over ? 'match' : 'round'}`;
 		$('ov-sub').textContent = `${m.score[me]} – ${m.score[1 - me]}`;
-		$('ov-next').hidden = !m.over; // rounds move on by themselves; only a finished match waits
+		$('ov-next').hidden = !m.over || mode === 'replay'; // rounds move on by themselves; only a finished match waits
+		const rid = mode === 'online' && room && room.replay;
+		$('ov-replay').hidden = !(m.over && rid);
+		if (rid) $('ov-replay').href = '/replay/' + rid;
 		$('ov-next').disabled = false;
 		ov.hidden = false;
 		if (lastRoundSeen !== m.round) {
@@ -199,7 +203,7 @@
 	}
 
 	function onMove(action) {
-		if (!core) return;
+		if (!core || mode === 'replay') return;
 		const r = core.move(action);
 		if (!r.moved && action.type === 'place' && (r.denied === 'ice' || r.denied === 'invalid')) hud.deny(action, r.denied);
 		if (r.moved) animate(r.events, 0);
@@ -564,6 +568,7 @@
 				}
 			};
 			mode = 'practice';
+			$('replay-bar').hidden = true;
 			show('game');
 			banner(null);
 			$('vote').hidden = true;
@@ -612,6 +617,148 @@
 		}
 	};
 
+	// —— Replays: rebuild a recorded match on the same screen, from its seed and the server's messages ——
+	const rp = { data: null, ri: 0, exact: null, k: -1, playhead: 0, playing: false, speed: 1, last: 0, timer: 0, nextTimer: 0, dragging: false };
+	const fmtMs = (ms) => `${Math.floor(Math.max(0, ms) / 60000)}:${String(Math.floor((Math.max(0, ms) % 60000) / 1000)).padStart(2, '0')}`;
+	const replay = {
+		async open(id) {
+			practice.stop();
+			if (net.ws) net.close();
+			mode = 'replay';
+			show('game');
+			$('replay-bar').hidden = false;
+			$('game-controls').hidden = false;
+			$('vote').hidden = true;
+			$('g-report').hidden = true;
+			banner('Loading the replay…');
+			let data = null;
+			try {
+				const res = await fetch('/api/replay?id=' + id);
+				if (res.ok) data = await res.json();
+			} catch {}
+			if (!data || !data.rounds || !data.rounds.length) return banner('This replay could not be found. It may be from before replays were recorded (5 November 2026).');
+			banner(null);
+			rp.data = { header: data.header, rounds: data.rounds.filter(Boolean).sort((a, b) => a.round - b.round) };
+			rules = rp.data.header.rules;
+			setView('spec');
+			const rb = $('rp-rounds');
+			rb.innerHTML = '';
+			rp.data.rounds.forEach((rd, n) => {
+				const b = Object.assign(document.createElement('button'), { type: 'button', textContent: `Round ${n + 1}${rd.partial ? ' (unfinished)' : ''}` });
+				b.addEventListener('click', () => this.load(n, true));
+				rb.appendChild(b);
+			});
+			this.load(0, true);
+		},
+		load(n, play) {
+			clearTimeout(rp.nextTimer);
+			rp.ri = n;
+			const rd = rp.data.rounds[n];
+			rp.exact = roundStart(rp.data.header, rd);
+			rp.k = -1;
+			rp.playhead = rd.t0;
+			core = { me: 0, predicted: rp.exact, confirmed: rp.exact, serverNow: () => rp.playhead };
+			hud.reset();
+			[...$('rp-rounds').children].forEach((b, i) => b.setAttribute('aria-pressed', String(i === n)));
+			$('rp-scrub').max = String(Math.max(1000, roundEnd(rd) - rd.t0));
+			$('rp-check').textContent = verifyRound(rp.data.header, rd) ? '✓ matches the server' : '⚠ differs from the server';
+			this.show([]);
+			if (play) this.play();
+		},
+		/** Bring the exact copy up to the playhead; draw a gravity preview between messages. */
+		advance(animateIt) {
+			const rd = rp.data.rounds[rp.ri];
+			const ev = [];
+			while (rp.k + 1 < rd.msgs.length && msgAt(rd.msgs[rp.k + 1]) <= rp.playhead) ev.push(...applyMsg(rp.exact, rd.msgs[++rp.k]));
+			this.show(animateIt ? ev : []);
+			return rp.k + 1 >= rd.msgs.length && rp.playhead >= roundEnd(rd);
+		},
+		show(ev) {
+			const rd = rp.data.rounds[rp.ri];
+			let view = rp.exact;
+			// The server paid gravity lazily, at the next message; ticks owed before that message's
+			// horizon are certain, so show them on time instead of late.
+			const next = rd.msgs[rp.k + 1];
+			const step = (rules.gravitySecs || 0) * 1000;
+			if (step && !rp.exact.roundOver) {
+				const horizon = next ? Math.min(rp.playhead, next[0] === 'm' ? next[4] : next[3] ?? msgAt(next)) : rp.playhead;
+				if (rp.exact.sides.some((s) => s.frozenAt == null && s.gAt != null && s.gAt + step <= horizon)) {
+					view = VersusMatch.fromState(rp.exact.toState(), rules);
+					view.catchUp(horizon);
+				}
+			}
+			core.predicted = core.confirmed = view;
+			if (ev.length) animate(ev);
+			render();
+			if (!rp.dragging) $('rp-scrub').value = String(rp.playhead - rd.t0);
+			$('rp-time').textContent = `${fmtMs(rp.playhead - rd.startAt)} / ${fmtMs(roundEnd(rd) - rd.startAt)}`;
+		},
+		play() {
+			rp.playing = true;
+			$('rp-play').textContent = 'Pause';
+			rp.last = performance.now();
+			clearTimeout(rp.timer);
+			const tick = () => {
+				if (!rp.playing || mode !== 'replay') return;
+				const now = performance.now();
+				rp.playhead += (now - rp.last) * rp.speed;
+				rp.last = now;
+				const ended = this.advance(true);
+				if (ended) {
+					rp.playing = false;
+					$('rp-play').textContent = 'Play';
+					if (rp.ri + 1 < rp.data.rounds.length) rp.nextTimer = setTimeout(() => mode === 'replay' && this.load(rp.ri + 1, true), RESULT_MS / rp.speed);
+					return;
+				}
+				rp.timer = setTimeout(tick, 50); // 20 frames a second while playing; nothing while paused
+			};
+			rp.timer = setTimeout(tick, 50);
+		},
+		pause() {
+			rp.playing = false;
+			clearTimeout(rp.timer);
+			$('rp-play').textContent = 'Play';
+		},
+		seek(ms) {
+			const rd = rp.data.rounds[rp.ri];
+			rp.playhead = rd.t0 + ms;
+			let k = -1;
+			while (k + 1 < rd.msgs.length && msgAt(rd.msgs[k + 1]) <= rp.playhead) k++;
+			rp.exact = roundAt(rp.data.header, rd, k);
+			rp.k = k;
+			hud.reset();
+			this.show([]);
+		},
+		stop() {
+			rp.playing = false;
+			clearTimeout(rp.timer);
+			clearTimeout(rp.nextTimer);
+			if (mode === 'replay') mode = null;
+		}
+	};
+	$('rp-play').addEventListener('click', () => {
+		if (!rp.data) return;
+		if (rp.playing) return replay.pause();
+		const rd = rp.data.rounds[rp.ri];
+		if (rp.playhead >= roundEnd(rd)) replay.seek(0);
+		replay.play();
+	});
+	for (const x of [0.5, 1, 2, 4]) {
+		const b = Object.assign(document.createElement('button'), { type: 'button', textContent: `${x}×` });
+		b.setAttribute('aria-pressed', String(x === 1));
+		b.addEventListener('click', () => {
+			rp.speed = x;
+			for (const o of $('rp-speed').children) o.setAttribute('aria-pressed', String(o === b));
+		});
+		$('rp-speed').appendChild(b);
+	}
+	$('rp-scrub').addEventListener('input', () => {
+		if (!rp.data) return;
+		rp.dragging = true;
+		replay.seek(Number($('rp-scrub').value));
+	});
+	$('rp-scrub').addEventListener('change', () => (rp.dragging = false));
+
 	// —— Home and routing ——
 	for (const [k, p] of Object.entries(BOT_PRESETS)) $('bot-level').appendChild(Object.assign(document.createElement('option'), { value: k, textContent: p.label }));
 	$('bot-level').value = 'normal';
@@ -637,6 +784,10 @@
 	window.addEventListener('popstate', route);
 
 	function route() {
+		$('replay-bar').hidden = true;
+		const rpm = location.pathname.match(/^\/replay\/([a-z0-9]{12,24})\/?$/);
+		if (rpm) return replay.open(rpm[1]);
+		replay.stop();
 		const r = parseRoomPath(location.pathname);
 		if (!r) {
 			mode = null;
@@ -645,6 +796,7 @@
 		}
 		if (!store.get('vs.name')) store.set('vs.name', 'Player' + Math.floor(Math.random() * 90 + 10));
 		practice.stop();
+		$('replay-bar').hidden = true;
 		mode = 'online';
 		core = new ClientCore({ send: (o) => net.send(o) });
 		room = null;

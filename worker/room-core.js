@@ -6,7 +6,9 @@
 //               hash (~2 KB of string building), one storage write of the room (~6 KB).
 //   idle room:  nothing runs. No timers, no alarms. Gravity is paid lazily from
 //               timestamps when the next message arrives (VersusMatch.catchUp).
-//   per match:  one report sent to the Reports object at the end.
+//   per match:  one report sent to the Reports object at the end, plus one replay write per round
+//               (the round's messages, ~25 B a move). The saved room also carries the current round's
+//               replay so far, so a sleeping room loses nothing: ~6 KB plus ~25 B a move.
 import { VersusMatch } from '../engine/versus-match.js';
 import { decodeAction, encodeAction, stateHash, testerCode, RESULT_MS, COUNTDOWN_MS } from '../shared/protocol.js';
 import { rulesFor, sanitize } from '../shared/settings.js';
@@ -25,6 +27,14 @@ const LAG_MS = 250;
 // Between rounds: RESULT_MS of result, then a COUNTDOWN_MS 3-2-1 (both in shared/protocol.js).
 // No "next round" button: the server schedules the next round's start time the moment one ends.
 // Nothing runs meanwhile; moves before the start time are refused.
+
+/** A replay's id: 16 random characters, so a replay link can't be guessed. */
+function randomId() {
+	const a = 'abcdefghijkmnpqrstuvwxyz23456789';
+	const bytes = new Uint8Array(16);
+	globalThis.crypto.getRandomValues(bytes);
+	return [...bytes].map((b) => a[b % a.length]).join('');
+}
 
 const cleanName = (s) =>
 	String(s || '')
@@ -50,7 +60,8 @@ export class RoomCore {
 			vote: null, // { yes: [bool|null, bool|null], until }
 			report: null,
 			matchState: null,
-			_roundLogged: false
+			_roundLogged: false,
+			rlog: null // this round's replay so far: what the server applied, in order (see _record)
 		});
 		if (saved) Object.assign(this, saved);
 		this.match = this.matchState ? VersusMatch.fromState(this.matchState, rulesFor(this.o).rules) : null;
@@ -59,8 +70,8 @@ export class RoomCore {
 	// —— persistence ——
 	_save() {
 		this.matchState = this.match ? this.match.toState() : null;
-		const { code, phase, seats, o, n, next, vote, report, matchState, _roundLogged } = this;
-		this.io.save({ code, phase, seats, o, n, next, vote, report, matchState, _roundLogged });
+		const { code, phase, seats, o, n, next, vote, report, matchState, _roundLogged, rlog } = this;
+		this.io.save({ code, phase, seats, o, n, next, vote, report, matchState, _roundLogged, rlog });
 	}
 
 	// —— helpers ——
@@ -83,6 +94,7 @@ export class RoomCore {
 			admin: !!this.seats[i]?.admin,
 			phase: this.phase,
 			seats: this.seats.map((s) => ({ name: s.name, ready: s.ready, connected: s.connected })),
+			replay: this.report && this.match && this.match.over ? this.report.replayId : null,
 			o: this.o,
 			vote: this.vote ? { open: true, yes: this.vote.yes } : null
 		};
@@ -97,7 +109,34 @@ export class RoomCore {
 	}
 	_seq(obj) {
 		this.n++;
-		return { ...obj, n: this.n, h: stateHash(this.match) };
+		const h = stateHash(this.match);
+		this._record(obj, h);
+		return { ...obj, n: this.n, h };
+	}
+
+	// —— replays (2026-11-05) ——
+	// A replay is the match header plus, per round, every sequenced message the server applied:
+	//   ['m', seat, action, at, g]   a move        ['t', seat, at, g]   a gravity catch-up
+	//   ['f', seat, at]              a freeze      ['h', seat, at, g]   a thaw
+	// The engine is deterministic, so replaying these from the round's seed rebuilds the round
+	// exactly; the last state hash is kept to prove it. About 25 bytes per move.
+	_record(obj, h) {
+		const r = this.rlog;
+		if (!r) return;
+		if (obj.t === 'mv') r.msgs.push(['m', obj.i, obj.a, obj.at, obj.g]);
+		else if (obj.t === 'tk') r.msgs.push(['t', obj.i ?? null, obj.at, obj.g ?? null]);
+		else if (obj.t === 'fz') r.msgs.push(['f', obj.i, obj.at]);
+		else if (obj.t === 'th') r.msgs.push(['h', obj.i, obj.at, obj.g ?? null]);
+		else return;
+		r.hash = h;
+	}
+	_openRound(now) {
+		const m = this.match;
+		this.rlog = { round: m.round, t0: now, startAt: m.roundStartAt, score: [...m.score], frozen: m.sides.map((s, i) => (s.frozenAt != null ? i : -1)).filter((i) => i >= 0), msgs: [], hash: stateHash(m) };
+	}
+	_flushRound(partial = false) {
+		if (!this.rlog || !this.report || !this.report.replayId) return;
+		this.io.replay?.(this.report.replayId, this.rlog.round, partial ? { ...this.rlog, partial: true } : this.rlog);
 	}
 
 	// —— connection events ——
@@ -255,7 +294,10 @@ export class RoomCore {
 			s.goneRound = 0;
 			s.timing = { n: 0, sum: 0, sumSq: 0, min: null, last: now, boardFirst: { n: 0, sum: 0 }, boardAt: now, board: 0 };
 		}
-		this.report = { code: this.code, startedAt: now, o: this.o, mode: rules.mode === 'mines' ? 'mines' : 'vs', firstTo, rounds: [], votes: [] };
+		const replayId = randomId();
+		this.report = { code: this.code, startedAt: now, o: this.o, mode: rules.mode === 'mines' ? 'mines' : 'vs', firstTo, rounds: [], votes: [], replayId };
+		this.io.replay?.(replayId, 0, { v: 1, id: replayId, code: this.code, startedAt: now, seed, target: firstTo, rules, names: this.seats.map((s) => s.name) });
+		this._openRound(now);
 		this.n++;
 		for (const s of this.seats) this._to(s.id, { t: 'round', n: this.n, st: this.match.toState(), rules, ls: s.lastS || 0, startAt: this.match.roundStartAt });
 		this._roomAll();
@@ -332,6 +374,8 @@ export class RoomCore {
 			this.report.rounds.push({ round: m.round, winner: m.roundOver.winner, by: m.roundOver.by, ms: now - (m.roundStartAt ?? now), boards: m.sides.map((s) => s.boardIndex + 1), hearts: m.sides.map((s) => s.econ.hearts), frozenOut: m.sides.map((s) => s.econ.stats.frozenOut || 0) });
 			this.next = [false, false];
 			this.vote = null;
+			if (this.rlog) this.rlog.end = { winner: m.roundOver.winner, by: m.roundOver.by, score: [...m.score], at: now };
+			this._flushRound();
 			if (m.over) {
 				// The match is concluded: record it now, not when someone presses a button.
 				this.report.endedAt = now;
@@ -348,6 +392,7 @@ export class RoomCore {
 	/** One report per match, keyed by its start: sending again (an abandoned match resumed and finished) replaces it. */
 	_sendReport(now) {
 		if (!this.report) return;
+		if (this.rlog && !this.rlog.end) this._flushRound(true); // abandoned: keep the round so far
 		this.io.report(this._report(now));
 	}
 
@@ -367,6 +412,7 @@ export class RoomCore {
 
 	_newRound(now, remake, delayMs = COUNTDOWN_MS, prev = null) {
 		const m = this.match;
+		if (this.rlog && !this.rlog.end) this._flushRound(true); // a remake ends a round early
 		m.newRound();
 		m.startClock(now, delayMs);
 		this._roundLogged = false;
@@ -376,6 +422,7 @@ export class RoomCore {
 			s.goneRound = 0;
 			if (s.left != null) m.freezeSide(this._seatOf(s.id), now);
 		}
+		this._openRound(now);
 		this.n++;
 		const rules = rulesFor(this.o).rules;
 		for (const s of this.seats) this._to(s.id, { t: 'round', n: this.n, st: m.toState(), rules, remake, ls: s.lastS || 0, startAt: m.roundStartAt, prev });

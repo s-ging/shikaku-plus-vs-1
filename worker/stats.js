@@ -19,7 +19,8 @@ export function summarize(reports) {
 		network: { phone: null, desktop: null, mismatches: 0, resyncs: 0, reconnects: 0, disconnectedSec: 0 },
 		pace: { secondsPerMove: null, firstMoveOnABoardSec: null },
 		settingsChanged: {},
-		testers: { unique: 0, list: [] }
+		testers: { unique: 0, list: [] },
+		recent: [] // the last 50 matches, newest first, with their replay links
 	};
 	const lengths = [];
 	const boards = [];
@@ -86,5 +87,10 @@ export function summarize(reports) {
 		.sort((a, b) => b.lastSeen - a.lastSeen)
 		.map((t) => ({ ...t, firstSeen: new Date(t.firstSeen).toISOString(), lastSeen: new Date(t.lastSeen).toISOString() }));
 	out.testers.unique = out.testers.list.length;
+	out.recent = [...(reports || [])]
+		.filter((r) => r && typeof r === 'object')
+		.sort((a, b) => (b.startedAt || 0) - (a.startedAt || 0))
+		.slice(0, 50)
+		.map((r) => ({ at: Number.isFinite(r.startedAt) ? new Date(r.startedAt).toISOString() : null, code: r.code, result: r.result || (r.endedAt ? 'finished' : 'abandoned'), score: r.score, players: (r.seats || []).map((s) => s.name), replay: r.replayId ? `/replay/${r.replayId}` : null }));
 	return out;
 }

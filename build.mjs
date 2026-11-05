@@ -21,6 +21,7 @@ const files = [
 	'shared/settings.js',
 	'shared/protocol.js',
 	'shared/client-core.js',
+	'shared/replay.js',
 	'client/hud.js',
 	'client/ui.js'
 ];

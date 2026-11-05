@@ -232,6 +232,11 @@ canvas.board { display: block; width: 100%; height: auto; aspect-ratio: 1; touch
 .set-row select { background: var(--cell); border: 0; border-radius: 6px; padding: 4px 6px; }
 .set-row input[type=checkbox] { accent-color: var(--accent); width: 18px; height: 18px; }
 .save-row { display: flex; justify-content: flex-end; align-items: center; gap: 12px; margin-top: 14px; }
+.replay-bar { display: flex; flex-direction: column; gap: 10px; max-width: 760px; width: 100%; margin: 0 auto; }
+.replay-bar .row { justify-content: center; }
+.replay-bar .seg button { min-height: 34px; }
+#rp-scrub { width: 100%; accent-color: var(--accent); }
+#ov-replay { text-decoration: none; color: var(--fg); display: inline-flex; align-items: center; }
 .banner { background: var(--card); border-left: 2px solid var(--accent); color: var(--fg2); border-radius: 6px; padding: 8px 12px; font-size: 13px; }
 #game-controls { justify-content: center; }
 #game-controls .seg button { min-height: 34px; }
@@ -353,6 +358,7 @@ canvas.board { display: block; width: 100%; height: auto; aspect-ratio: 1; touch
 					<h2 id="ov-title"></h2>
 					<p id="ov-sub"></p>
 					<button class="primary" id="ov-next" hidden>Back to the room</button>
+					<a class="btn" id="ov-replay" hidden>Watch the replay</a>
 				</div>
 				<div class="count" id="count" hidden aria-live="assertive"></div>
 			</div>
@@ -372,6 +378,16 @@ canvas.board { display: block; width: 100%; height: auto; aspect-ratio: 1; touch
 				</div>
 			</div>
 		</section>
+	</div>
+	<div class="replay-bar" id="replay-bar" hidden>
+		<div class="row">
+			<button class="primary" id="rp-play" type="button">Pause</button>
+			<div class="seg" id="rp-speed" role="group" aria-label="Speed"></div>
+			<div class="seg" id="rp-rounds" role="group" aria-label="Round"></div>
+			<span class="muted num" id="rp-time"></span>
+			<span class="muted" id="rp-check"></span>
+		</div>
+		<input type="range" id="rp-scrub" min="0" max="1000" value="0" step="10" aria-label="Seek">
 	</div>
 	<div class="row" id="game-controls">
 		<div class="seg" id="views" role="group" aria-label="Layout"><button type="button" data-view="play" aria-pressed="true">Play view</button><button type="button" data-view="spec" aria-pressed="false">Side by side</button></div>

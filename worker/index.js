@@ -3,6 +3,7 @@
 //   /ws/QWER          WebSocket into room QWER (the Room object named "QWER")
 //   /api/reports?k=…  admin: the last 100 match reports (k must equal the ADMIN_KEY secret)
 //   /api/stats?k=…    admin: every match so far, added up
+//   /api/replay?id=…  a match's replay (public: the id is 16 random characters; it's in the stats and on the match-over card)
 //   everything else   static client files; unknown paths (like /QWER) get index.html
 //
 // Rooms use the WebSocket Hibernation API: while nobody sends anything, the object
@@ -25,8 +26,14 @@ export default {
 			const stub = env.ROOMS.get(env.ROOMS.idFromName(code));
 			return stub.fetch(new Request(`https://room/${code}`, req));
 		}
+		if (url.pathname === '/api/replay') {
+			const id = url.searchParams.get('id') || '';
+			if (!/^[a-z0-9]{12,24}$/.test(id)) return new Response('bad id', { status: 400 });
+			return env.REPORTS.get(env.REPORTS.idFromName('all')).fetch('https://reports/replay?id=' + id);
+		}
 		if (url.pathname === '/api/reports' || url.pathname === '/api/stats') {
-			if (!env.ADMIN_KEY || url.searchParams.get('k') !== env.ADMIN_KEY) return new Response('no', { status: 403 });
+			if (!env.ADMIN_KEY) return new Response('Admin is off: set the ADMIN_KEY secret on this Worker (npx wrangler secret put ADMIN_KEY).', { status: 403 });
+			if (url.searchParams.get('k') !== env.ADMIN_KEY) return new Response('Wrong or missing key: add ?k=YOUR_ADMIN_KEY to the address.', { status: 403 });
 			const path = url.pathname === '/api/stats' ? 'stats' : 'list';
 			return env.REPORTS.get(env.REPORTS.idFromName('all')).fetch('https://reports/' + path);
 		}
@@ -73,7 +80,10 @@ export class Room {
 				}
 				return t;
 			},
-			report: (r) => this.env.REPORTS.get(this.env.REPORTS.idFromName('all')).fetch('https://reports/add', { method: 'POST', body: JSON.stringify(r) })
+			report: (r) => this.env.REPORTS.get(this.env.REPORTS.idFromName('all')).fetch('https://reports/add', { method: 'POST', body: JSON.stringify(r) }),
+			// One write per round (plus the header at the start): the round's messages, sent when it ends.
+			replay: (id, part, data) =>
+				this.env.REPORTS.get(this.env.REPORTS.idFromName('all')).fetch('https://reports/replay', { method: 'POST', body: JSON.stringify({ id, part, data }) })
 		};
 		this.core = new RoomCore(saved?.code || code, io, this.env.ADMIN_KEY, saved);
 		return this.core;
@@ -143,6 +153,19 @@ export class Reports {
 			const key = `r:${String(r.startedAt || Date.now()).padStart(15, '0')}:${r.code || ''}`;
 			await this.ctx.storage.put(key, r);
 			return new Response('ok');
+		}
+		if (url.pathname === '/replay' && req.method === 'POST') {
+			const { id, part, data } = await req.json();
+			if (!/^[a-z0-9]{12,24}$/.test(String(id)) || !Number.isInteger(part)) return new Response('bad', { status: 400 });
+			await this.ctx.storage.put(`p:${id}:${String(part).padStart(3, '0')}`, data);
+			return new Response('ok');
+		}
+		if (url.pathname === '/replay') {
+			const id = url.searchParams.get('id');
+			const parts = [...(await this.ctx.storage.list({ prefix: `p:${id}:` })).values()];
+			if (!parts.length) return new Response('not found', { status: 404 });
+			const [header, ...rounds] = parts;
+			return Response.json({ header, rounds }, { headers: { 'cache-control': 'public, max-age=60' } });
 		}
 		if (url.pathname === '/list') {
 			const list = await this.ctx.storage.list({ prefix: 'r:', reverse: true, limit: 100 });

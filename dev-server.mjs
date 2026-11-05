@@ -7,11 +7,13 @@ import { readFileSync, existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { RoomCore } from './worker/room-core.js';
 import { isRoomCode } from './shared/protocol.js';
+import { summarize } from './worker/stats.js';
 
 const PORT = Number(process.env.PORT || 8787);
 const ADMIN_KEY = process.env.ADMIN_KEY || 'dev';
 const rooms = new Map(); // code → { core, socks: Set }
 const reports = [];
+const replays = new Map(); // id → [header, round 1, round 2, …]
 
 function roomFor(code) {
 	let r = rooms.get(code);
@@ -22,7 +24,11 @@ function roomFor(code) {
 		conns: () => [...r.socks].filter((s) => !s.closing).map((s) => ({ conn: s, id: s.id })),
 		lastPing: (id) => Math.max(0, ...[...r.socks].filter((s) => s.id === id).map((s) => s.lastPing || 0)),
 		save: (obj) => (r.saved = JSON.stringify(obj)),
-		report: (rep) => reports.unshift(rep)
+		report: (rep) => reports.unshift(rep),
+		replay: (id, part, data) => {
+			if (!replays.has(id)) replays.set(id, []);
+			replays.get(id)[part] = JSON.parse(JSON.stringify(data));
+		}
 	};
 	r.core = new RoomCore(code, io, ADMIN_KEY, null);
 	rooms.set(code, r);
@@ -31,6 +37,18 @@ function roomFor(code) {
 
 const server = createServer((req, res) => {
 	const url = new URL(req.url, 'http://x');
+	if (url.pathname === '/api/replay') {
+		const parts = replays.get(url.searchParams.get('id') || '');
+		if (!parts) return res.writeHead(404).end('not found');
+		const [header, ...rounds] = parts;
+		res.writeHead(200, { 'content-type': 'application/json' });
+		return res.end(JSON.stringify({ header, rounds: rounds.filter(Boolean) }));
+	}
+	if (url.pathname === '/api/stats') {
+		if (url.searchParams.get('k') !== ADMIN_KEY) return res.writeHead(403).end('no');
+		res.writeHead(200, { 'content-type': 'application/json' });
+		return res.end(JSON.stringify(summarize(reports)));
+	}
 	if (url.pathname === '/api/reports') {
 		if (url.searchParams.get('k') !== ADMIN_KEY) return res.writeHead(403).end('no');
 		res.writeHead(200, { 'content-type': 'application/json' });

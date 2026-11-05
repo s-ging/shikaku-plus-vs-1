@@ -124,7 +124,8 @@ test('two clients play a whole match through the room with no drift', () => {
 	assert.match(r.seats[0].tester, /^[0-9A-F]{4}-[0-9A-F]{4}$/);
 	for (const c of w.clients) assert.equal(c.core.mismatches, 0, `seat ${c.seat} drifted`);
 	assert.ok(r.seats[0].moves.n > 20);
-	assert.ok(Math.max(...w.saved) < 16000, 'room fits comfortably in one storage value: ' + Math.max(...w.saved));
+	// The saved room carries this round's replay so far (2026-11-05). Writes are billed per row, not by size, and a value can hold 2MB.
+	assert.ok(Math.max(...w.saved) < 48000, 'room fits comfortably in one storage value: ' + Math.max(...w.saved));
 });
 
 test('a dropped player freezes; reconnecting offers a remake vote; both yes replays the round', () => {
@@ -318,4 +319,37 @@ test('a match everyone leaves is recorded as abandoned; reports add up in /api/s
 	assert.equal(s.matches.abandoned, 1);
 	assert.equal(s.testers.unique, 2);
 	assert.equal(s.matches.byFirstTo[3], 2);
+});
+
+test('replays: every round rebuilds exactly from its seed and the recorded messages', async () => {
+	const { verifyRound, roundAt } = await import('../shared/replay.js');
+	const w = world({ latency: [40, 140] });
+	const replays = new Map();
+	w.room.io.replay = (id, part, data) => {
+		if (!replays.has(id)) replays.set(id, []);
+		replays.get(id)[part] = JSON.parse(JSON.stringify(data));
+	};
+	const a = w.addClient(0, 'aaaaaaaa1', null);
+	w.run(300);
+	const b = w.addClient(1, 'bbbbbbbb2', null);
+	w.run(300);
+	a.sendUp({ t: 'set', o: { firstTo: 3 } });
+	w.run(300);
+	a.sendUp({ t: 'ready', v: true });
+	b.sendUp({ t: 'ready', v: true });
+	w.run(300);
+	a.sendUp({ t: 'start' });
+	w.run(30 * 60 * 1000, playLoop(w));
+	assert.equal(replays.size, 1);
+	const [header, ...rounds] = [...replays.values()][0];
+	assert.ok(header.rules && header.seed && header.names.length === 2);
+	assert.ok(rounds.length >= 3, `rounds recorded: ${rounds.length}`);
+	for (const rd of rounds.filter(Boolean)) {
+		assert.ok(rd.msgs.length > 10);
+		assert.ok(verifyRound(header, rd), `round ${rd.round} replays to the server's hash`);
+		assert.ok(roundAt(header, rd, rd.msgs.length - 1).roundOver, 'and ends the same way');
+	}
+	assert.equal(w.reports[0].replayId, header.id);
+	const size = JSON.stringify([header, ...rounds]).length;
+	assert.ok(size < 120000, 'a whole first-to-3 replay is small: ' + size);
 });
