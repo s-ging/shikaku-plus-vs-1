@@ -62,7 +62,8 @@
 		},
 		rules: () => rules,
 		onMove: (a) => onMove(a),
-		canInput: () => mode !== 'replay' && !!core && !!core.predicted && !core.predicted.roundOver
+		canInput: () => mode !== 'replay' && !!core && !!core.predicted && !core.predicted.roundOver,
+		onHover: (r) => sendHover(r)
 	});
 	let view = 'play';
 	let shownRound = null;
@@ -70,7 +71,51 @@
 		view = v;
 		hud.setView(v, rules.mode === 'mines');
 		for (const b of document.querySelectorAll('#views button')) b.setAttribute('aria-pressed', String(b.dataset.view === v));
+		showGhost();
 	};
+
+	// —— Hovers: my drag goes to the other player as it moves; theirs shows as a faint Tile ——
+	// Sent only when the drag reaches a new Cell, at most every 50ms (the last one always goes).
+	let hoverOut = { last: 0, timer: 0, r: undefined, sent: undefined };
+	function sendHover(r) {
+		if (mode !== 'online') return;
+		hoverOut.r = r ? [r.x1, r.y1, r.x2, r.y2] : null;
+		const go = () => {
+			hoverOut.timer = 0;
+			if (JSON.stringify(hoverOut.r) === JSON.stringify(hoverOut.sent)) return;
+			hoverOut.sent = hoverOut.r;
+			hoverOut.last = performance.now();
+			net.send(hoverOut.r ? { t: 'hv', r: hoverOut.r } : { t: 'hv' });
+		};
+		const wait = 50 - (performance.now() - hoverOut.last);
+		if (wait <= 0 || hoverOut.r === null) {
+			clearTimeout(hoverOut.timer);
+			go();
+		} else if (!hoverOut.timer) hoverOut.timer = setTimeout(go, wait);
+	}
+	// Always on side by side; in play view the player can turn it off (remembered in this browser).
+	let ghostPref = true;
+	try {
+		ghostPref = localStorage.getItem('vs.ghost') !== 'off';
+	} catch {}
+	let theirHover = null;
+	function showGhost() {
+		const on = view === 'spec' || ghostPref;
+		hud.setGhost(1, on && theirHover ? { x1: theirHover[0], y1: theirHover[1], x2: theirHover[2], y2: theirHover[3] } : null);
+		const b = $('ghost-toggle');
+		if (b) {
+			b.hidden = view === 'spec' || mode === 'replay';
+			b.textContent = ghostPref ? 'Their hovers: on' : 'Their hovers: off';
+			b.setAttribute('aria-pressed', String(ghostPref));
+		}
+	}
+	$('ghost-toggle').addEventListener('click', () => {
+		ghostPref = !ghostPref;
+		try {
+			localStorage.setItem('vs.ghost', ghostPref ? 'on' : 'off');
+		} catch {}
+		showGhost();
+	});
 	for (const b of document.querySelectorAll('#views button')) b.addEventListener('click', () => setView(b.dataset.view));
 	const serverNow = () => (core && core.serverNow ? core.serverNow() : Date.now());
 
@@ -82,6 +127,7 @@
 		if ($('stage').classList.contains('mines') !== mines) setView(view);
 		if (shownRound !== m.round + ':' + m.seed) {
 			shownRound = m.round + ':' + m.seed; // a new round or match: clear the lanes and flashes
+			theirHover = null;
 			hud.reset();
 		}
 		hud.render();
@@ -329,6 +375,13 @@
 			render();
 			return;
 		}
+		if (msg.t === 'hv') {
+			if (core && msg.i !== core.me) {
+				theirHover = msg.r || null;
+				showGhost();
+			}
+			return;
+		}
 		if (msg.t === 'report') {
 			copy(JSON.stringify(msg.r, null, 1), 'Report copied');
 			return;
@@ -362,6 +415,10 @@
 		const events = core.handle(msg);
 		// The other board's events come from the server; mine were shown when I moved.
 		animate(events, 1);
+		if (msg.t === 'mv' && msg.i !== core.me && theirHover) {
+			theirHover = null;
+			showGhost();
+		}
 		if (msg.t === 'mv' && msg.i !== core.me) animate(events.filter((e) => e.kind === 'minesIncoming' || e.kind === 'iceIncoming'), 0);
 		if (msg.t === 'round' || msg.t === 'full') show('game');
 		render();
@@ -669,7 +726,9 @@
 		advance(animateIt) {
 			const rd = rp.data.rounds[rp.ri];
 			const ev = [];
+			const k0 = rp.k;
 			while (rp.k + 1 < rd.msgs.length && msgAt(rd.msgs[rp.k + 1]) <= rp.playhead) ev.push(...applyMsg(rp.exact, rd.msgs[++rp.k]));
+			if (rp.k !== k0) this.ghosts();
 			this.show(animateIt ? ev : []);
 			return rp.k + 1 >= rd.msgs.length && rp.playhead >= roundEnd(rd);
 		},
@@ -727,7 +786,13 @@
 			rp.exact = roundAt(rp.data.header, rd, k);
 			rp.k = k;
 			hud.reset();
+			this.ghosts();
 			this.show([]);
+		},
+		/** Both players' hovers as of the playhead (screen = seat in the viewer). */
+		ghosts() {
+			const h = hoversAt(rp.data.rounds[rp.ri], rp.k);
+			h.forEach((r, i) => hud.setGhost(i, r ? { x1: r[0], y1: r[1], x2: r[2], y2: r[3] } : null));
 		},
 		stop() {
 			rp.playing = false;

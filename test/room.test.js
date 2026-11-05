@@ -353,3 +353,46 @@ test('replays: every round rebuilds exactly from its seed and the recorded messa
 	const size = JSON.stringify([header, ...rounds]).length;
 	assert.ok(size < 120000, 'a whole first-to-3 replay is small: ' + size);
 });
+
+test('hovers: passed to the other player only, saved nowhere, kept in the replay, and the replay still matches', async () => {
+	const { verifyRound, hoversAt } = await import('../shared/replay.js');
+	const w = world({ latency: [40, 60] });
+	const replays = new Map();
+	w.room.io.replay = (id, part, data) => {
+		if (!replays.has(id)) replays.set(id, []);
+		replays.get(id)[part] = JSON.parse(JSON.stringify(data));
+	};
+	const a = w.addClient(0, 'aaaaaaaa1', null);
+	w.run(300);
+	const b = w.addClient(1, 'bbbbbbbb2', null);
+	w.run(300);
+	a.sendUp({ t: 'set', o: { firstTo: 1 } });
+	w.run(300);
+	a.sendUp({ t: 'ready', v: true });
+	b.sendUp({ t: 'ready', v: true });
+	w.run(300);
+	a.sendUp({ t: 'start' });
+	w.run(3500);
+	const got = { a: [], b: [] };
+	for (const [c, k] of [[a, 'a'], [b, 'b']]) {
+		const inbox = c.inbox;
+		c.inbox = (msg) => (msg.t === 'hv' ? got[k].push(msg) : inbox(msg));
+	}
+	const saves = w.saved.length;
+	a.sendUp({ t: 'hv', r: [0, 0, 1, 2] });
+	a.sendUp({ t: 'hv', r: [9, 9, 9, 9] }); // off the board: passed on as "cleared"
+	w.run(300);
+	assert.equal(w.saved.length, saves, 'a hover writes nothing');
+	assert.deepEqual(got.b.map((m) => m.r), [[0, 0, 1, 2], null]);
+	assert.equal(got.a.length, 0, 'never echoed to the sender');
+	const step = playLoop(w);
+	w.run(30 * 60 * 1000, (now) => {
+		if (Math.random() < 0.3) a.sendUp({ t: 'hv', r: [1, 1, 2, 2] });
+		step(now);
+	});
+	const [header, ...rounds] = [...replays.values()][0];
+	const rd = rounds.find(Boolean);
+	assert.ok(rd.msgs.some((x) => x[0] === 'v'), 'hovers are in the replay');
+	assert.ok(verifyRound(header, rd), 'and the replay still lands on the server hash');
+	assert.equal(hoversAt(rd, -1)[0], null);
+});

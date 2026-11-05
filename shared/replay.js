@@ -4,6 +4,7 @@
 // A replay is { header, rounds }:
 //   header  { v, id, code, startedAt, seed, target, rules, names }
 //   round   { round, t0, startAt, score, frozen, msgs, hash, end?, partial? }
+//   msgs    ['m', seat, move, at, g] · ['t', seat, at, g] · ['f', seat, at] · ['h', seat, at, g] · ['v', seat, at, tile|null] (a hover)
 // The messages are applied the same way a client applies them live (shared/client-core.js),
 // so the state after the last one hashes to `hash`: that's the proof the replay is faithful.
 import { VersusMatch } from '../engine/versus-match.js';
@@ -25,6 +26,7 @@ export const msgAt = (x) => (x[0] === 'm' ? x[3] : x[2]);
 /** Apply one recorded message. Returns the engine events, for animation. */
 export function applyMsg(m, x) {
 	const [t, i] = x;
+	if (t === 'v') return []; // a hover: shown by the viewer, changes nothing
 	const at = msgAt(x);
 	const g = t === 'm' ? x[4] : t === 't' || t === 'h' ? x[3] : null;
 	const events = m.catchUp(g ?? at);
@@ -40,6 +42,17 @@ export function roundAt(header, rd, upTo) {
 	const m = roundStart(header, rd);
 	for (let k = 0; k <= upTo && k < rd.msgs.length; k++) applyMsg(m, rd.msgs[k]);
 	return m;
+}
+
+/** Where each seat's hover is after message `upTo`: the last hover, cleared by that seat's next move. */
+export function hoversAt(rd, upTo) {
+	const out = [null, null];
+	for (let k = 0; k <= upTo && k < rd.msgs.length; k++) {
+		const x = rd.msgs[k];
+		if (x[0] === 'v') out[x[1]] = x[3];
+		else if (x[0] === 'm') out[x[1]] = null;
+	}
+	return out;
 }
 
 /** True if replaying every message lands on the hash the server recorded. */

@@ -12,6 +12,7 @@
 //   rules()      the rules object in use
 //   onMove(a)    called with { type: 'place', ax, ay, bx, by } or { type: 'erase', x, y } from board 0
 //   canInput()   whether board 0 takes input right now
+//   onHover(r)   optional: my drag as { x1, y1, x2, y2 }, or null when it ends
 import { Rect } from '../engine/puzzle.js';
 import { verifyRect, cellUnderBlock } from '../engine/game.js';
 
@@ -99,6 +100,7 @@ export function createHud(opts) {
 				} catch {}
 				const [x, y] = this.cellAt(e);
 				this.drag = { ax: x, ay: y, bx: x, by: y };
+				hover(this.drag);
 				kick();
 			});
 			c.addEventListener('pointermove', (e) => {
@@ -107,11 +109,13 @@ export function createHud(opts) {
 				if (x === this.drag.bx && y === this.drag.by) return;
 				this.drag.bx = x;
 				this.drag.by = y;
+				hover(this.drag);
 				kick();
 			});
 			c.addEventListener('pointerup', () => {
 				const d = this.drag;
 				this.drag = null;
+				hover(null);
 				kick();
 				if (!d) return;
 				if (d.ax === d.bx && d.ay === d.by) opts.onMove({ type: 'erase', x: d.ax, y: d.ay });
@@ -119,6 +123,7 @@ export function createHud(opts) {
 			});
 			c.addEventListener('pointercancel', () => {
 				this.drag = null;
+				hover(null);
 				kick();
 			});
 		}
@@ -290,6 +295,18 @@ export function createHud(opts) {
 				}
 			}
 
+			// The other player's drag, live or replayed: a faint Tile where they're about to place.
+			if (this.hover) {
+				c.globalAlpha = 0.32;
+				c.fillStyle = VS_BOX;
+				this.rr(...this.span(this.hover));
+				c.fill();
+				c.globalAlpha = 0.85;
+				c.strokeStyle = VS_BOX;
+				c.lineWidth = 1.5;
+				c.stroke();
+				c.globalAlpha = 1;
+			}
 			if (this.drag) {
 				const d = this.drag;
 				const r = new Rect(d.ax, d.ay, d.bx, d.by);
@@ -598,6 +615,18 @@ export function createHud(opts) {
 
 
 	const views = [new BoardView($('you-board'), 0, true), new BoardView($('them-board'), 1, false)];
+	// My drag as a Tile ({ x1, y1, x2, y2 }) or null, for whoever wants to show it (opts.onHover).
+	function hover(d) {
+		if (!opts.onHover) return;
+		opts.onHover(d ? { x1: Math.min(d.ax, d.bx), y1: Math.min(d.ay, d.by), x2: Math.max(d.ax, d.bx), y2: Math.max(d.ay, d.by) } : null);
+	}
+	/** Show a hovering Tile on screen i ({ x1, y1, x2, y2 }), or clear it with null. */
+	function setGhost(i, r) {
+		const v = views[i];
+		if (!v) return;
+		v.hover = r ? { x1: r.x1, y1: r.y1, x2: r.x2, y2: r.y2 } : null;
+		kick();
+	}
 
 	/** Play the visual side of engine events. screenOf(e) → 0, 1, or -1 for match events. */
 	function animate(events, screenOf) {
@@ -679,6 +708,7 @@ export function createHud(opts) {
 			v.flashes = [];
 			v.drag = null;
 			v.ghost = null;
+			v.hover = null;
 		}
 		clearLanes();
 		kick();
@@ -687,5 +717,5 @@ export function createHud(opts) {
 	readColors();
 	// Canvas text uses Shippori; redraw once the font has arrived.
 	if (document.fonts && document.fonts.ready) document.fonts.ready.then(kick);
-	return { views, kick, animate, render, setView, get view() { return view; }, deny, reset };
+	return { views, kick, animate, render, setView, get view() { return view; }, deny, reset, setGhost };
 }

@@ -24,6 +24,7 @@ const NAME_MAX = 16;
 // instead of losing to it. The sender's own gravity is paid up to its message: one seat's
 // messages arrive in order. Cost: about 15 bytes more per message; nothing runs while idle.
 const LAG_MS = 250;
+const HOVER_LOG_MAX = 6000; // a round's replay keeps hovers up to this many entries in all (~25 bytes each)
 // Between rounds: RESULT_MS of result, then a COUNTDOWN_MS 3-2-1 (both in shared/protocol.js).
 // No "next round" button: the server schedules the next round's start time the moment one ends.
 // Nothing runs meanwhile; moves before the start time are refused.
@@ -129,6 +130,18 @@ export class RoomCore {
 		else if (obj.t === 'th') r.msgs.push(['h', obj.i, obj.at, obj.g ?? null]);
 		else return;
 		r.hash = h;
+	}
+	/**
+	 * A player's drag, passed straight to the other seat and kept in the round's replay.
+	 * Not sequenced, not hashed, not saved on its own (it rides along with the next save).
+	 */
+	_hover(i, msg, now) {
+		if (!this.match || this.phase !== 'match' || this.match.roundOver) return;
+		const N = this.match.sides[i].N;
+		const ok = (v) => Number.isInteger(v) && v >= 0 && v < N;
+		const r = Array.isArray(msg.r) && msg.r.length === 4 && msg.r.every(ok) && msg.r[0] <= msg.r[2] && msg.r[1] <= msg.r[3] ? msg.r : null;
+		this._all({ t: 'hv', i, r }, this.seats[i].id);
+		if (this.rlog && this.rlog.msgs.length < HOVER_LOG_MAX) this.rlog.msgs.push(['v', i, now, r]);
 	}
 	_openRound(now) {
 		const m = this.match;
@@ -270,6 +283,9 @@ export class RoomCore {
 			case 'resync':
 				if (this.match) this._full(id);
 				break;
+			case 'hv':
+				this._hover(i, msg, now);
+				return; // nothing to save: a hover changes no state
 			case 'tele':
 				if (seat.tele.length < 20 && msg.d && typeof msg.d === 'object') seat.tele.push(JSON.parse(JSON.stringify(msg.d).slice(0, 1500) || 'null'));
 				break;
