@@ -180,20 +180,36 @@ export const SoundSynth = (() => {
 			y[i] = acc;
 			o[i] = acc;
 		}
-		return resample(o, Math.pow(2, L.pitch / 12));
+		return cutFade(resample(o, Math.pow(2, L.pitch / 12)), L.start || 0, L.len || 0, L.fadeIn || 0, L.fadeOut || 0);
+	}
+
+	// Keep startMs..startMs+lenMs (len 0 = to the end), with linear fades in and out.
+	function cutFade(o, startMs, lenMs, inMs, outMs) {
+		const s0 = Math.min(o.length - 1, Math.max(0, Math.round((startMs / 1000) * SR)));
+		const e0 = lenMs > 0 ? Math.min(o.length, s0 + Math.round((lenMs / 1000) * SR)) : o.length;
+		const r = o.slice(s0, Math.max(s0 + 1, e0));
+		const fi = Math.min(r.length, Math.round((inMs / 1000) * SR)),
+			fo = Math.min(r.length, Math.round((outMs / 1000) * SR));
+		for (let i = 0; i < fi; i++) r[i] *= i / fi;
+		for (let i = 0; i < fo; i++) r[r.length - 1 - i] *= i / fo;
+		return r;
 	}
 
 	const RENDER = { tone: renderTone, noise: renderNoise, pluck: renderPluck, fit: renderFit };
-	function renderLayer(L, tail, models) {
-		return norm(RENDER[L.type](L, tail, models), L.gain);
+	// cap: the sound's max length in samples (Infinity = none); a layer is cut there before it's levelled.
+	function renderLayer(L, tail, models, cap = Infinity) {
+		let b = RENDER[L.type](L, tail, models);
+		const c = cap - Math.round(((L.delay || 0) / 1000) * SR);
+		if (c < b.length) b = b.slice(0, Math.max(1, c));
+		return norm(b, L.gain);
 	}
 
-	function mixLayers(layers, tail, models) {
+	function mixLayers(layers, tail, models, cap) {
 		const parts = [];
 		let len = 0;
 		for (const L of layers) {
 			if (!L.on || L.gain <= 0 || !RENDER[L.type]) continue;
-			const b = renderLayer(L, tail, models),
+			const b = renderLayer(L, tail, models, cap),
 				off = Math.round((L.delay / 1000) * SR);
 			parts.push([b, off]);
 			len = Math.max(len, off + b.length);
@@ -253,6 +269,8 @@ export const SoundSynth = (() => {
 	 */
 	function renderSound(S, opt, models) {
 		opt = opt || {};
+		const cap = S.fx.maxLen > 0 ? Math.ceil((S.fx.maxLen / 1000) * SR) + SR * 0.05 : Infinity;
+		const mix = (layers, t) => mixLayers(layers, t, models, cap);
 		const tail = opt.tail || 1,
 			rm = Math.min(1, (S.fx.room || 0) + (opt.room || 0));
 		let o;
@@ -261,8 +279,8 @@ export const SoundSynth = (() => {
 			// opt.mix: a cache shared across a combo's ladder notes. With keepLength off every note
 			// is the same mix pitched, so it's mixed once (same seed, same layers: same samples).
 			const mc = opt.mix,
-				base = mc && mc.base ? mc.base : mixLayers(S.layers, tail, models),
-				last = mc && mc.last ? mc.last : S.seq.lastTail !== 1 ? mixLayers(S.layers, tail * S.seq.lastTail, models) : base;
+				base = mc && mc.base ? mc.base : mix(S.layers, tail),
+				last = mc && mc.last ? mc.last : S.seq.lastTail !== 1 ? mix(S.layers, tail * S.seq.lastTail) : base;
 			if (mc && !keepOf(S)) {
 				mc.base = base;
 				mc.last = last;
@@ -273,7 +291,7 @@ export const SoundSynth = (() => {
 			const note = (s, isL) => {
 				if (!keep) return resample(isL ? last : base, Math.pow(2, s / 12));
 				const k = s + (isL ? 'L' : '');
-				if (!memo[k]) memo[k] = mixLayers(transposeLayers(S.layers, s), tail * (isL ? S.seq.lastTail : 1), models);
+				if (!memo[k]) memo[k] = mix(transposeLayers(S.layers, s), tail * (isL ? S.seq.lastTail : 1));
 				return memo[k];
 			};
 			const parts = st.map((s, i) => {
@@ -284,7 +302,7 @@ export const SoundSynth = (() => {
 			for (const [b, off] of parts) len = Math.max(len, off + b.length);
 			o = new Float32Array(len);
 			for (const [b, off, g] of parts) for (let i = 0; i < b.length; i++) o[off + i] += b[i] * g;
-		} else o = mixLayers(S.layers, tail, models);
+		} else o = mix(S.layers, tail);
 		if (rm > 0) {
 			const ext = new Float32Array(o.length + Math.round((0.05 + rm * 0.4) * SR));
 			ext.set(o);
@@ -303,7 +321,27 @@ export const SoundSynth = (() => {
 			for (let i = 0; i < o.length; i++) o[i] = Math.tanh(o[i] * d) / nn;
 		}
 		room(o, rm);
+		if (fx.maxLen > 0 || fx.fadeOut > 0) o = cutFade(o, 0, fx.maxLen || 0, 0, fx.fadeOut || 0);
+		o = trimEnd(o);
 		return norm(o, 0.9 * Math.pow(10, fx.gain / 20));
+	}
+
+	// The lab's end trim: drop everything after the last sample above −54dB of the peak,
+	// keep 5ms more, and fade those 5ms out.
+	function trimEnd(o) {
+		let m = 0;
+		for (let i = 0; i < o.length; i++) {
+			const v = Math.abs(o[i]);
+			if (v > m) m = v;
+		}
+		const th = m * Math.pow(10, -54 / 20);
+		let e = o.length;
+		while (e > 1 && Math.abs(o[e - 1]) < th) e--;
+		e = Math.min(o.length, e + Math.round(0.005 * SR));
+		const r = o.slice(0, e),
+			f = Math.min(r.length, Math.round(0.005 * SR));
+		for (let i = 0; i < f; i++) r[r.length - 1 - i] *= i / f;
+		return r;
 	}
 
 	// —— Game-side helpers: the rules the lab plays by, kept next to the synth ——

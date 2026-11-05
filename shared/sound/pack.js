@@ -11,18 +11,18 @@
 
 export const SoundPack = (() => {
 	const VERSION = 1;
-	const SLOTS = ['place', 'refused', 'clear', 'boom', 'sent', 'combo'];
+	const SLOTS = ['place', 'refused', 'clear', 'boom', 'sent', 'combo', 'iceLand', 'iceBoard', 'iceBreak', 'thunder', 'force'];
 
 	// [key, min, max] — the lab's slider ranges (the Sound Lab's SPEC tables).
-	const COMMON = [['gain', 0, 1.5], ['delay', 0, 400]];
+	const COMMON = [['gain', 0, 1.5], ['delay', 0, 2000]]; // the lab's slider stops at 400ms, but its own defaults go past it (force: 550ms)
 	const LAYER = {
-		fit: [...COMMON, ['pitch', -24, 24], ['tail', 0.3, 3]],
+		fit: [...COMMON, ['pitch', -24, 24], ['tail', 0.3, 3], ['start', 0, 3000], ['len', 0, 3000], ['fadeIn', 0, 500], ['fadeOut', 0, 1000]],
 		tone: [...COMMON, ['freq', 20, 8000], ['end', 20, 8000], ['glide', 1, 500], ['attack', 0, 50], ['decay', 1, 1500]],
 		noise: [...COMMON, ['freq', 40, 16000], ['q', 0.3, 12], ['attack', 0, 50], ['decay', 0.2, 1500]],
 		pluck: [...COMMON, ['freq', 40, 4000], ['decay', 20, 3000], ['bright', 0, 1]]
 	};
 	const FX = [['lowcut', 20, 1000, 20], ['eqLow', -18, 18, 0], ['eqMid', -18, 18, 0], ['eqHigh', -18, 18, 0], ['highcut', 1000, 20000, 20000],
-		['warmth', 0, 1, 0], ['room', 0, 1, 0], ['gain', -24, 6, 0], ['wobble', 0, 10, 0]];
+		['warmth', 0, 1, 0], ['room', 0, 1, 0], ['gain', -24, 6, 0], ['wobble', 0, 10, 0], ['maxLen', 0, 5000, 0], ['fadeOut', 0, 1000, 0]];
 	const SEQ = [['gap', 10, 250], ['stepGain', 0, 1.5], ['lastGain', 0, 1.5], ['lastTail', 0.3, 4]];
 	const SIZE = [['tailMax', 1, 3], ['roomMax', 0, 1], ['curve', 0, 0.5]];
 	const WAVES = ['sine', 'triangle', 'square', 'saw'];
@@ -72,6 +72,10 @@ export const SoundPack = (() => {
 		}
 		const fx = S.fx || {};
 		for (const [k, lo, hi, d] of FX) o.fx[k] = num(fx[k], lo, hi, d);
+		// also: other sounds played with this one, each its own clip (one Thunder for many sounds).
+		o.also = [];
+		for (const a of Array.isArray(S.also) ? S.also.slice(0, 4) : [])
+			if (a && SLOTS.includes(a.slot) && a.slot !== slot) o.also.push({ slot: a.slot, delay: num(a.delay, 0, 2000, 0) });
 		if (S.seq && typeof S.seq === 'object') {
 			const q = S.seq;
 			o.seq = { on: !!q.on, keepLength: !!q.keepLength, steps: list(q.steps, -48, 48, 16) || '0' };

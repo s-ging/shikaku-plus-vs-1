@@ -3,6 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { gzipSync } from 'node:zlib';
 import { SoundSynth as S } from '../shared/sound/synth.js';
 import { SoundPack } from '../shared/sound/pack.js';
 
@@ -13,7 +14,7 @@ const checked = SoundPack.read(raw);
 function clips(sounds) {
 	const out = [];
 	for (let g = 0; g < 4; g++) out.push([`place ${g}`, sounds.place, S.placeOpt(sounds.place, g)]);
-	for (const k of ['refused', 'clear', 'boom']) out.push([k, sounds[k], {}]);
+	for (const k of ['refused', 'clear', 'boom', 'iceLand', 'iceBoard', 'iceBreak', 'thunder', 'force']) out.push([k, sounds[k], {}]);
 	out.push(['sent 1', sounds.sent, {}]);
 	for (const k of Object.keys(sounds.sent.sizes || {})) out.push([`sent ${k}`, sounds.sent.sizes[k], {}]);
 	for (const tr of new Set(S.steps(sounds.combo.ladder))) out.push([`combo +${tr}`, sounds.combo, { transpose: tr }]);
@@ -71,7 +72,7 @@ test('a combo note mixed once and reused sounds exactly like one rendered fresh'
 
 test('each sound is stored only as finely as its high cut needs', () => {
 	const r = Object.fromEntries(Object.entries(checked.pack.sounds).map(([k, v]) => [k, S.rateFor(v)]));
-	assert.deepEqual(r, { place: 16000, refused: 12000, clear: 16000, boom: 24000, sent: 16000, combo: 12000 });
+	assert.deepEqual(r, { place: 16000, refused: 12000, clear: 16000, boom: 24000, sent: 16000, combo: 12000, iceLand: 24000, iceBoard: 24000, iceBreak: 24000, thunder: 16000, force: 16000 });
 	const n = 4800, d = new Float32Array(n);
 	for (let i = 0; i < n; i++) d[i] = Math.sin((2 * Math.PI * 3000 * i) / S.SR) * 0.5;
 	const o = S.downsample(d, 4); // 12kHz keeps a 3kHz tone
@@ -101,6 +102,16 @@ test('the game rules: place groups, SENT inheritance, combo plays-at and wrap', 
 	assert.deepEqual(S.comboPlan(combo, 5), { kind: 'step', idx: 3 });
 	assert.deepEqual(S.comboPlan(combo, 17), S.comboPlan(combo, 1), 'wraps after 16');
 	assert.equal(S.comboTranspose(combo, 3), 2);
+});
+
+test('max length and also, as Krischan set them in the lab', () => {
+	const sd = checked.pack.sounds, len = (snd) => render(snd, {}, checked.pack.models).length / S.SR;
+	assert.ok(len(sd.boom) <= 0.5 + 1e-9, 'boom cut at 500ms');
+	assert.ok(len(sd.sent.sizes[10]) <= 0.8 + 1e-9, 'SENT 10 cut at 800ms');
+	assert.deepEqual(sd.sent.sizes[10].also, [{ slot: 'thunder', delay: 0 }]);
+	assert.deepEqual(sd.iceLand.also, [{ slot: 'iceBoard', delay: 0 }]);
+	const bad = SoundPack.read({ version: 1, pack: { sounds: { boom: { layers: [{ type: 'noise' }], also: [{ slot: 'boom' }, { slot: 'nope' }, { slot: 'thunder', delay: 1e9 }] } } } });
+	assert.deepEqual(bad.pack.sounds.boom.also, [{ slot: 'thunder', delay: 2000 }], 'no self, no unknown, delay clamped');
 });
 
 test('a hostile pack is tamed, not trusted', () => {
@@ -153,7 +164,9 @@ test('budget: what the base pack costs to ship, render and hold', () => {
 	const shipped = JSON.stringify({ pack: { sounds: checked.pack.sounds }, models: checked.pack.models }).length;
 	const memKB = (samples * 4) / 1024;
 	console.log(`  sound budget: ${clips(checked.pack.sounds).length} clips, ${ms.toFixed(0)} ms to render here, ${seconds.toFixed(1)} s of audio, ${memKB.toFixed(0)} KB, ${(shipped / 1024).toFixed(1)} KB of pack`);
-	assert.ok(shipped < 24 * 1024, 'pack under 24 KB before gzip');
-	assert.ok(memKB < 900, 'clips under 900 KB (Krischan\'s retuned lengths will bring this down further)');
+	const gz = gzipSync(JSON.stringify({ pack: { sounds: checked.pack.sounds }, models: checked.pack.models })).length;
+	console.log(`  sound download: ${(gz / 1024).toFixed(1)} KB gzipped`);
+	assert.ok(gz < 20 * 1024, 'pack under 20 KB gzipped');
+	assert.ok(memKB < 900, 'clips under 900 KB');
 	assert.ok(ms < 3000, 'renders in under 3 s here (old phones: about 10–20× longer, spread over idle time)');
 });

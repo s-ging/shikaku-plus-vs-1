@@ -25,7 +25,7 @@ export function createSound(rawPack) {
 	const sounds = pack.sounds;
 	const MAX_VOICES = 8;
 	// One clip per sound: the pack's pitch wobble already varies every play for free (Krischan, 2026-11-06).
-	const SILENT = ['ice', 'mineTick', 'defuse', 'mineReceived', 'bank', 'queue', 'frostWarning', 'countdown', 'rush', 'win', 'lose'];
+	const SILENT = ['mineLand', 'mineTick', 'defuse', 'bank', 'queue', 'frost', 'countdown', 'rush', 'win', 'lose'];
 
 	const pref = (k, dflt) => {
 		try {
@@ -65,6 +65,7 @@ export function createSound(rawPack) {
 		for (const k of Object.keys(sounds.sent.sizes || {})) job(`sent:${k}`, sounds.sent.sizes[k], {}, 61);
 	}
 	job('boom', sounds.boom, {}, 51);
+	for (const [k, seed] of [['iceLand', 71], ['iceBoard', 72], ['iceBreak', 73], ['thunder', 81], ['force', 82]]) job(k, sounds[k], {}, seed);
 	const queue = [...jobs.keys()];
 	const rates = new Map();
 
@@ -73,7 +74,7 @@ export function createSound(rawPack) {
 		if (!j || data.has(key)) return;
 		S.setSeed(j.seed);
 		const rate = S.rateFor(j.sound);
-		let d = S.trimTail(S.downsample(S.renderSound(j.sound, j.opt, pack.models), S.SR / rate));
+		let d = S.downsample(S.renderSound(j.sound, j.opt, pack.models), S.SR / rate); // the synth already trims the end, as the lab does
 		rates.set(key, rate);
 		for (let i = 0; i < d.length; i++) if (!isFinite(d[i])) {
 			d = null; // a pack that makes an unstable filter: drop that clip, keep the game going
@@ -165,8 +166,10 @@ export function createSound(rawPack) {
 		} catch {}
 	}
 
-	function play(key, sound, rate) {
-		buzz(sound);
+	function play(key, sound, rate, delay = 0, depth = 0) {
+		if (!delay) buzz(sound);
+		// also: play those sounds too, each its own clip, at most two levels deep (as the lab).
+		if (sound && sound.also && depth < 2) for (const a of sound.also) if (sounds[a.slot] && jobs.has(a.slot)) play(a.slot, sounds[a.slot], 1, delay + a.delay / 1000, depth + 1);
 		if (!soundOn || !jobs.has(key)) return;
 		if (!data.has(key)) {
 			// Not ready: skip it this once and render it next.
@@ -179,8 +182,8 @@ export function createSound(rawPack) {
 		const c = audio();
 		if (!c || c.state === 'closed') return; // still resuming from the first tap: it starts the moment audio does
 		const now = c.currentTime;
-		if (now - (lastStart.get(key) || -1) < 0.03) return;
-		lastStart.set(key, now);
+		if (now + delay - (lastStart.get(key) || -1) < 0.03) return;
+		lastStart.set(key, now + delay);
 		const b = bufferFor(key);
 		if (!b) return;
 		while (voices.length >= MAX_VOICES) {
@@ -198,7 +201,7 @@ export function createSound(rawPack) {
 			if (i >= 0) voices.splice(i, 1);
 		};
 		voices.push(src);
-		src.start(0);
+		src.start(delay ? now + delay : 0);
 	}
 
 	// —— What the game calls ——
@@ -226,6 +229,7 @@ export function createSound(rawPack) {
 		const from = S.sentFrom(s, a);
 		play(`sent:${from}`, from === 1 ? s : s.sizes[from], 1);
 	}
+	const one = (k) => sounds[k] && play(k, sounds[k], 1);
 	/** One engine event on your own board (see client/ui.js animate). */
 	function event(e) {
 		if (e.kind === 'clear') {
@@ -234,6 +238,9 @@ export function createSound(rawPack) {
 		} else if (e.kind === 'mineExplode') {
 			if (sounds.boom) play('boom', sounds.boom, 1);
 		} else if (e.kind === 'send' && e.pass > 0) sent(e.pass);
+		else if (e.kind === 'frozen') one('iceLand'); // a Frozen Cell lands (its pack plays Ice on the board with it)
+		else if (e.kind === 'thaw') one('iceBreak'); // a Frozen Cell breaks
+		else if (e.kind === 'forceBreak') one('force'); // Icebreak: the board forces a Frozen Cell open
 	}
 
 	function setSound(on) {
