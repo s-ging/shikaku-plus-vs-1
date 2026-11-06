@@ -205,6 +205,7 @@
 			if (mode !== 'replay') sound.cue('countdown');
 			streakCount = 0; // a new round starts cold
 		}
+		el.hidden = false;
 		countTimer = setTimeout(() => (left - (n - 1) * 1000 <= 1000 && n === 1 ? render() : updateCount()), left - (n - 1) * 1000 + 5);
 	}
 
