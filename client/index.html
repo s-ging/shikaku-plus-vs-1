@@ -91,17 +91,21 @@ details summary { cursor: pointer; color: var(--fg2); padding: 8px 0 4px; }
 .mid h1 { font-family: var(--font-brand); font-weight: 800; font-size: 28px; margin: 0; line-height: 1.1; }
 .mid p { margin: 2px 0 0; color: var(--fg2); font-size: 14px; }
 
-/* —— The game screen sits in the middle of the window, like the app's boards —— */
-#game { min-height: calc(100vh - 56px); justify-content: center; }
+/* —— Game screen, like the app's boards: the score bar stays at the top, and the board with its
+   controls sits in the middle of the space below. The two empty 1fr rows in each layout are the
+   spacers that do the centring. —— */
+#game { min-height: calc(100vh - 56px); }
 @supports (height: 100dvh) { #game { min-height: calc(100dvh - 56px); } }
+#stage { flex: 1; }
+.stage-foot { grid-area: foot; display: flex; flex-direction: column; gap: 18px; min-width: 0; }
 
 /* —— Seats: the callout lane sits above the card, the card covers its lower edge —— */
 .stage { display: grid; gap: 18px 28px; align-items: start; }
 .vs-head { grid-area: head; }
 #seat-you { grid-area: you; }
 #seat-them { grid-area: them; }
-.stage.spec { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: 'head head' 'you them'; }
-.stage.play { grid-template-columns: minmax(0, 1fr) minmax(0, 520px) minmax(0, 1fr); grid-template-areas: '. head .' '. you them'; }
+.stage.spec { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: auto minmax(0, 1fr) auto auto minmax(0, 1fr); grid-template-areas: 'head head' '. .' 'you them' 'foot foot' '. .'; }
+.stage.play { grid-template-columns: minmax(0, 1fr) minmax(0, 520px) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto auto minmax(0, 1fr); grid-template-areas: '. head .' '. . .' '. you them' 'foot foot foot' '. . .'; }
 .stage.play #seat-them { width: min(200px, 100%); }
 .seat { min-width: 0; display: flex; flex-direction: column; }
 /* The mini board: same parts, scaled down; icons and the clock drop out. */
@@ -252,9 +256,9 @@ canvas.board { display: block; width: 100%; height: auto; aspect-ratio: 1; touch
 	.flick, .combo.bump, .hearts i.healing .fill, .pole i, .icepole i .fill { animation: none !important; }
 }
 @media (max-width: 760px) {
-	.stage.spec { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'head' 'you' 'them'; gap: 14px; }
+	.stage.spec { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto auto auto minmax(0, 1fr); grid-template-areas: 'head' '.' 'you' 'them' 'foot' '.'; gap: 14px; }
 	/* Phone, playing: the opponent is a mini board up in the header. */
-	.stage.play { grid-template-columns: minmax(0, 1fr) 112px; grid-template-areas: 'head them' 'you you'; gap: 12px 12px; align-items: end; }
+	.stage.play { grid-template-columns: minmax(0, 1fr) 112px; grid-template-rows: auto minmax(0, 1fr) auto auto minmax(0, 1fr); grid-template-areas: 'head them' '. .' 'you you' 'foot foot' '. .'; gap: 12px 12px; align-items: end; }
 	.stage.play #seat-them { width: 112px; }
 	.stage.play .vs-head { display: grid; grid-template-columns: auto auto; grid-template-areas: 'mid mid' 'a b'; justify-content: start; gap: 8px 14px; align-self: center; }
 	.stage.play .vs-head .mid { grid-area: mid; text-align: left; }
@@ -385,28 +389,30 @@ canvas.board { display: block; width: 100%; height: auto; aspect-ratio: 1; touch
 				</div>
 			</div>
 		</section>
-	</div>
-	<div class="replay-bar" id="replay-bar" hidden>
-		<div class="row">
-			<button class="primary" id="rp-play" type="button">Pause</button>
-			<div class="seg" id="rp-speed" role="group" aria-label="Speed"></div>
-			<div class="seg" id="rp-rounds" role="group" aria-label="Round"></div>
-			<span class="muted num" id="rp-time"></span>
-			<span class="muted" id="rp-check"></span>
+		<div class="stage-foot">
+		<div class="replay-bar" id="replay-bar" hidden>
+			<div class="row">
+				<button class="primary" id="rp-play" type="button">Pause</button>
+				<div class="seg" id="rp-speed" role="group" aria-label="Speed"></div>
+				<div class="seg" id="rp-rounds" role="group" aria-label="Round"></div>
+				<span class="muted num" id="rp-time"></span>
+				<span class="muted" id="rp-check"></span>
+			</div>
+			<input type="range" id="rp-scrub" min="0" max="1000" value="0" step="10" aria-label="Seek">
 		</div>
-		<input type="range" id="rp-scrub" min="0" max="1000" value="0" step="10" aria-label="Seek">
-	</div>
-	<div class="row" id="game-controls">
-		<div class="seg" id="views" role="group" aria-label="Layout"><button type="button" data-view="play" aria-pressed="true">Play view</button><button type="button" data-view="spec" aria-pressed="false">Side by side</button></div>
-		<button id="ghost-toggle" type="button" aria-pressed="true">Their hovers: on</button>
-		<button id="sound-toggle" type="button" aria-pressed="true">Sound: on</button>
-		<button id="vibe-toggle" type="button" aria-pressed="true" hidden>Vibration: on</button>
-		<button id="leave">Leave</button>
-		<button id="g-report" hidden>Copy match report</button>
-	</div>
-	<div id="vote" class="panel" hidden style="text-align: center">
-		<p style="margin: 0 0 8px">A player was disconnected for a while this round. Replay the round? Both players have to agree. No score changes.</p>
-		<div class="row" style="justify-content: center"><button class="primary" id="vote-yes">Replay the round</button><button id="vote-no">Keep playing</button></div>
+		<div class="row" id="game-controls">
+			<div class="seg" id="views" role="group" aria-label="Layout"><button type="button" data-view="play" aria-pressed="true">Play view</button><button type="button" data-view="spec" aria-pressed="false">Side by side</button></div>
+			<button id="ghost-toggle" type="button" aria-pressed="true">Their hovers: on</button>
+			<button id="sound-toggle" type="button" aria-pressed="true">Sound: on</button>
+			<button id="vibe-toggle" type="button" aria-pressed="true" hidden>Vibration: on</button>
+			<button id="leave">Leave</button>
+			<button id="g-report" hidden>Copy match report</button>
+		</div>
+		<div id="vote" class="panel" hidden style="text-align: center">
+			<p style="margin: 0 0 8px">A player was disconnected for a while this round. Replay the round? Both players have to agree. No score changes.</p>
+			<div class="row" style="justify-content: center"><button class="primary" id="vote-yes">Replay the round</button><button id="vote-no">Keep playing</button></div>
+		</div>
+		</div>
 	</div>
 </section>
 
