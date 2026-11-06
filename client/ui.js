@@ -293,7 +293,11 @@
 			const screen = seat === v.me ? 0 : 1;
 			return onlyScreen != null && screen !== onlyScreen ? -2 : screen;
 		};
-		for (const e of events) if (screenOf(e) === 0) sound.event(e); // your own board only
+		for (const e of events) {
+			const sc = screenOf(e);
+			if (sc === 0) sound.event(e);
+			else if (sc === 1) sound.event(e, true); // the other board's big moments, quieter
+		}
 		hud.animate(events.filter((e) => screenOf(e) !== -2), screenOf);
 	}
 

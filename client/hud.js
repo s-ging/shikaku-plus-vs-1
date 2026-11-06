@@ -384,6 +384,7 @@ export function createHud(opts) {
 
 	const BLINKS = [0, 2, 3, 4];
 	const tierFor = (n, rush) => (rush || n >= 16 ? 3 : n >= 9 ? 2 : n >= 5 ? 1 : 0);
+	const comboBlinks = (c) => (c >= 4 ? Math.min(10, c - 2) : 0);
 	const comboTier = (c) => (c >= 8 ? 3 : c >= 6 ? 2 : c >= 4 ? 1 : 0);
 
 	// —— The lane above each board: callouts on the left, combo on the right ——
@@ -449,14 +450,14 @@ export function createHud(opts) {
 			span.textContent = `COMBO ${n}`;
 			if (REDUCED) return;
 			void el.offsetWidth;
-			if (tier > comboTier(was) && was >= 2 && BLINKS[tier]) {
+			// Emphasis grows with the combo (Krischan, 2026-11-07): from 4 in a row every step blinks,
+			// 2 blinks at 4 and one more per step, up to 10.
+			const blinks = n > was ? comboBlinks(n) : 0;
+			if (blinks) {
 				span.className = '';
 				void span.offsetWidth;
 				span.className = 'flick';
-				span.style.setProperty('--n', BLINKS[tier]);
-			} else if (tier > 0 && was < 2 && BLINKS[tier]) {
-				span.className = 'flick';
-				span.style.setProperty('--n', BLINKS[tier]);
+				span.style.setProperty('--n', blinks);
 			}
 			el.classList.add('bump');
 		} else if (was >= 2) {
@@ -689,7 +690,7 @@ export function createHud(opts) {
 			}
 			if (e.kind === 'heal' && e.healed) {
 				pulseHearts(si);
-				calls[si].push({ text: '+1 HEART', tier: 2, blinks: 2, life: 1400 });
+				calls[si].push({ text: 'EXTRA LIFE!', tier: 2, blinks: 2, life: 1400 });
 			}
 		}
 		for (const i of [0, 1]) {

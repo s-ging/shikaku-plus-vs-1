@@ -9,6 +9,7 @@
 //              hurried during the 3-2-1. Nothing is synthesized during play.
 //   Variety    one clip per sound; the pack's pitch wobble varies each play for free.
 //   Playing    one AudioBufferSource per sound, pitch by playback speed, one master gain.
+//   Theirs     the opponent's big moments play too, at 45% and without vibrating (event(e, true)).
 //              At most 8 at once; the same clip won't restart within 30ms.
 //   Not ready  a clip that isn't rendered yet is skipped and moved to the front of the
 //              queue, never rendered on the spot: a long one (SENT 10) could take a second
@@ -235,13 +236,14 @@ export function createSound(rawPack) {
 		} catch {}
 	}
 
+	let scale = 1; // the opponent's sounds play through the same path, quieter
 	function play(key, sound, rate, delay = 0, depth = 0, link = null) {
 		if (!soundOn || !jobs.has(key)) {
 			// A sound this level doesn't make can still bring its links (Counter-spike is all links).
 			if (soundOn && sound && sound.also && depth < 2 && (level === 'full' || MINIMAL.has(key.split(':')[0]))) for (const a of sound.also) if (sounds[a.slot]) play(a.slot, sounds[a.slot], 1, delay + a.delay / 1000, depth + 1, a);
 			return;
 		}
-		if (!delay) buzz(sound);
+		if (!delay && scale === 1) buzz(sound); // only your own moments vibrate
 		// also: play those sounds too, each its own clip with its own level and duration, at most two levels deep (as the lab).
 		if (sound && sound.also && depth < 2) for (const a of sound.also) if (sounds[a.slot]) play(a.slot, sounds[a.slot], 1, delay + a.delay / 1000, depth + 1, a);
 		if (!data.has(key) && !buffers.has(key)) {
@@ -267,7 +269,7 @@ export function createSound(rawPack) {
 		const w = (sound.fx.wobble || 0) / 100;
 		src.playbackRate.value = rate * (w ? 1 + (Math.random() * 2 - 1) * w : 1);
 		// A link's level and duration (cut with a short fade so it doesn't click).
-		const lv = link && link.gain != null ? link.gain : 1,
+		const lv = (link && link.gain != null ? link.gain : 1) * scale,
 			ln = link && link.len > 0 ? link.len / 1000 : 0;
 		if (lv !== 1 || ln) {
 			const g = c.createGain(),
@@ -319,8 +321,22 @@ export function createSound(rawPack) {
 		play(`sent:${from}`, from === 1 ? s : s.sizes[from], 1);
 	}
 	const one = (k) => sounds[k] && play(k, sounds[k], 1);
-	/** One engine event on your own board (see client/ui.js animate). */
-	function event(e) {
+	// The opponent's big moments, TETR.IO-style (Krischan, 2026-11-07): quieter, no vibration.
+	// Not their Tile placing, ticks or hovers: those would drown out your own board.
+	const THEIRS = new Set(['clear', 'send', 'mineExplode', 'defuse', 'clutch', 'mineLand', 'frozenOut', 'frostFire']);
+	const THEM_GAIN = 0.45;
+	/** One engine event (see client/ui.js animate). them: it happened on the other player's board. */
+	function event(e, them = false) {
+		if (!them) return ownEvent(e);
+		if (!THEIRS.has(e.kind)) return;
+		scale = THEM_GAIN;
+		try {
+			ownEvent(e);
+		} finally {
+			scale = 1;
+		}
+	}
+	function ownEvent(e) {
 		const k = e.kind;
 		if (k === 'clear') {
 			one('clear');
