@@ -598,7 +598,7 @@
      "eqHigh": 0,
      "eqLow": 0,
      "eqMid": 0,
-     "fadeOut": 200,
+     "fadeOut": 80,
      "gain": -2,
      "highcut": 7000,
      "lowcut": 40,
@@ -913,47 +913,90 @@
     "layers": []
    },
    "frost": {
-    "also": [],
-    "fx": {
-     "eqHigh": 0,
-     "eqLow": 0,
-     "eqMid": 0,
-     "fadeOut": 80,
-     "gain": -6,
-     "highcut": 9000,
-     "lowcut": 20,
-     "maxLen": 700,
-     "room": 0,
-     "warmth": 0,
-     "wobble": 2
-    },
-    "haptic": "",
     "layers": [
      {
-      "attack": 80,
-      "decay": 250,
-      "delay": 0,
-      "end": 2093,
-      "freq": 1568,
-      "gain": 0.4,
-      "glide": 200,
+      "type": "noise",
       "on": true,
-      "type": "tone",
-      "wave": "sine"
+      "filter": "bandpass",
+      "gain": 1,
+      "delay": 0,
+      "q": 4,
+      "attack": 0,
+      "freq": 2800,
+      "decay": 4
      },
      {
-      "attack": 80,
-      "decay": 150,
-      "delay": 0,
-      "filter": "highpass",
-      "freq": 6000,
-      "gain": 0.15,
+      "type": "tone",
       "on": true,
+      "wave": "sine",
+      "gain": 0.35,
+      "delay": 0,
+      "glide": 20,
+      "attack": 0,
+      "freq": 2349,
+      "end": 2349,
+      "decay": 4
+     },
+     {
+      "type": "noise",
+      "on": true,
+      "filter": "highpass",
+      "gain": 0.25,
+      "delay": 0,
       "q": 0.7,
-      "type": "noise"
+      "attack": 0,
+      "freq": 4000,
+      "decay": 1
+     },
+     {
+      "type": "tone",
+      "on": true,
+      "wave": "square",
+      "gain": 0.2,
+      "delay": 0,
+      "glide": 20,
+      "attack": 1,
+      "freq": 233.08,
+      "end": 233.08,
+      "decay": 35
+     },
+     {
+      "type": "tone",
+      "on": true,
+      "wave": "sine",
+      "gain": 0.35,
+      "delay": 0,
+      "glide": 20,
+      "attack": 1,
+      "freq": 116.54,
+      "end": 116.54,
+      "decay": 40
      }
     ],
-    "ready": true
+    "fx": {
+     "lowcut": 70,
+     "eqLow": 0,
+     "eqMid": 0,
+     "eqHigh": 0,
+     "highcut": 7200,
+     "warmth": 0,
+     "room": 0.1,
+     "gain": -4,
+     "wobble": 3,
+     "maxLen": 450,
+     "fadeOut": 90
+    },
+    "seq": {
+     "on": true,
+     "steps": "0 3 0 3 0 3 0 3",
+     "gap": 38,
+     "stepGain": 0.75,
+     "lastGain": 0.5,
+     "lastTail": 1.3,
+     "keepLength": true
+    },
+    "also": [],
+    "haptic": "10 28 10 28 10 28 10"
    },
    "frostFire": {
     "also": [
