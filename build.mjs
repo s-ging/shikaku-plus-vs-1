@@ -33,11 +33,17 @@ mkdirSync('public', { recursive: true });
 // trimmed to what the game renders. Replace that file with a pack from the Sound Lab to
 // change the sounds.
 const { SoundPack } = await import('./shared/sound/pack.js');
-const packRead = SoundPack.read(readFileSync('sounds/base.json', 'utf8'));
+// VS doesn't play the other modes' sounds (the lab's "Whole game, later" group): they stay out of the download.
+const NOT_IN_VS = ['perfect', 'timeLow', 'timeUp', 'badge'];
+const packRead = SoundPack.read(readFileSync('sounds/base.json', 'utf8'), { skip: NOT_IN_VS });
 if (!packRead.ok) throw new Error('sounds/base.json: ' + packRead.errors.join(', '));
-const soundPack = { format: 'shikaku-sound-pack', version: 1, sampleRate: 48000, pack: { sounds: packRead.pack.sounds }, models: packRead.pack.models };
-const js = '"use strict";\nconst SOUND_PACK = ' + JSON.stringify(soundPack) + ';\n' + files.map((f) => `// ===== ${f} =====\n` + strip(readFileSync(f, 'utf8'))).join('\n');
+const models = SoundPack.smooth(packRead.pack.models);
+const soundPack = { format: 'shikaku-sound-pack', version: 1, sampleRate: 48000, pack: { sounds: packRead.pack.sounds }, models };
+const js = '"use strict";\nconst SOUND_PACK = ' + JSON.stringify(soundPack) + ";\nconst SOUND_WORKER_URL = '/sound-worker.js';\n" + files.map((f) => `// ===== ${f} =====\n` + strip(readFileSync(f, 'utf8'))).join('\n');
 writeFileSync('public/app.js', js);
+// The background renderer: the synth plus a few lines of messaging (client/sound-worker.js).
+writeFileSync('public/sound-worker.js', '"use strict";\n' + ['shared/sound/synth.js', 'client/sound-worker.js'].map((f) => `// ===== ${f} =====\n` + strip(readFileSync(f, 'utf8'))).join('\n'));
+
 writeFileSync('public/index.html', readFileSync('client/index.html', 'utf8'));
 
 // esbuild's JS API, not its CLI: the CLI shim is esbuild.cmd on Windows, so
@@ -45,8 +51,9 @@ writeFileSync('public/index.html', readFileSync('client/index.html', 'utf8'));
 let note = '(not minified: install esbuild to down-level and minify)';
 const esbuild = await import('esbuild').catch(() => null);
 if (esbuild) {
-	esbuild.buildSync({ entryPoints: ['public/app.js'], outfile: 'public/app.js', allowOverwrite: true, minify: true, target: ['es2017'], logLevel: 'warning' });
+	for (const f of ['public/app.js', 'public/sound-worker.js'])
+		esbuild.buildSync({ entryPoints: [f], outfile: f, allowOverwrite: true, minify: true, target: ['es2017'], logLevel: 'warning' });
 	note = '(ES2017, minified)';
 }
 const kb = (f) => (readFileSync(f).length / 1024).toFixed(1);
-console.log(`public/index.html ${kb('public/index.html')} KB, public/app.js ${kb('public/app.js')} KB ${note}`);
+console.log(`public/index.html ${kb('public/index.html')} KB, public/app.js ${kb('public/app.js')} KB, public/sound-worker.js ${kb('public/sound-worker.js')} KB ${note}`);

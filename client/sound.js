@@ -1,9 +1,12 @@
 // sound.js — plays the sound pack. Build once, replay forever (game/sound.md in the wiki).
 //
-//   Rendering  every clip is rendered by shared/sound/synth.js once, one clip per idle
-//              moment after the page loads (place and refused first), then stored at the
-//              rate its high cut needs (12, 16 or 24kHz) and trimmed at −50dB. When a 3-2-1
-//              starts, whatever is left renders right away. Nothing is synthesized during play.
+//   Levels     Full (everything), Minimal (gameplay responses only: no Place, no per-turn
+//              sounds, no flair) or Off (no audio at all). Phones that report little memory or
+//              few cores start on Minimal (Krischan, 2026-11-07). A level only makes its own clips.
+//   Rendering  every clip is rendered once by shared/sound/synth.js (renderJob) on a background
+//              thread (client/sound-worker.js), most needed first, stored at the rate its high
+//              cut needs (12, 16 or 24kHz). Without workers, one clip per idle moment instead,
+//              hurried during the 3-2-1. Nothing is synthesized during play.
 //   Variety    one clip per sound; the pack's pitch wobble varies each play for free.
 //   Playing    one AudioBufferSource per sound, pitch by playback speed, one master gain.
 //              At most 8 at once; the same clip won't restart within 30ms.
@@ -28,7 +31,11 @@ export function createSound(rawPack) {
 	const sounds = pack.sounds;
 	const MAX_VOICES = 8;
 	// One clip per sound: the pack's pitch wobble already varies every play for free (Krischan, 2026-11-06).
-	const SILENT = ['mineLand', 'mineTick', 'defuse', 'bank', 'queue', 'frost', 'countdown', 'rush', 'win', 'lose'];
+	// Minimal keeps what answers the player or the opponent; it drops Place, the per-turn sounds
+	// (Ice on the board, Mine tick, Mine Bank and Queue), Streak and Do-Over (Krischan, 2026-11-06).
+	const MINIMAL = new Set(['refused', 'clear', 'combo', 'sent', 'counter', 'boom', 'mineLand', 'defuse', 'clutch', 'iceLand', 'iceBreak', 'frost',
+		'frostFire', 'deflect', 'freezeOver', 'force', 'thunder', 'crowd', 'bell', 'countdown', 'start', 'rush', 'win', 'lose', 'matchWin']);
+	const LEVELS = ['full', 'minimal', 'off'];
 
 	const pref = (k, dflt) => {
 		try {
@@ -43,60 +50,117 @@ export function createSound(rawPack) {
 			localStorage.setItem(k, on ? 'on' : 'off');
 		} catch {}
 	};
-	let soundOn = pref('vs.sound', true);
+	const lowEnd = () => {
+		try {
+			return (navigator.deviceMemory && navigator.deviceMemory <= 2) || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 2);
+		} catch {
+			return false;
+		}
+	};
+	let level = (() => {
+		try {
+			const v = localStorage.getItem('vs.soundLevel');
+			if (LEVELS.includes(v)) return v;
+			if (localStorage.getItem('vs.sound') === 'off') return 'off'; // the old on/off switch
+		} catch {}
+		return typeof navigator !== 'undefined' && lowEnd() ? 'minimal' : 'full';
+	})();
+	let soundOn = level !== 'off';
 	let vibeOn = pref('vs.vibe', true);
 	const canVibrate = typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function';
 
-	// —— Clips: key → { sound, opt, seed } to render; key → Float32Array once rendered ——
+	// —— Clips: key → job to render; key → Float32Array once rendered, then the browser's buffer ——
 	const jobs = new Map();
 	const data = new Map();
 	const buffers = new Map();
-	function job(key, sound, opt, seed) {
-		if (sound && sound.layers.length) jobs.set(key, { sound, opt, seed });
-	}
-	// Queue order: what a round is likely to need first.
-	for (let g = 0; g < 4; g++) sounds.place && job(`place:${g}`, sounds.place, S.placeOpt(sounds.place, g), 11);
-	job('refused', sounds.refused, {}, 21);
-	job('clear', sounds.clear, {}, 31);
-	if (sounds.combo) {
-		const on = sounds.combo.seq && sounds.combo.seq.on;
-		const mix = {}; // the combo's notes share one mix (synth.js renderSound)
-		for (const tr of on ? new Set(S.steps(sounds.combo.ladder)) : [0]) job(`combo:${tr}`, sounds.combo, { transpose: tr, mix }, 41);
-	}
-	if (sounds.sent) {
-		job('sent:1', sounds.sent, {}, 61);
-		for (const k of Object.keys(sounds.sent.sizes || {})) job(`sent:${k}`, sounds.sent.sizes[k], {}, 61);
-	}
-	job('boom', sounds.boom, {}, 51);
-	for (const [k, seed] of [['iceLand', 71], ['iceBoard', 72], ['iceBreak', 73], ['thunder', 81], ['force', 82]]) job(k, sounds[k], {}, seed);
-	const queue = [...jobs.keys()];
 	const rates = new Map();
+	const mixes = {}; // the combo's notes share one mix (synth.js renderJob)
+	let queue = [];
+	// Seeds stay fixed per sound so a clip is the same on every device.
+	const SEEDS = { place: 11, refused: 21, clear: 31, combo: 41, boom: 51, sent: 61, iceLand: 71, iceBoard: 72, iceBreak: 73, thunder: 81, force: 82 };
+	const seedOf = (slot) => SEEDS[slot] || 100 + SoundPack.SLOTS.indexOf(slot);
+	const wants = (slot) => level === 'full' || (level === 'minimal' && MINIMAL.has(slot));
+	function job(key, slot, opt = {}, size = 1, mix = false) {
+		const base = sounds[slot];
+		const snd = base && size > 1 ? (base.sizes || {})[size] : base;
+		if (snd && snd.layers.length && wants(slot)) jobs.set(key, { key, slot, size, opt, mix, seed: seedOf(slot) });
+	}
+	// The clips this level needs, most needed first: what a round plays most, then the rest.
+	function planJobs() {
+		jobs.clear();
+		if (sounds.place) for (let g = 0; g < 4; g++) job(`place:${g}`, 'place', S.placeOpt(sounds.place, g));
+		job('refused', 'refused');
+		job('clear', 'clear');
+		if (sounds.combo) {
+			const on = sounds.combo.seq && sounds.combo.seq.on;
+			for (const tr of on ? new Set(S.steps(sounds.combo.ladder)) : [0]) job(`combo:${tr}`, 'combo', { transpose: tr }, 1, true);
+		}
+		if (sounds.sent) {
+			job('sent:1', 'sent');
+			for (const k of Object.keys(sounds.sent.sizes || {})) job(`sent:${k}`, 'sent', {}, +k);
+		}
+		for (const slot of SoundPack.SLOTS) if (!['place', 'combo', 'sent'].includes(slot)) job(slot, slot);
+		// Free what this level doesn't play (Full to Minimal gives the memory back).
+		for (const k of [...data.keys()]) if (!jobs.has(k)) data.delete(k);
+		for (const k of [...buffers.keys()]) if (!jobs.has(k)) buffers.delete(k);
+		queue = [...jobs.keys()].filter((k) => !data.has(k) && !buffers.has(k));
+		feed();
+	}
 
+	function store(key, rate, d) {
+		const i = queue.indexOf(key);
+		if (i >= 0) queue.splice(i, 1);
+		if (!jobs.has(key) || data.has(key) || buffers.has(key)) return; // no longer wanted, or already here
+		rates.set(key, rate);
+		data.set(key, d); // null: a filter blew up; that clip is skipped, the game carries on
+	}
 	function render(key) {
 		const j = jobs.get(key);
 		if (!j || data.has(key) || buffers.has(key)) return;
-		S.setSeed(j.seed);
-		const rate = S.rateFor(j.sound);
-		let d = S.downsample(S.renderSound(j.sound, j.opt, pack.models), S.SR / rate); // the synth already trims the end, as the lab does
-		rates.set(key, rate);
-		for (let i = 0; i < d.length; i++) if (!isFinite(d[i])) {
-			d = null; // a pack that makes an unstable filter: drop that clip, keep the game going
-			break;
+		const r = S.renderJob(sounds, pack.models, j, mixes);
+		store(key, r.rate, r.data);
+	}
+
+	// —— Background thread: renders the queue so the board never waits on sound ——
+	let worker = null;
+	if (typeof Worker !== 'undefined' && typeof SOUND_WORKER_URL !== 'undefined') {
+		try {
+			worker = new Worker(SOUND_WORKER_URL);
+			worker.onmessage = (e) => {
+				const m = e.data || {};
+				if (m.t === 'clip') store(m.key, m.rate, m.data ? new Float32Array(m.data) : null);
+			};
+			worker.onerror = () => {
+				// No worker after all (blocked, failed to load): render on the page, in idle moments.
+				worker = null;
+				pump();
+			};
+			worker.postMessage({ t: 'pack', pack: { sounds, models: pack.models } });
+		} catch {
+			worker = null;
 		}
-		data.set(key, d);
+	}
+	function feed() {
+		if (!soundOn || !queue.length) return;
+		if (worker) worker.postMessage({ t: 'queue', jobs: queue.map((k) => jobs.get(k)) });
+		else pump();
+	}
+	function front(key) {
 		const i = queue.indexOf(key);
-		if (i >= 0) queue.splice(i, 1);
+		if (i > 0) queue.splice(0, 0, ...queue.splice(i, 1));
+		if (worker) worker.postMessage({ t: 'front', key });
+		else pump();
 	}
 
 	let idleBusy = false;
 	let hurry = false; // the 3-2-1 is on: finish the queue now, one clip per task so the digits keep ticking
 	const idle = typeof requestIdleCallback === 'function' ? (f) => requestIdleCallback(f, { timeout: 500 }) : (f) => setTimeout(f, 30);
 	function pump() {
-		if (idleBusy || !soundOn || !queue.length) return;
+		if (worker || idleBusy || !soundOn || !queue.length) return;
 		idleBusy = true;
 		(hurry ? (f) => setTimeout(f, 0) : idle)(() => {
 			idleBusy = false;
-			if (!soundOn || !queue.length) return;
+			if (worker || !soundOn || !queue.length) return;
 			render(queue[0]);
 			pump();
 		});
@@ -108,7 +172,7 @@ export function createSound(rawPack) {
 	const voices = [];
 	const lastStart = new Map();
 	function audio() {
-		if (!soundOn) return null;
+		if (!soundOn || typeof window === 'undefined') return null;
 		if (!ctx) {
 			const C = window.AudioContext || window.webkitAudioContext;
 			if (!C) return null;
@@ -170,16 +234,17 @@ export function createSound(rawPack) {
 		} catch {}
 	}
 
-	function play(key, sound, rate, delay = 0, depth = 0) {
+	function play(key, sound, rate, delay = 0, depth = 0, link = null) {
+		if (!soundOn || !jobs.has(key)) {
+			// A sound this level doesn't make can still bring its links (Counter-spike is all links).
+			if (soundOn && sound && sound.also && depth < 2 && (level === 'full' || MINIMAL.has(key.split(':')[0]))) for (const a of sound.also) if (sounds[a.slot]) play(a.slot, sounds[a.slot], 1, delay + a.delay / 1000, depth + 1, a);
+			return;
+		}
 		if (!delay) buzz(sound);
-		// also: play those sounds too, each its own clip, at most two levels deep (as the lab).
-		if (sound && sound.also && depth < 2) for (const a of sound.also) if (sounds[a.slot] && jobs.has(a.slot)) play(a.slot, sounds[a.slot], 1, delay + a.delay / 1000, depth + 1);
-		if (!soundOn || !jobs.has(key)) return;
+		// also: play those sounds too, each its own clip with its own level and duration, at most two levels deep (as the lab).
+		if (sound && sound.also && depth < 2) for (const a of sound.also) if (sounds[a.slot]) play(a.slot, sounds[a.slot], 1, delay + a.delay / 1000, depth + 1, a);
 		if (!data.has(key) && !buffers.has(key)) {
-			// Not ready: skip it this once and render it next.
-			const i = queue.indexOf(key);
-			if (i > 0) queue.splice(0, 0, ...queue.splice(i, 1));
-			pump();
+			front(key); // not ready: skip it this once and render it next
 			return;
 		}
 		if (typeof document !== 'undefined' && document.hidden) return;
@@ -200,7 +265,24 @@ export function createSound(rawPack) {
 		src.buffer = b;
 		const w = (sound.fx.wobble || 0) / 100;
 		src.playbackRate.value = rate * (w ? 1 + (Math.random() * 2 - 1) * w : 1);
-		src.connect(out);
+		// A link's level and duration (cut with a short fade so it doesn't click).
+		const lv = link && link.gain != null ? link.gain : 1,
+			ln = link && link.len > 0 ? link.len / 1000 : 0;
+		if (lv !== 1 || ln) {
+			const g = c.createGain(),
+				t0 = delay ? now + delay : now;
+			g.gain.setValueAtTime(lv, t0);
+			if (ln) {
+				const f = Math.min(0.05, ln / 4);
+				g.gain.setValueAtTime(lv, t0 + ln - f);
+				g.gain.linearRampToValueAtTime(0, t0 + ln);
+				try {
+					src.stop(t0 + ln + 0.01);
+				} catch {}
+			}
+			g.connect(out);
+			src.connect(g);
+		} else src.connect(out);
 		src.onended = () => {
 			const i = voices.indexOf(src);
 			if (i >= 0) voices.splice(i, 1);
@@ -238,23 +320,53 @@ export function createSound(rawPack) {
 	const one = (k) => sounds[k] && play(k, sounds[k], 1);
 	/** One engine event on your own board (see client/ui.js animate). */
 	function event(e) {
-		if (e.kind === 'clear') {
-			if (sounds.clear) play('clear', sounds.clear, 1);
+		const k = e.kind;
+		if (k === 'clear') {
+			one('clear');
 			if (e.combo) combo(e.combo);
-		} else if (e.kind === 'mineExplode') {
-			if (sounds.boom) play('boom', sounds.boom, 1);
-		} else if (e.kind === 'send' && e.pass > 0) sent(e.pass);
-		else if (e.kind === 'frozen') one('iceLand'); // a Frozen Cell lands (its pack plays Ice on the board with it)
-		else if (e.kind === 'thaw') one('iceBreak'); // a Frozen Cell breaks
-		else if (e.kind === 'forceBreak') one('force'); // Icebreak: the board forces a Frozen Cell open
+		} else if (k === 'mineExplode') one('boom');
+		else if (k === 'send') {
+			if (e.counter && sounds.counter) one('counter'); // your attack cancelled theirs
+			else if (e.pass > 0) sent(e.pass);
+		} else if (k === 'frozen') one('iceLand'); // a Frozen Cell lands (its pack plays Ice on the board with it)
+		else if (k === 'thaw') one('iceBreak'); // a Frozen Cell breaks
+		else if (k === 'thawPulse') one('iceBoard'); // the ice reacts as it thaws, every turn it's there
+		else if (k === 'forceBreak') one('force'); // Icebreak: the board forces a Frozen Cell open
+		else if (k === 'frozenOut') one('freezeOver'); // the board froze over
+		else if (k === 'frostFire') {
+			one('frostFire');
+			if (e.deflected > 0) one('deflect'); // your frost knocked incoming ice away
+		} else if (k === 'iceIncoming') one('frost'); // ice is on its way to you
+		else if (k === 'mineLand') one('mineLand');
+		else if (k === 'defuse') {
+			if (!e.clutch) one('defuse'); // a clutch defuse plays Clutch (which plays Defuse with it)
+		} else if (k === 'clutch') one('clutch');
+		else if (k === 'minesIncoming') one('queue');
+		else if (k === 'bankFreeze') one('bank');
+		else if (k === 'gravity') one('mineTick');
+	}
+	/** Moments the screen knows about, not the engine: 3-2-1, start, rush, round and match ends. */
+	function cue(name) {
+		one(name);
+	}
+	function doOver() {
+		one('doOver');
+	}
+	function streak() {
+		one('streak');
 	}
 
-	function setSound(on) {
-		soundOn = !!on;
-		save('vs.sound', soundOn);
+	function setLevel(l) {
+		if (!LEVELS.includes(l)) return;
+		level = l;
+		soundOn = level !== 'off';
+		try {
+			localStorage.setItem('vs.soundLevel', level);
+		} catch {}
+		planJobs();
 		if (soundOn) {
 			audio();
-			pump();
+			feed();
 		} else {
 			for (const v of voices.splice(0)) {
 				try {
@@ -264,6 +376,7 @@ export function createSound(rawPack) {
 			if (ctx) ctx.suspend().catch(() => {});
 		}
 	}
+	const setSound = (on) => setLevel(on ? (level === 'off' ? 'full' : level) : 'off');
 	function setVibrate(on) {
 		vibeOn = !!on;
 		save('vs.vibe', vibeOn);
@@ -286,17 +399,18 @@ export function createSound(rawPack) {
 			resting = false;
 			if (ctx && soundOn && !(typeof document !== 'undefined' && document.hidden)) ctx.resume().catch(() => {});
 		}
-		if (hurry || !queue.length) return;
+		if (worker || hurry || !queue.length) return;
 		hurry = true;
 		idleBusy = false; // a pending idle callback just finds the queue shorter
 		pump();
 	}
 
-	pump();
+	planJobs();
 	return {
 		prepare,
 		rest,
-		place, refused, combo, sent, event, setSound, setVibrate, SILENT,
+		place, refused, combo, sent, event, cue, doOver, streak, setLevel, setSound, setVibrate, LEVELS, MINIMAL,
+		get level() { return level; },
 		get soundOn() { return soundOn; },
 		get vibrateOn() { return vibeOn; },
 		canVibrate,
@@ -304,11 +418,12 @@ export function createSound(rawPack) {
 		/** For tests and the budget: render everything now. */
 		renderAll() {
 			for (const k of [...jobs.keys()]) render(k);
+			queue = [];
 			let bytes = 0,
 				seconds = 0;
 			for (const [k, d] of data) if (d) (bytes += d.length * 4), (seconds += d.length / rates.get(k));
 			for (const [k, b] of buffers) (bytes += b.length * 4), (seconds += b.length / b.sampleRate);
-			return { clips: data.size, bytes, seconds };
+			return { clips: data.size + buffers.size, bytes, seconds };
 		}
 	};
 }

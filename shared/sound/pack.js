@@ -11,14 +11,17 @@
 
 export const SoundPack = (() => {
 	const VERSION = 1;
-	const SLOTS = ['place', 'refused', 'clear', 'boom', 'sent', 'combo', 'iceLand', 'iceBoard', 'iceBreak', 'thunder', 'force'];
+	// Every sound the Sound Lab has (its SLOTS list, 2026-11-07).
+	const SLOTS = ['place', 'refused', 'clear', 'boom', 'sent', 'combo', 'iceLand', 'iceBoard', 'iceBreak', 'frost', 'frostFire', 'deflect', 'freezeOver',
+		'mineLand', 'mineTick', 'defuse', 'clutch', 'bank', 'queue', 'counter', 'streak', 'doOver', 'countdown', 'start', 'rush', 'win', 'lose', 'matchWin',
+		'thunder', 'force', 'crowd', 'bell', 'perfect', 'timeLow', 'timeUp', 'badge'];
 
 	// [key, min, max] — the lab's slider ranges (the Sound Lab's SPEC tables).
 	const COMMON = [['gain', 0, 1.5], ['delay', 0, 2000]]; // the lab's slider stops at 400ms, but its own defaults go past it (force: 550ms)
 	const LAYER = {
 		fit: [...COMMON, ['pitch', -24, 24], ['tail', 0.3, 3], ['start', 0, 3000], ['len', 0, 3000], ['fadeIn', 0, 500], ['fadeOut', 0, 1000]],
-		tone: [...COMMON, ['freq', 20, 8000], ['end', 20, 8000], ['glide', 1, 500], ['attack', 0, 50], ['decay', 1, 1500]],
-		noise: [...COMMON, ['freq', 40, 16000], ['q', 0.3, 12], ['attack', 0, 50], ['decay', 0.2, 1500]],
+		tone: [...COMMON, ['freq', 20, 8000], ['end', 20, 8000], ['glide', 1, 500], ['attack', 0, 500], ['decay', 1, 1500]], // attack up to 500ms: slow swells (Frost warning)
+		noise: [...COMMON, ['freq', 40, 16000], ['q', 0.3, 12], ['attack', 0, 500], ['decay', 0.2, 1500]],
 		pluck: [...COMMON, ['freq', 40, 4000], ['decay', 20, 3000], ['bright', 0, 1]]
 	};
 	const FX = [['lowcut', 20, 1000, 20], ['eqLow', -18, 18, 0], ['eqMid', -18, 18, 0], ['eqHigh', -18, 18, 0], ['highcut', 1000, 20000, 20000],
@@ -75,7 +78,7 @@ export const SoundPack = (() => {
 		// also: other sounds played with this one, each its own clip (one Thunder for many sounds).
 		o.also = [];
 		for (const a of Array.isArray(S.also) ? S.also.slice(0, 4) : [])
-			if (a && SLOTS.includes(a.slot) && a.slot !== slot) o.also.push({ slot: a.slot, delay: num(a.delay, 0, 2000, 0) });
+			if (a && SLOTS.includes(a.slot) && a.slot !== slot) o.also.push({ slot: a.slot, delay: num(a.delay, 0, 2000, 0), gain: num(a.gain, 0, 2, 1), len: num(a.len, 0, 5000, 0) });
 		if (S.seq && typeof S.seq === 'object') {
 			const q = S.seq;
 			o.seq = { on: !!q.on, keepLength: !!q.keepLength, steps: list(q.steps, -48, 48, 16) || '0' };
@@ -107,11 +110,16 @@ export const SoundPack = (() => {
 		if (m.A.length < 2 || m.A.length > 65 || m.E.length < 2 || m.E.length > 4000) return null;
 		const A = m.A.map((v) => num(v, -64, 64, 0));
 		A[0] = 1;
-		return { A, E: m.E.map((v) => Math.round(num(v, 0, 255, 255))) };
+		const o = { A, E: m.E.map((v) => Math.round(num(v, 0, 255, 255))) };
+		// hop: samples per loudness byte. 24 (0.5ms) unless the build smoothed the curve (wind, crowd).
+		if (Number.isInteger(m.hop) && m.hop > 24 && m.hop <= 960) o.hop = m.hop;
+		return o;
 	}
 
-	/** Parse text or an object. Returns { ok, pack:{sounds, models}, errors }. Never throws. */
-	function read(input) {
+	/** Parse text or an object. Returns { ok, pack:{sounds, models}, errors }. Never throws.
+	 *  opts.skip: slots to leave out (VS doesn't carry the other modes' sounds). */
+	function read(input, opts = {}) {
+		const skip = new Set(opts.skip || []);
 		let j = input;
 		const errors = [];
 		if (typeof j === 'string') {
@@ -134,6 +142,7 @@ export const SoundPack = (() => {
 		const src = (j.pack && j.pack.sounds) || {},
 			sounds = {};
 		for (const slot of SLOTS) {
+			if (skip.has(slot)) continue;
 			const s = sound(src[slot], models, slot);
 			if (s) sounds[slot] = s;
 		}
@@ -141,11 +150,34 @@ export const SoundPack = (() => {
 		const used = {};
 		const walk = (s) => s.layers.forEach((L) => L.type === 'fit' && ((used[L.model] = models[L.model]), (used[L.env] = models[L.env])));
 		for (const s of Object.values(sounds)) {
+			s.also = s.also.filter((a) => !skip.has(a.slot));
 			walk(s);
 			if (s.sizes) Object.values(s.sizes).forEach(walk);
 		}
 		return { ok: true, pack: { sounds, models: used }, errors };
 	}
 
-	return { VERSION, SLOTS, read };
+	// Slow swells (wind, a crowd) don't need their loudness every 0.5ms: averaging it over 4ms
+	// changes them by about 1.5dB on average (measured 2026-11-07) and makes each curve 8x smaller.
+	// Clicks and punches keep full detail, because their sharp start is the sound. build.mjs uses this.
+	const SMOOTH = /wind|crowd/;
+	function smooth(models, factor = 8) {
+		const out = {};
+		for (const [k, m] of Object.entries(models)) {
+			if (!SMOOTH.test(k) || m.hop) {
+				out[k] = m;
+				continue;
+			}
+			const E = [];
+			for (let i = 0; i < m.E.length; i += factor) {
+				const w = m.E.slice(i, i + factor);
+				E.push(Math.round(w.reduce((a, b) => a + b, 0) / w.length));
+			}
+			E[Math.floor(m.E.indexOf(Math.min(...m.E)) / factor)] = 0; // keep the loudest moment where it was
+			out[k] = { A: m.A, E, hop: 24 * factor };
+		}
+		return out;
+	}
+
+	return { VERSION, SLOTS, read, smooth };
 })();

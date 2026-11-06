@@ -40,17 +40,22 @@
 
 	// —— Sound: the base pack is inlined by build.mjs (SOUND_PACK); see client/sound.js ——
 	const sound = createSound(typeof SOUND_PACK !== 'undefined' ? SOUND_PACK : null);
+	let streakCount = 0; // placements in a row with no Do-Over
+	let rushCued = null; // the round whose Rush sound has played
+	let endCued = null; // the round whose won / lost sound has played
 	function showSoundToggles() {
 		const sb = $('sound-toggle');
-		sb.textContent = sound.soundOn ? 'Sound: on' : 'Sound: off';
+		sb.textContent = `Sound: ${sound.level}`; // full, minimal or off
 		sb.setAttribute('aria-pressed', String(sound.soundOn));
+		sb.title = sound.level === 'minimal' ? 'Gameplay sounds only: no tile placing, no per-turn sounds' : sound.level === 'full' ? 'Every sound' : 'No sound';
 		const vb = $('vibe-toggle');
 		vb.hidden = !sound.canVibrate; // iPhone web pages can't vibrate
 		vb.textContent = sound.vibrateOn ? 'Vibration: on' : 'Vibration: off';
 		vb.setAttribute('aria-pressed', String(sound.vibrateOn));
 	}
 	$('sound-toggle').addEventListener('click', () => {
-		sound.setSound(!sound.soundOn);
+		const L = sound.LEVELS; // full → minimal → off → full
+		sound.setLevel(L[(L.indexOf(sound.level) + 1) % L.length]);
 		showSoundToggles();
 	});
 	$('vibe-toggle').addEventListener('click', () => {
@@ -187,17 +192,19 @@
 		const el = $('count');
 		const left = v && !v.match.roundOver ? (v.match.roundStartAt ?? 0) - serverNow() : 0;
 		if (left <= 0) {
+			if (el.dataset.n && mode !== 'replay' && left > -500) sound.cue('start'); // the 3-2-1 just ran out
 			el.hidden = true;
 			el.dataset.n = '';
 			return;
 		}
 		const n = Math.ceil(left / 1000);
+		sound.prepare(); // wake the audio and finish any clip not made yet, while nothing can be played
 		if (el.dataset.n !== String(n)) {
 			el.innerHTML = `<span>${n}</span>`;
 			el.dataset.n = String(n);
+			if (mode !== 'replay') sound.cue('countdown');
+			streakCount = 0; // a new round starts cold
 		}
-		el.hidden = false;
-		sound.prepare(); // any clip not rendered yet gets rendered now, while nothing can be played
 		countTimer = setTimeout(() => (left - (n - 1) * 1000 <= 1000 && n === 1 ? render() : updateCount()), left - (n - 1) * 1000 + 5);
 	}
 
@@ -213,6 +220,11 @@
 		const t = `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, '0')}`;
 		// Rush: the clock turns white and says so, blinking on a 0.8s beat (same rule as VersusMatch.rush, asked about now).
 		const rush = !over && (rules.rushAfterSecs ? ms >= rules.rushAfterSecs * 1000 : !!m.rush);
+		const roundKey = m.roundStartAt ?? 0;
+		if (rush && rushCued !== roundKey && mode !== 'replay') {
+			rushCued = roundKey;
+			if (!rules.rushAfterSecs || ms - rules.rushAfterSecs * 1000 < 2000) sound.cue('rush'); // not when joining long after it began
+		}
 		for (const id of ['you-time', 'them-time']) {
 			const el = $(id);
 			if (over && el.textContent) continue; // keep the time the round ended on
@@ -228,8 +240,13 @@
 			ov.hidden = true;
 			return;
 		}
-		sound.rest(); // nothing plays until the next 3-2-1 wakes it
 		const ro = m.roundOver;
+		const endKey = `${m.roundStartAt ?? 0}:${m.score.join('-')}`;
+		if (endCued !== endKey && mode !== 'replay') {
+			endCued = endKey;
+			sound.cue(ro.winner === me ? (m.over ? 'matchWin' : 'win') : 'lose');
+		}
+		sound.rest(); // let the result sound finish, then rest until the next 3-2-1 wakes it
 		const who = ro.winner == null ? null : mode === 'replay' ? $(ro.winner === 0 ? 'name-you' : 'name-them').textContent : ro.winner === me ? 'You' : $('name-them').textContent;
 		$('ov-title').textContent = who == null ? 'Double KO' : `${who} won the ${m.over ? 'match' : 'round'}`;
 		$('ov-sub').textContent = `${m.score[me]} – ${m.score[1 - me]}`;
@@ -284,7 +301,15 @@
 			hud.deny(action, r.denied);
 			sound.refused();
 		}
-		if (r.moved && action.type === 'place') sound.place((Math.abs(action.bx - action.ax) + 1) * (Math.abs(action.by - action.ay) + 1));
+		if (r.moved && action.type === 'place') {
+			sound.place((Math.abs(action.bx - action.ax) + 1) * (Math.abs(action.by - action.ay) + 1));
+			// Streak: placements in a row with no Do-Over; it sounds every 5th (Krischan, 2026-11-06).
+			if (++streakCount % 5 === 0) sound.streak(streakCount);
+		}
+		if (r.moved && action.type === 'erase') {
+			sound.doOver();
+			streakCount = 0;
+		}
 		if (r.moved) animate(r.events, 0);
 		if (mode === 'practice') practice.afterYou();
 		render();

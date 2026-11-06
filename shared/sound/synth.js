@@ -156,18 +156,19 @@ export const SoundSynth = (() => {
 		if (!fm) return new Float32Array(1);
 		const A = fm.A,
 			E = em.E,
+			H = em.hop || HOP, // a smoothed curve (wind, crowd) has one byte per H samples instead of 24
 			p = A.length - 1;
 		let pk = 0;
 		for (let i = 1; i < E.length; i++) if (E[i] < E[pk]) pk = i;
 		const post = E.length - pk,
-			nEx = Math.round((pk + post * tail) * HOP),
+			nEx = Math.round((pk + post * tail) * H),
 			n = nEx + Math.round(0.03 * SR),
 			y = new Float64Array(n),
 			o = new Float32Array(n);
 		for (let i = 0; i < n; i++) {
 			let ex = 0;
 			if (i < nEx) {
-				let k = i / HOP;
+				let k = i / H;
 				if (k > pk) k = pk + (k - pk) / tail;
 				const k0 = Math.min(E.length - 1, Math.floor(k)),
 					k1 = Math.min(E.length - 1, k0 + 1),
@@ -223,6 +224,7 @@ export const SoundSynth = (() => {
 		String(s || '')
 			.trim()
 			.split(/[\s,]+/)
+			.filter((x) => x !== '') // an empty field means no numbers, not [0] (an empty Plays at silenced every combo)
 			.map(Number)
 			.filter((v) => isFinite(v));
 
@@ -418,9 +420,28 @@ export const SoundSynth = (() => {
 		return d;
 	}
 
+	/**
+	 * Render one clip the game plays, exactly as the player and the background renderer both do.
+	 * j: { slot, size (SENT size, 1 = the base sound), opt (plain numbers), mix (share a combo mix), seed }.
+	 * mixes: a per-pack cache object for combo mixes. Returns { rate, data } with data null when
+	 * the sound is missing or a filter blew up (the game skips that clip and carries on).
+	 */
+	function renderJob(sounds, models, j, mixes) {
+		const base = sounds[j.slot];
+		const snd = base && j.size > 1 ? (base.sizes || {})[j.size] : base;
+		if (!snd || !snd.layers || !snd.layers.length) return { rate: 16000, data: null };
+		setSeed(j.seed);
+		const rate = rateFor(snd);
+		const opt = Object.assign({}, j.opt);
+		if (j.mix) opt.mix = mixes[j.slot] || (mixes[j.slot] = {});
+		const d = downsample(renderSound(snd, opt, models), SR / rate);
+		for (let i = 0; i < d.length; i++) if (!isFinite(d[i])) return { rate, data: null };
+		return { rate, data: d };
+	}
+
 	return {
 		SR, HOP, setSeed, renderSound, renderLayer, mixLayers, transposeLayers, steps, biquad, resample, norm,
 		PLACE_GROUPS, placeGroup, placeOpt, placeRate, sentFrom, sentSound, COMBO_WRAP, comboPlan, comboTranspose,
-		downsample, downsample2, rateFor, trimTail
+		downsample, downsample2, rateFor, trimTail, renderJob
 	};
 })();
