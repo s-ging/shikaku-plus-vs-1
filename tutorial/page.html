@@ -233,18 +233,16 @@ legend { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; col
 	.lane { font-size: 14px; }
 }
 
-/* —— Tutorial panel —— */
-.tut { background: var(--card); border-radius: 10px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; max-width: 640px; margin: 0 auto; width: 100%; }
-.tut .eyebrow { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
-.tut h2 { font-family: var(--font-brand); font-weight: 800; font-size: 22px; margin: 0; line-height: 1.2; }
-.tut p { margin: 0; font-size: 15px; line-height: 1.55; }
-.tut #t-after { color: var(--frost); }
-.tut table { border-collapse: collapse; font-size: 13.5px; font-variant-numeric: tabular-nums; }
-.tut th, .tut td { text-align: left; padding: 4px 14px 4px 0; border-bottom: 1px solid rgba(255,255,255,0.08); }
-.tut th { color: var(--fg2); font-weight: 400; }
-.tut .nav { display: flex; gap: 8px; justify-content: space-between; align-items: center; flex-wrap: wrap; }
-.tut .nav .btn { min-height: 40px; }
-#t-chapters { margin: 0 auto; }
+/* —— Coach: one line under the Board —— */
+.foot .time { visibility: hidden; } /* the tutorial has no round clock */
+.coach { max-width: 520px; margin: -8px auto 0; width: 100%; display: flex; flex-direction: column; gap: 8px; }
+.coach .run { height: 2px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden; }
+.coach .run i { display: block; height: 100%; background: var(--accent); transform-origin: left; transform: scaleX(0); }
+.coach p { margin: 0; font-size: 16px; line-height: 1.55; min-height: 3.1em; }
+.coach #c-after { color: var(--accent); }
+.coach .meta { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 12.5px; color: var(--fg3); }
+.coach .meta button { background: none; border: 0; padding: 4px 0; color: var(--fg3); text-decoration: underline; text-underline-offset: 3px; }
+.coach .end { display: flex; gap: 8px; }
 </style>
 
 <div class="wrap">
@@ -292,17 +290,11 @@ legend { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; col
 		</section>
 	</div>
 
-	<div class="controls"><div class="seg" id="t-chapters" role="group" aria-label="Chapters"></div></div>
-	<section class="tut" aria-live="polite">
-		<div class="eyebrow" id="t-chapter"></div>
-		<h2 id="t-title"></h2>
-		<p id="t-text"></p>
-		<table id="t-math" hidden></table>
-		<p id="t-after" hidden></p>
-		<div class="nav">
-			<button class="btn" id="t-back" type="button">Back</button>
-			<button class="btn" id="t-retry" type="button">Try again</button>
-			<button class="btn primary" id="t-next" type="button">Next</button>
-		</div>
+	<section class="coach" aria-live="polite">
+		<div class="run"><i id="c-bar"></i></div>
+		<p id="c-text"></p>
+		<p id="c-after" hidden></p>
+		<div class="end" id="c-end" hidden><button class="btn primary" id="c-again" type="button">Play it again</button></div>
+		<div class="meta"><span class="num" id="c-count"></span><button id="c-skip" type="button">Skip this step</button></div>
 	</section>
 </div>
