@@ -2,23 +2,24 @@
  "format": "shikaku-sound-pack",
  "version": 1,
  "sampleRate": 48000,
- "savedAt": "2026-11-05T20:58:12.943Z",
+ "savedAt": "2026-11-06T09:52:36.893Z",
  "pack": {
   "name": "Base pack draft",
   "sounds": {
    "boom": {
+    "also": [],
     "fx": {
-     "lowcut": 23,
+     "eqHigh": 4,
      "eqLow": 0.5,
      "eqMid": 0,
-     "eqHigh": 4,
-     "highcut": 10000,
-     "warmth": 0.08,
-     "room": 0,
+     "fadeOut": 120,
      "gain": -2,
-     "wobble": 10,
+     "highcut": 10000,
+     "lowcut": 23,
      "maxLen": 500,
-     "fadeOut": 120
+     "room": 0,
+     "warmth": 0.08,
+     "wobble": 10
     },
     "haptic": "50 12 50",
     "layers": [
@@ -59,34 +60,34 @@
      {
       "delay": 0,
       "env": "rec-soraatwod-punch-416719-mw3sexv5",
+      "fadeIn": 0,
+      "fadeOut": 0,
       "gain": 0.8,
+      "len": 0,
       "model": "rec-universfield-classic-punch-impact-352711-mw3sb9hd",
       "on": true,
       "pitch": 0,
-      "tail": 3,
-      "type": "fit",
       "start": 0,
-      "len": 0,
-      "fadeIn": 0,
-      "fadeOut": 0
+      "tail": 3,
+      "type": "fit"
      }
     ],
-    "also": []
+    "ready": true
    },
    "clear": {
     "also": [],
     "fx": {
-     "lowcut": 80,
+     "eqHigh": 0,
      "eqLow": 0,
      "eqMid": 0,
-     "eqHigh": 0,
-     "highcut": 6000,
-     "warmth": 0,
-     "room": 0.4,
+     "fadeOut": 10,
      "gain": 0,
-     "wobble": 0,
+     "highcut": 6000,
+     "lowcut": 80,
      "maxLen": 320,
-     "fadeOut": 10
+     "room": 0.4,
+     "warmth": 0,
+     "wobble": 0
     },
     "haptic": "",
     "layers": [
@@ -127,6 +128,7 @@
       "wave": "sine"
      }
     ],
+    "ready": true,
     "seq": {
      "gap": 75,
      "lastGain": 0.5,
@@ -139,17 +141,17 @@
    "combo": {
     "also": [],
     "fx": {
-     "lowcut": 80,
+     "eqHigh": 0,
      "eqLow": 0,
      "eqMid": 0,
-     "eqHigh": 0,
-     "highcut": 5000,
-     "warmth": 0,
-     "room": 0.4,
+     "fadeOut": 0,
      "gain": -1,
-     "wobble": 0,
+     "highcut": 5000,
+     "lowcut": 80,
      "maxLen": 0,
-     "fadeOut": 0
+     "room": 0.4,
+     "warmth": 0,
+     "wobble": 0
     },
     "haptic": "10",
     "ladder": "0 1 2 3 5 7 8 9",
@@ -215,7 +217,8 @@
       "wave": "saw"
      }
     ],
-    "plays": "1 3 5 7 9 11 13 15",
+    "plays": "1 2 3 4 5 6 7 8 ",
+    "ready": true,
     "seq": {
      "gap": 50,
      "keepLength": false,
@@ -229,17 +232,17 @@
    "force": {
     "also": [],
     "fx": {
-     "lowcut": 20,
+     "eqHigh": 0,
      "eqLow": 0,
      "eqMid": 0,
-     "eqHigh": 0,
-     "highcut": 7000,
-     "warmth": 0,
-     "room": 0.2,
+     "fadeOut": 300,
      "gain": 0,
-     "wobble": 0,
+     "highcut": 7000,
+     "lowcut": 20,
      "maxLen": 1200,
-     "fadeOut": 300
+     "room": 0.2,
+     "warmth": 0,
+     "wobble": 0
     },
     "haptic": "30",
     "layers": [
@@ -283,17 +286,17 @@
    "iceBoard": {
     "also": [],
     "fx": {
-     "lowcut": 20,
+     "eqHigh": 0,
      "eqLow": 0,
      "eqMid": 0,
-     "eqHigh": 0,
-     "highcut": 9000,
-     "warmth": 0,
-     "room": 0,
+     "fadeOut": 120,
      "gain": -8,
-     "wobble": 4,
+     "highcut": 9000,
+     "lowcut": 20,
      "maxLen": 600,
-     "fadeOut": 120
+     "room": 0,
+     "warmth": 0,
+     "wobble": 10
     },
     "haptic": "",
     "layers": [
@@ -311,22 +314,23 @@
       "tail": 1,
       "type": "fit"
      }
-    ]
+    ],
+    "ready": true
    },
    "iceBreak": {
     "also": [],
     "fx": {
-     "lowcut": 120,
+     "eqHigh": 0,
      "eqLow": 3,
      "eqMid": 0,
-     "eqHigh": 0,
-     "highcut": 9000,
-     "warmth": 0.3,
-     "room": 0.5,
+     "fadeOut": 30,
      "gain": -5,
-     "wobble": 4,
+     "highcut": 9000,
+     "lowcut": 120,
      "maxLen": 380,
-     "fadeOut": 30
+     "room": 0.5,
+     "warmth": 0.3,
+     "wobble": 4
     },
     "haptic": "12 30 8",
     "layers": [
@@ -367,7 +371,8 @@
       "type": "tone",
       "wave": "sine"
      }
-    ]
+    ],
+    "ready": true
    },
    "iceLand": {
     "also": [
@@ -377,17 +382,17 @@
      }
     ],
     "fx": {
-     "lowcut": 45,
+     "eqHigh": 0,
      "eqLow": 0,
      "eqMid": 0,
-     "eqHigh": 0,
-     "highcut": 9000,
-     "warmth": 0,
-     "room": 0,
+     "fadeOut": 0,
      "gain": -4,
-     "wobble": 2,
+     "highcut": 9000,
+     "lowcut": 45,
      "maxLen": 0,
-     "fadeOut": 0
+     "room": 0,
+     "warmth": 0,
+     "wobble": 2
     },
     "haptic": "",
     "layers": [
@@ -405,22 +410,23 @@
       "tail": 3,
       "type": "fit"
      }
-    ]
+    ],
+    "ready": true
    },
    "place": {
     "also": [],
     "fx": {
-     "lowcut": 75,
-     "eqLow": 13,
-     "eqMid": -8.5,
-     "eqHigh": -12,
-     "highcut": 7000,
-     "warmth": 0.1,
-     "room": 0,
+     "eqHigh": 0,
+     "eqLow": 0,
+     "eqMid": 0,
+     "fadeOut": 0,
      "gain": 0.01111,
-     "wobble": 10,
+     "highcut": 7000,
+     "lowcut": 115,
      "maxLen": 0,
-     "fadeOut": 0
+     "room": 0,
+     "warmth": 0.1,
+     "wobble": 10
     },
     "haptic": "5",
     "layers": [
@@ -467,6 +473,7 @@
       "type": "fit"
      }
     ],
+    "ready": true,
     "size": {
      "curve": 0.15,
      "roomMax": 0.2,
@@ -476,17 +483,17 @@
    "refused": {
     "also": [],
     "fx": {
-     "lowcut": 20,
+     "eqHigh": 0,
      "eqLow": 0,
      "eqMid": 0,
-     "eqHigh": 0,
-     "highcut": 4000,
-     "warmth": 0,
-     "room": 0,
+     "fadeOut": 0,
      "gain": 0.01,
-     "wobble": 2,
+     "highcut": 4000,
+     "lowcut": 20,
      "maxLen": 0,
-     "fadeOut": 0
+     "room": 0,
+     "warmth": 0,
+     "wobble": 2
     },
     "haptic": "18 45 18",
     "layers": [
@@ -560,22 +567,23 @@
       "q": 1,
       "type": "noise"
      }
-    ]
+    ],
+    "ready": true
    },
    "sent": {
     "also": [],
     "fx": {
-     "lowcut": 20,
+     "eqHigh": 0,
      "eqLow": 0,
      "eqMid": 0,
-     "eqHigh": 0,
-     "highcut": 7000,
-     "warmth": 0.45,
-     "room": 0.2,
+     "fadeOut": 30,
      "gain": -4,
-     "wobble": 0,
+     "highcut": 7000,
+     "lowcut": 20,
      "maxLen": 300,
-     "fadeOut": 30
+     "room": 0.2,
+     "warmth": 0.45,
+     "wobble": 0
     },
     "haptic": "",
     "layers": [
@@ -630,17 +638,17 @@
      "2": {
       "also": [],
       "fx": {
-       "lowcut": 20,
+       "eqHigh": 0,
        "eqLow": 0,
        "eqMid": 0,
-       "eqHigh": 0,
-       "highcut": 7000,
-       "warmth": 0.45,
-       "room": 0.2,
+       "fadeOut": 30,
        "gain": -4,
-       "wobble": 0,
+       "highcut": 7000,
+       "lowcut": 20,
        "maxLen": 500,
-       "fadeOut": 30
+       "room": 0.2,
+       "warmth": 0.45,
+       "wobble": 0
       },
       "layers": [
        {
@@ -720,17 +728,17 @@
      "5": {
       "also": [],
       "fx": {
-       "lowcut": 20,
+       "eqHigh": 0,
        "eqLow": 0,
        "eqMid": 0,
-       "eqHigh": 0,
-       "highcut": 7000,
-       "warmth": 0.45,
-       "room": 0.2,
+       "fadeOut": 30,
        "gain": -4,
-       "wobble": 0,
+       "highcut": 7000,
+       "lowcut": 20,
        "maxLen": 500,
-       "fadeOut": 30
+       "room": 0.2,
+       "warmth": 0.45,
+       "wobble": 0
       },
       "layers": [
        {
@@ -836,17 +844,17 @@
      "8": {
       "also": [],
       "fx": {
-       "lowcut": 20,
+       "eqHigh": 0,
        "eqLow": 0,
        "eqMid": 0,
-       "eqHigh": 0,
-       "highcut": 7000,
-       "warmth": 0.45,
-       "room": 0.2,
+       "fadeOut": 30,
        "gain": -4,
-       "wobble": 0,
+       "highcut": 7000,
+       "lowcut": 20,
        "maxLen": 800,
-       "fadeOut": 30
+       "room": 0.2,
+       "warmth": 0.45,
+       "wobble": 0
       },
       "layers": [
        {
@@ -986,17 +994,17 @@
        }
       ],
       "fx": {
-       "lowcut": 80,
+       "eqHigh": 0,
        "eqLow": 0,
        "eqMid": 0,
-       "eqHigh": 0,
-       "highcut": 7000,
-       "warmth": 0.45,
-       "room": 0.2,
+       "fadeOut": 30,
        "gain": -4,
-       "wobble": 0,
+       "highcut": 7000,
+       "lowcut": 80,
        "maxLen": 800,
-       "fadeOut": 30
+       "room": 0.2,
+       "warmth": 0.45,
+       "wobble": 0
       },
       "layers": [
        {
@@ -1132,17 +1140,17 @@
    "thunder": {
     "also": [],
     "fx": {
-     "lowcut": 80,
+     "eqHigh": 0,
      "eqLow": 0,
      "eqMid": 0,
-     "eqHigh": 0,
-     "highcut": 7000,
-     "warmth": 0.19,
-     "room": 1,
+     "fadeOut": 50,
      "gain": 0,
-     "wobble": 10,
+     "highcut": 7000,
+     "lowcut": 80,
      "maxLen": 1000,
-     "fadeOut": 50
+     "room": 1,
+     "warmth": 0.19,
+     "wobble": 10
     },
     "haptic": "",
     "layers": [
@@ -1190,7 +1198,8 @@
       "q": 1,
       "type": "noise"
      }
-    ]
+    ],
+    "ready": true
    }
   }
  },
@@ -6274,7 +6283,7 @@
    ],
    "name": "processed-dragon-studio-wind-blowing-sfx-01-423673_1",
    "order": 24,
-   "src": "Pixabay, Dragon Studio, wind blowing sfx 01 (cut by Krischan) · fitted 2026-11-06"
+   "src": "Pixabay, Dragon Studio, wind blowing sfx 01 (cut by Krischan) \u00b7 fitted 2026-11-06"
   },
   "rec-processed-freesound-community-glass-brok-mw3zub5vg": {
    "A": [
@@ -8128,7 +8137,7 @@
    ],
    "name": "processed-freesound_community-glass-broken-43626",
    "order": 48,
-   "src": "Pixabay, freesound_community, glass broken · fitted 2026-11-06"
+   "src": "Pixabay, freesound_community, glass broken \u00b7 fitted 2026-11-06"
   },
   "rec-processed-tanweraman-ice-freezing-445024-mw3zub5vf": {
    "A": [
@@ -11018,7 +11027,7 @@
    ],
    "name": "processed-tanweraman-ice-freezing-445024",
    "order": 32,
-   "src": "Pixabay, tanweraman, ice freezing · fitted 2026-11-06"
+   "src": "Pixabay, tanweraman, ice freezing \u00b7 fitted 2026-11-06"
   }
  }
 }

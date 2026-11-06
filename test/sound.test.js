@@ -96,7 +96,8 @@ test('the game rules: place groups, SENT inheritance, combo plays-at and wrap', 
 	assert.deepEqual([1, 2, 3, 4, 5, 8, 9, 12].map(S.placeGroup), [0, 0, 1, 1, 2, 2, 3, 3]);
 	const sent = checked.pack.sounds.sent; // sizes 2, 5, 8, 10 have their own sound
 	assert.deepEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((a) => S.sentFrom(sent, a)), [1, 2, 2, 2, 5, 5, 5, 8, 8, 10]);
-	const combo = checked.pack.sounds.combo; // plays at 1 3 5 … 15
+	// A fixed example (plays at 1 3 5 … 15), so retuning the pack's own Plays at can't break the rule's test.
+	const combo = { ...checked.pack.sounds.combo, plays: '1 3 5 7 9 11 13 15', ladder: '0 1 2 3 5 7 8 9' };
 	assert.deepEqual(S.comboPlan(combo, 2), { kind: 'silent' });
 	assert.deepEqual(S.comboPlan(combo, 1), { kind: 'step', idx: 1 });
 	assert.deepEqual(S.comboPlan(combo, 5), { kind: 'step', idx: 3 });

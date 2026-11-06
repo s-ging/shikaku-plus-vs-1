@@ -10,6 +10,9 @@
 //   Not ready  a clip that isn't rendered yet is skipped and moved to the front of the
 //              queue, never rendered on the spot: a long one (SENT 10) could take a second
 //              on an old phone, and sound must never stall the game.
+//   Memory     each clip lives once: its samples until first played, then only the browser's copy.
+//   Resting    between rounds and on other screens the audio is suspended once the last sound
+//              ends, so a quiet game costs nothing; the 3-2-1 wakes it before play begins.
 //   Muted      no AudioContext, nothing rendered. Idle: no timers once the queue is done.
 //   Haptics    navigator.vibrate where it exists (Android). iPhone web pages can't vibrate.
 //
@@ -71,7 +74,7 @@ export function createSound(rawPack) {
 
 	function render(key) {
 		const j = jobs.get(key);
-		if (!j || data.has(key)) return;
+		if (!j || data.has(key) || buffers.has(key)) return;
 		S.setSeed(j.seed);
 		const rate = S.rateFor(j.sound);
 		let d = S.downsample(S.renderSound(j.sound, j.opt, pack.models), S.SR / rate); // the synth already trims the end, as the lab does
@@ -155,6 +158,7 @@ export function createSound(rawPack) {
 			b.getChannelData(0).set(u);
 		}
 		buffers.set(key, b);
+		data.delete(key); // the browser's copy is the only one now (half the memory)
 		return b;
 	}
 
@@ -171,7 +175,7 @@ export function createSound(rawPack) {
 		// also: play those sounds too, each its own clip, at most two levels deep (as the lab).
 		if (sound && sound.also && depth < 2) for (const a of sound.also) if (sounds[a.slot] && jobs.has(a.slot)) play(a.slot, sounds[a.slot], 1, delay + a.delay / 1000, depth + 1);
 		if (!soundOn || !jobs.has(key)) return;
-		if (!data.has(key)) {
+		if (!data.has(key) && !buffers.has(key)) {
 			// Not ready: skip it this once and render it next.
 			const i = queue.indexOf(key);
 			if (i > 0) queue.splice(0, 0, ...queue.splice(i, 1));
@@ -184,6 +188,7 @@ export function createSound(rawPack) {
 		const now = c.currentTime;
 		if (now + delay - (lastStart.get(key) || -1) < 0.03) return;
 		lastStart.set(key, now + delay);
+		resting = false; // a sound outside a round (practice, the lobby) keeps the audio awake until told to rest
 		const b = bufferFor(key);
 		if (!b) return;
 		while (voices.length >= MAX_VOICES) {
@@ -199,6 +204,7 @@ export function createSound(rawPack) {
 		src.onended = () => {
 			const i = voices.indexOf(src);
 			if (i >= 0) voices.splice(i, 1);
+			if (resting && !voices.length) sleep();
 		};
 		voices.push(src);
 		src.start(delay ? now + delay : 0);
@@ -263,8 +269,23 @@ export function createSound(rawPack) {
 		save('vs.vibe', vibeOn);
 	}
 
-	/** The 3-2-1 has started: render whatever is left now, before play begins. */
+	// —— Resting: suspend the audio while nothing can play (between rounds, other screens) ——
+	let resting = false;
+	function sleep() {
+		if (ctx && ctx.state === 'running') ctx.suspend().catch(() => {});
+	}
+	/** Round over or off the game screen: let the last sound finish, then suspend. */
+	function rest() {
+		resting = true;
+		if (!voices.length) sleep();
+	}
+
+	/** The 3-2-1 has started: wake the audio and render whatever is left now, before play begins. */
 	function prepare() {
+		if (resting) {
+			resting = false;
+			if (ctx && soundOn && !(typeof document !== 'undefined' && document.hidden)) ctx.resume().catch(() => {});
+		}
 		if (hurry || !queue.length) return;
 		hurry = true;
 		idleBusy = false; // a pending idle callback just finds the queue shorter
@@ -274,6 +295,7 @@ export function createSound(rawPack) {
 	pump();
 	return {
 		prepare,
+		rest,
 		place, refused, combo, sent, event, setSound, setVibrate, SILENT,
 		get soundOn() { return soundOn; },
 		get vibrateOn() { return vibeOn; },
@@ -285,6 +307,7 @@ export function createSound(rawPack) {
 			let bytes = 0,
 				seconds = 0;
 			for (const [k, d] of data) if (d) (bytes += d.length * 4), (seconds += d.length / rates.get(k));
+			for (const [k, b] of buffers) (bytes += b.length * 4), (seconds += b.length / b.sampleRate);
 			return { clips: data.size, bytes, seconds };
 		}
 	};

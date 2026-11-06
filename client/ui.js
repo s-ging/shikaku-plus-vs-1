@@ -6,6 +6,11 @@
 	const $ = (id) => document.getElementById(id);
 	const show = (id) => {
 		['home', 'lobby', 'game'].forEach((s) => ($(s).hidden = s !== id));
+		if (id !== 'game') {
+			try {
+				sound.rest(); // off the game screen: suspend once the last sound ends
+			} catch {} // show() can run before sound exists
+		}
 		$('brand').hidden = id === 'game';
 	};
 	const store = {
@@ -223,6 +228,7 @@
 			ov.hidden = true;
 			return;
 		}
+		sound.rest(); // nothing plays until the next 3-2-1 wakes it
 		const ro = m.roundOver;
 		const who = ro.winner == null ? null : mode === 'replay' ? $(ro.winner === 0 ? 'name-you' : 'name-them').textContent : ro.winner === me ? 'You' : $('name-them').textContent;
 		$('ov-title').textContent = who == null ? 'Double KO' : `${who} won the ${m.over ? 'match' : 'round'}`;
