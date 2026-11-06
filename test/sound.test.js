@@ -209,7 +209,7 @@ test('Off, Minimal and Full make only their own clips', async () => {
 	assert.ok(full > minimal && minimal > 0, `full ${full}, minimal ${minimal}`);
 	assert.equal(off, 0, 'off makes nothing');
 	assert.ok(snd.MINIMAL.has('refused') && snd.MINIMAL.has('clear'), 'Minimal keeps Refused and Board clear (Krischan)');
-	for (const k of ['place', 'iceBoard', 'mineTick', 'bank', 'queue']) assert.ok(!snd.MINIMAL.has(k), `Minimal drops ${k}`);
+	for (const k of ['place', 'iceBoard', 'mineTick', 'bank', 'queue', 'crowd', 'thunder']) assert.ok(!snd.MINIMAL.has(k), `Minimal drops ${k}`);
 });
 
 test('the built background renderer runs and makes the same clip', async () => {

@@ -32,9 +32,10 @@ export function createSound(rawPack) {
 	const MAX_VOICES = 8;
 	// One clip per sound: the pack's pitch wobble already varies every play for free (Krischan, 2026-11-06).
 	// Minimal keeps what answers the player or the opponent; it drops Place, the per-turn sounds
-	// (Ice on the board, Mine tick, Mine Bank and Queue), Streak and Do-Over (Krischan, 2026-11-06).
+	// (Ice on the board, Mine tick, Mine Bank and Queue), Streak and Do-Over (Krischan, 2026-11-06),
+	// and the flourishes Crowd and Thunder (Krischan, 2026-11-07). Ice stays: it is gameplay.
 	const MINIMAL = new Set(['refused', 'clear', 'combo', 'sent', 'counter', 'boom', 'mineLand', 'defuse', 'clutch', 'iceLand', 'iceBreak', 'frost',
-		'frostFire', 'deflect', 'freezeOver', 'force', 'thunder', 'crowd', 'bell', 'countdown', 'start', 'rush', 'win', 'lose', 'matchWin']);
+		'frostFire', 'deflect', 'freezeOver', 'force', 'bell', 'countdown', 'start', 'rush', 'win', 'lose', 'matchWin']);
 	const LEVELS = ['full', 'minimal', 'off'];
 
 	const pref = (k, dflt) => {
