@@ -78,15 +78,22 @@ details summary { cursor: pointer; color: var(--fg2); padding: 8px 0 4px; }
 .set input[type=checkbox] { accent-color: var(--accent); }
 #presets button { min-height: 34px; padding: 5px 11px; color: var(--fg2); }
 
-/* —— Score header —— */
-.vs-head { display: flex; align-items: center; justify-content: center; gap: 18px; flex-wrap: wrap; }
-.pl { display: flex; align-items: center; gap: 12px; font-size: 18px; }
+/* —— Score header: three columns, so the title stays dead centre however long the names are —— */
+.vs-head { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 18px; }
+.vs-head .pl:first-child { justify-self: end; }
+.vs-head .pl:last-child { justify-self: start; }
+.pl { display: flex; align-items: center; gap: 12px; font-size: 18px; min-width: 0; }
+#name-you, #name-them { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .box { width: 46px; height: 46px; border-radius: 6px; display: grid; place-items: center; font-size: 22px; color: var(--ink); }
 .box.you { background: var(--you); }
 .box.them { background: var(--them); }
 .mid { text-align: center; padding: 0 8px; }
 .mid h1 { font-family: var(--font-brand); font-weight: 800; font-size: 28px; margin: 0; line-height: 1.1; }
 .mid p { margin: 2px 0 0; color: var(--fg2); font-size: 14px; }
+
+/* —— The game screen sits in the middle of the window, like the app's boards —— */
+#game { min-height: calc(100vh - 56px); justify-content: center; }
+@supports (height: 100dvh) { #game { min-height: calc(100dvh - 56px); } }
 
 /* —— Seats: the callout lane sits above the card, the card covers its lower edge —— */
 .stage { display: grid; gap: 18px 28px; align-items: start; }
@@ -254,7 +261,7 @@ canvas.board { display: block; width: 100%; height: auto; aspect-ratio: 1; touch
 	.stage.play .vs-head .pl:first-child { grid-area: a; }
 	.stage.play .vs-head .pl:last-child { grid-area: b; }
 	.stage.play .box { width: 30px; height: 30px; font-size: 16px; }
-	.vs-head { flex-wrap: nowrap; gap: 10px; }
+	.vs-head { gap: 10px; }
 	.box { width: 36px; height: 36px; font-size: 18px; }
 	.pl { font-size: 14px; gap: 8px; }
 	.mid { padding: 0; }
