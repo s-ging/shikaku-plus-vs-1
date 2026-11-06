@@ -126,6 +126,10 @@ export class ClientCore {
 		return { rttMs: { n: r.length, p50: q(0.5), p95: q(0.95), max: r.length ? r[r.length - 1] : null }, mismatches: this.mismatches, resyncs: this.resyncs };
 	}
 
+	/** A clock check: sent at local time c, answered at server time s. Same rule as a move echo. */
+	clockSample(c, s) {
+		this._rtt(c, s);
+	}
 	_rtt(sentAt, serverAt) {
 		const t = this.now();
 		const rtt = t - sentAt;

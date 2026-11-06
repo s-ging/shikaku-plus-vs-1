@@ -165,7 +165,7 @@ export function createHud(opts) {
 		}
 		flash(kind, cell, intensity = 1) {
 			const now = performance.now();
-			const f = { kind, cell, start: now, dur: kind === 'shatter' ? 520 : 380 };
+			const f = { kind, cell, start: now, dur: kind === 'shatter' ? 520 : kind === 'freeze' ? 700 : 380 };
 			if (kind === 'shatter') {
 				f.shards = [];
 				const n = Math.round(10 * intensity) + 3;
@@ -264,6 +264,17 @@ export function createHud(opts) {
 				this.rr(...this.cellBox(i));
 				c.fill();
 			}
+			// The Board gets colder with every Frozen Cell on it, so a Freeze Over is seen coming.
+			const chill = [0, 0.07, 0.14, 0.24][Math.min(3, e.ice.length)];
+			if (chill) {
+				c.globalAlpha = chill;
+				c.fillStyle = C.ice;
+				for (let i = 0; i < N * N; i++) {
+					this.rr(...this.cellBox(i));
+					c.fill();
+				}
+				c.globalAlpha = 1;
+			}
 			// Telegraphed ice targets (off by default: the left pole shows ice coming instead)
 			for (const w of e.iceIncoming) {
 				if (w.target < 0) continue;
@@ -339,7 +350,12 @@ export function createHud(opts) {
 				const x = f.cell % N;
 				const y = Math.floor(f.cell / N);
 				c.globalAlpha = 1 - t;
-				if (f.kind === 'blast') {
+				if (f.kind === 'freeze') {
+					// Freeze Over: the whole Board flashes ice-blue and fades (opacity only).
+					c.fillStyle = C.ice;
+					c.globalAlpha = (1 - t) * 0.6;
+					c.fillRect(0, 0, this.S, this.S);
+				} else if (f.kind === 'blast') {
 					c.fillStyle = '#ffffff';
 					c.globalAlpha = (1 - t) * 0.85;
 					c.fillRect((x - 1) * k, (y - 1) * k, 3 * k, 3 * k);
@@ -637,7 +653,7 @@ export function createHud(opts) {
 			const si = screenOf(e);
 			const v = views[si];
 			if (v) {
-				if (e.kind === 'newBoard') v.flashes = [];
+				if (e.kind === 'newBoard') v.flashes = v.flashes.filter((f) => f.kind === 'freeze'); // a Freeze Over's flash carries over to the new Board
 				else if (e.kind === 'mineExplode') {
 					v.flash('blast', e.cell);
 					shake(si, 'big');
@@ -664,10 +680,16 @@ export function createHud(opts) {
 				if (e.deflected) calls[si].push({ text: e.deflected > 1 ? `DEFLECT ×${e.deflected}` : 'DEFLECT', tier: 'i', blinks: 0, life: 1200 });
 			}
 			if (e.kind === 'forceBreak') breaks[si]++;
-			if (e.kind === 'frozenOut') calls[si].push({ text: 'FROZEN OVER', tier: 'i', blinks: 0, life: 1200 });
+			if (e.kind === 'frozenOut') {
+				calls[si].push({ text: 'FROZEN OVER', tier: 'i', blinks: 3, life: 1400 });
+				if (v) {
+					v.flash('freeze', 0);
+					shake(si, 'big');
+				}
+			}
 			if (e.kind === 'heal' && e.healed) {
 				pulseHearts(si);
-				calls[si].push({ text: 'HEALED', tier: 0, blinks: 0, life: 1200 });
+				calls[si].push({ text: '+1 HEART', tier: 2, blinks: 2, life: 1400 });
 			}
 		}
 		for (const i of [0, 1]) {

@@ -54,7 +54,9 @@ const server = createServer((req, res) => {
 		res.writeHead(200, { 'content-type': 'application/json' });
 		return res.end(JSON.stringify(reports.slice(0, 100)));
 	}
-	const file = url.pathname === '/app.js' ? 'public/app.js' : 'public/index.html';
+	// Any built .js in public/ by name (app.js, sound-worker.js); every other path is the page, like Cloudflare's SPA fallback.
+	const name = url.pathname.slice(1);
+	const file = /^[a-z0-9-]+\.js$/.test(name) && existsSync('public/' + name) ? 'public/' + name : 'public/index.html';
 	if (!existsSync(file)) return res.writeHead(500).end('run: node build.mjs');
 	res.writeHead(200, { 'content-type': file.endsWith('.js') ? 'text/javascript' : 'text/html', 'cache-control': 'no-store' });
 	res.end(readFileSync(file));

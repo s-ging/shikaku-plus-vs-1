@@ -283,6 +283,10 @@ export class RoomCore {
 			case 'resync':
 				if (this.match) this._full(id);
 				break;
+			case 'time':
+				// Clock check: answer with our time at once. Unsequenced, nothing saved.
+				if (Number.isFinite(msg.c)) this._to(id, { t: 'time', c: msg.c, s: now });
+				return;
 			case 'hv':
 				this._hover(i, msg, now);
 				return; // nothing to save: a hover changes no state

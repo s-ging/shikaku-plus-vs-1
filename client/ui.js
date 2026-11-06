@@ -257,8 +257,10 @@
 		if (rid) $('ov-replay').href = '/replay/' + rid;
 		$('ov-next').disabled = false;
 		ov.hidden = false;
-		if (lastRoundSeen !== m.round) {
-			lastRoundSeen = m.round;
+		// Keyed on the round's own start time: practice starts every new game at round 1 again,
+		// so a round number alone made a second game's first round look already handled (and stuck).
+		if (lastRoundSeen !== endKey) {
+			lastRoundSeen = endKey;
 			// The winner's score blinks: replacement and opacity only.
 			if (ro.winner != null) {
 				const box = $(ro.winner === me ? 'score-you' : 'score-them');
@@ -367,6 +369,9 @@
 				}, 4000);
 				banner(null);
 				ws.send(JSON.stringify({ t: 'hello', id: myId, name: myName(), k: key || undefined, dev: device() }));
+				// Learn the server's clock now, not at the first move: a device clock a few seconds off
+				// showed a 10-second "3-2-1" and stamped early moves wrong. Three samples, the best one wins.
+				for (let k = 0; k < 3; k++) setTimeout(() => ws.readyState === 1 && ws.send(JSON.stringify({ t: 'time', c: Date.now() })), k * 400);
 				this.ready = true;
 				const q = this.outbox.splice(0);
 				for (const o of q) this.send(o);
@@ -432,6 +437,11 @@
 			$('vote').hidden = !msg.vote;
 			$('g-report').hidden = !msg.admin;
 			render();
+			return;
+		}
+		if (msg.t === 'time') {
+			if (core && Number.isFinite(msg.c) && Number.isFinite(msg.s)) core.clockSample(msg.c, msg.s);
+			updateCount();
 			return;
 		}
 		if (msg.t === 'hv') {

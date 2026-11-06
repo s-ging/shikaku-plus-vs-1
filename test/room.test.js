@@ -396,3 +396,19 @@ test('hovers: passed to the other player only, saved nowhere, kept in the replay
 	assert.ok(verifyRound(header, rd), 'and the replay still lands on the server hash');
 	assert.equal(hoversAt(rd, -1)[0], null);
 });
+
+test('clock check: the server answers a time ping at once, unsequenced and unsaved', () => {
+	const w = world({ latency: [40, 60] });
+	const a = w.addClient(0, 'aaaaaaaa1', null);
+	w.run(300);
+	const got = [];
+	const inbox = a.inbox;
+	a.inbox = (msg) => (msg.t === 'time' ? got.push(msg) : inbox(msg));
+	const saves = w.saved.length;
+	a.sendUp({ t: 'time', c: 12345 });
+	w.run(200);
+	assert.equal(got.length, 1);
+	assert.equal(got[0].c, 12345);
+	assert.ok(got[0].s > 0);
+	assert.equal(w.saved.length, saves);
+});
