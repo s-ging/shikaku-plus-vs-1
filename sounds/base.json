@@ -2,7 +2,7 @@
  "format": "shikaku-sound-pack",
  "version": 1,
  "sampleRate": 48000,
- "savedAt": "2026-11-06T16:47:04.241Z",
+ "savedAt": "2026-11-06T18:02:23.005Z",
  "pack": {
   "name": "Base pack draft",
   "sounds": {
@@ -763,6 +763,29 @@
       "start": 0,
       "tail": 1,
       "type": "fit"
+     },
+     {
+      "attack": 15,
+      "decay": 18,
+      "delay": 15,
+      "filter": "lowpass",
+      "freq": 250,
+      "gain": 0.3,
+      "on": true,
+      "q": 1,
+      "type": "noise"
+     },
+     {
+      "attack": 0,
+      "decay": 120,
+      "delay": 6,
+      "end": 60,
+      "freq": 400,
+      "gain": 0.2,
+      "glide": 20,
+      "on": true,
+      "type": "tone",
+      "wave": "sine"
      }
     ],
     "ready": true
@@ -913,90 +936,91 @@
     "layers": []
    },
    "frost": {
-    "layers": [
-     {
-      "type": "noise",
-      "on": true,
-      "filter": "bandpass",
-      "gain": 1,
-      "delay": 0,
-      "q": 4,
-      "attack": 0,
-      "freq": 2800,
-      "decay": 4
-     },
-     {
-      "type": "tone",
-      "on": true,
-      "wave": "sine",
-      "gain": 0.35,
-      "delay": 0,
-      "glide": 20,
-      "attack": 0,
-      "freq": 2349,
-      "end": 2349,
-      "decay": 4
-     },
-     {
-      "type": "noise",
-      "on": true,
-      "filter": "highpass",
-      "gain": 0.25,
-      "delay": 0,
-      "q": 0.7,
-      "attack": 0,
-      "freq": 4000,
-      "decay": 1
-     },
-     {
-      "type": "tone",
-      "on": true,
-      "wave": "square",
-      "gain": 0.2,
-      "delay": 0,
-      "glide": 20,
-      "attack": 1,
-      "freq": 233.08,
-      "end": 233.08,
-      "decay": 35
-     },
-     {
-      "type": "tone",
-      "on": true,
-      "wave": "sine",
-      "gain": 0.35,
-      "delay": 0,
-      "glide": 20,
-      "attack": 1,
-      "freq": 116.54,
-      "end": 116.54,
-      "decay": 40
-     }
-    ],
+    "also": [],
     "fx": {
-     "lowcut": 70,
+     "eqHigh": 0,
      "eqLow": 0,
      "eqMid": 0,
-     "eqHigh": 0,
-     "highcut": 7200,
-     "warmth": 0,
-     "room": 0.1,
+     "fadeOut": 90,
      "gain": -4,
-     "wobble": 3,
-     "maxLen": 450,
-     "fadeOut": 90
+     "highcut": 7200,
+     "lowcut": 70,
+     "maxLen": 300,
+     "room": 0.1,
+     "warmth": 0,
+     "wobble": 3
     },
+    "haptic": "10 28 10 28 10 28 10",
+    "layers": [
+     {
+      "attack": 0,
+      "decay": 4,
+      "delay": 0,
+      "filter": "bandpass",
+      "freq": 2800,
+      "gain": 1,
+      "on": true,
+      "q": 4,
+      "type": "noise"
+     },
+     {
+      "attack": 0,
+      "decay": 4,
+      "delay": 0,
+      "end": 2349,
+      "freq": 2349,
+      "gain": 0.35,
+      "glide": 20,
+      "on": true,
+      "type": "tone",
+      "wave": "sine"
+     },
+     {
+      "attack": 0,
+      "decay": 1,
+      "delay": 0,
+      "filter": "highpass",
+      "freq": 4000,
+      "gain": 0.25,
+      "on": true,
+      "q": 0.7,
+      "type": "noise"
+     },
+     {
+      "attack": 1,
+      "decay": 35,
+      "delay": 0,
+      "end": 233.08,
+      "freq": 233.08,
+      "gain": 0.2,
+      "glide": 20,
+      "on": true,
+      "type": "tone",
+      "wave": "square"
+     },
+     {
+      "attack": 1,
+      "decay": 40,
+      "delay": 0,
+      "end": 116.54,
+      "freq": 116.54,
+      "gain": 0.35,
+      "glide": 20,
+      "on": true,
+      "type": "tone",
+      "wave": "sine"
+     }
+    ],
+    "ready": true,
     "seq": {
-     "on": true,
-     "steps": "0 3 0 3 0 3 0 3",
-     "gap": 38,
-     "stepGain": 0.75,
+     "gap": 35,
+     "keepLength": true,
      "lastGain": 0.5,
      "lastTail": 1.3,
-     "keepLength": true
-    },
-    "also": [],
-    "haptic": "10 28 10 28 10 28 10"
+     "on": true,
+     "stepGain": 0.75,
+     "steps": "0 3 0 3 0 3 0 3"
+    }
    },
    "frostFire": {
     "also": [
@@ -1009,11 +1033,11 @@
      "eqHigh": 0,
      "eqLow": 0,
      "eqMid": 0,
-     "fadeOut": 100,
+     "fadeOut": 80,
      "gain": -3,
      "highcut": 9000,
      "lowcut": 20,
-     "maxLen": 600,
+     "maxLen": 400,
      "room": 0.15,
      "warmth": 0,
      "wobble": 2
