@@ -201,11 +201,12 @@
 	const veil = document.createElementNS(SVG, 'svg');
 	veil.setAttribute('class', 'veil');
 	veil.setAttribute('aria-hidden', 'true');
-	const shade = document.createElementNS(SVG, 'path');
-	shade.setAttribute('class', 'shade');
-	const ring = document.createElementNS(SVG, 'path');
-	ring.setAttribute('class', 'ring');
-	veil.append(shade, ring);
+	// A mask, not one path with holes: lit areas that overlap (a Mine inside the lit Tile)
+	// must stay lit, and an even-odd path would dim the overlap again.
+	veil.innerHTML = '<defs><mask id="veil-mask" maskUnits="userSpaceOnUse"><rect x="0" y="0" width="100%" height="100%" fill="#fff"/><path fill="#000"/></mask></defs><rect class="shade" x="0" y="0" width="100%" height="100%" mask="url(#veil-mask)"/><path class="ring"/>';
+	const holes = veil.querySelector('mask path');
+	const shade = veil.querySelector('.shade');
+	const ring = veil.querySelector('.ring');
 	document.body.append(veil);
 	const box = (x, y, w, h, r = 6) => {
 		r = Math.min(r, w / 2, h / 2);
@@ -229,11 +230,9 @@
 			veilQueued = false;
 			if (!match) return;
 			const step = STEPS[at];
-			if (step.move === 'free' && !done && !between) {
-				shade.setAttribute('d', '');
-				ring.setAttribute('d', '');
-				return;
-			}
+			const off = step.move === 'free' && !done && !between;
+			shade.style.display = off ? 'none' : '';
+			if (off) return ring.setAttribute('d', '');
 			const lit = [ofEl(document.querySelector('.coach'), 8)];
 			const show = between ? [] : step.show || [];
 			const el = { hazards: 'you-hazards', ice: 'you-ice', combo: 'you-combo', hearts: 'you-hearts', board: 'you-board' };
@@ -245,7 +244,7 @@
 			const W = innerWidth;
 			const H = innerHeight;
 			veil.setAttribute('viewBox', `0 0 ${W} ${H}`);
-			shade.setAttribute('d', `M0,0H${W}V${H}H0z` + lit.filter(Boolean).map((b) => box(...b)).join(''));
+			holes.setAttribute('d', lit.filter(Boolean).map((b) => box(...b)).join(''));
 			ring.setAttribute('d', t ? box(...t) : '');
 		});
 	}

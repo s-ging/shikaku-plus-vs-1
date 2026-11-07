@@ -45,6 +45,9 @@ writeFileSync('public/app.js', js);
 writeFileSync('public/sound-worker.js', '"use strict";\n' + ['shared/sound/synth.js', 'client/sound-worker.js'].map((f) => `// ===== ${f} =====\n` + strip(readFileSync(f, 'utf8'))).join('\n'));
 
 writeFileSync('public/index.html', readFileSync('client/index.html', 'utf8'));
+// The tutorial: one self-contained page at /learn (tutorial/build.mjs stitches it together).
+await import('./tutorial/build.mjs');
+writeFileSync('public/learn.html', readFileSync('tutorial/dist/vs-tutorial.html'));
 
 // esbuild's JS API, not its CLI: the CLI shim is esbuild.cmd on Windows, so
 // spawning node_modules/.bin/esbuild there fails with ENOENT.
@@ -56,4 +59,4 @@ if (esbuild) {
 	note = '(ES2017, minified)';
 }
 const kb = (f) => (readFileSync(f).length / 1024).toFixed(1);
-console.log(`public/index.html ${kb('public/index.html')} KB, public/app.js ${kb('public/app.js')} KB, public/sound-worker.js ${kb('public/sound-worker.js')} KB ${note}`);
+console.log(`public/index.html ${kb('public/index.html')} KB, public/learn.html ${kb('public/learn.html')} KB, public/app.js ${kb('public/app.js')} KB, public/sound-worker.js ${kb('public/sound-worker.js')} KB ${note}`);
