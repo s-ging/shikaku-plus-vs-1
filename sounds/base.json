@@ -2310,32 +2310,7 @@
      "wobble": 2
     },
     "haptic": "",
-    "layers": [
-     {
-      "attack": 20,
-      "decay": 60,
-      "delay": 0,
-      "filter": "bandpass",
-      "freq": 1500,
-      "gain": 0.2,
-      "on": true,
-      "q": 1,
-      "type": "noise"
-     },
-     {
-      "attack": 0,
-      "decay": 80,
-      "delay": 0,
-      "end": 1567.98,
-      "freq": 1046.5,
-      "gain": 0.3,
-      "glide": 60,
-      "on": true,
-      "type": "tone",
-      "wave": "triangle"
-     }
-    ],
-    "ready": true
+    "layers": []
    },
    "thunder": {
     "also": [],
