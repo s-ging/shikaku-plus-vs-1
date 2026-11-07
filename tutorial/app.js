@@ -12,6 +12,9 @@
 	let again = null; // a step that re-fills each new Board (the Combo step)
 	let gravTimer = 0;
 	let nextTimer = 0;
+	let lesson = 0;
+	let STEPS = LESSONS[0].steps;
+	let between = false; // the end of a lesson: the Board rests, the line offers what is next
 
 	const hud = createHud({
 		side: (i) => (match ? match.sides[i] : null),
@@ -144,14 +147,14 @@
 	function aim() {
 		const step = STEPS[at];
 		target = null;
-		if (!match || done || !step.do) return;
+		if (!match || done || between || !step.move || step.move === 'free') return;
 		const s = me();
 		const N = s.N;
 		const mineAt = new Set(s.econ.mines.map((m) => m.cell));
 		const iceAt = new Set(s.econ.ice.map((f) => f.cell));
 		const hasMine = (r) => cellsOf(r, N).some((c) => mineAt.has(c));
 		const nextToIce = (r) => cellsOf(r, N).some((c) => [c - N, c + N, c % N ? c - 1 : -1, c % N < N - 1 ? c + 1 : -1].some((n) => iceAt.has(n)));
-		if (step.do === 'erase') {
+		if (step.move === 'erase') {
 			const r = s.rects.find((r) => lastPlaced && key(r) === key(lastPlaced)) || s.rects.find((r) => !hasMine(r));
 			if (r) target = { erase: r };
 			return;
@@ -166,7 +169,16 @@
 			mine: () => free.find(hasMine),
 			ice: () => free.find(nextToIce)
 		};
-		const r = (pickers[step.do] || pickers.pick)();
+		if (step.move === 'wrong') {
+			// One Cell too many: the smallest open Given, stretched by one Cell.
+			const r = free.find((r) => area(r) >= 2) || free[0];
+			if (!r) return;
+			const grow = [{ ...r, x2: r.x2 + 1 }, { ...r, x1: r.x1 - 1 }, { ...r, y2: r.y2 + 1 }, { ...r, y1: r.y1 - 1 }];
+			const w = grow.find((g) => g.x1 >= 0 && g.y1 >= 0 && g.x2 < N && g.y2 < N && !cellsOf(g, N).some((c) => iceAt.has(c)));
+			if (w) target = { place: w };
+			return;
+		}
+		const r = (pickers[step.move] || pickers.pick)();
 		if (r) target = { place: r };
 		else {
 			// Nothing fits (the Board ran out of room): a Do-Over still runs the Tick.
@@ -175,7 +187,8 @@
 		}
 	}
 	const allowed = (a) => {
-		if (!STEPS[at].do || done) return false;
+		if (between || done) return false;
+		if (STEPS[at].move === 'free') return true;
 		if (!target) return false;
 		if (target.erase) return a.type === 'erase' && cellsOf(target.erase, me().N).includes(a.y * me().N + a.x);
 		const r = target.place;
@@ -216,8 +229,13 @@
 			veilQueued = false;
 			if (!match) return;
 			const step = STEPS[at];
+			if (step.move === 'free' && !done && !between) {
+				shade.setAttribute('d', '');
+				ring.setAttribute('d', '');
+				return;
+			}
 			const lit = [ofEl(document.querySelector('.coach'), 8)];
-			const show = step.show || [];
+			const show = between ? [] : step.show || [];
 			const el = { hazards: 'you-hazards', ice: 'you-ice', combo: 'you-combo', hearts: 'you-hearts', board: 'you-board' };
 			for (const k of show) if (el[k]) lit.push(ofEl($(el[k])));
 			if (show.includes('mines')) for (const m of me().econ.mines) lit.push(cellBox(m.cell));
@@ -274,11 +292,13 @@
 		gravTimer = setTimeout(() => handle(match.catchUp(Date.now())), Math.max(0, s.gAt + step - Date.now()) + 5);
 	}
 
-	// —— Steps: the line under the Board ——
+	// —— Steps: the two lines under the Board ——
 	function startStep(i) {
 		clearTimeout(nextTimer);
+		if (i >= STEPS.length) return endLesson();
 		at = i;
 		done = false;
+		between = false;
 		const step = STEPS[at];
 		RULES.gravitySecs = 0; // a step that wants gravity turns it on in its setup
 		if (step.board && step.board !== 'keep') freshBoard(step.board);
@@ -289,10 +309,10 @@
 		aim();
 		drawVeil();
 		scheduleGravity();
-		if (step.done || step.end) bar(0);
+		if (step.done) bar(0);
 		else {
 			// A line to read: it moves on by itself, after enough time to read it.
-			const ms = Math.min(9000, 1800 + step.text.length * 45);
+			const ms = Math.min(9000, 1800 + ((step.info || '') + step.say).length * 45);
 			bar(ms);
 			nextTimer = setTimeout(() => startStep(at + 1), ms);
 		}
@@ -307,12 +327,34 @@
 	}
 	function show() {
 		const step = STEPS[at];
-		$('c-text').textContent = step.text;
-		$('c-after').textContent = done && step.after ? step.after : '';
-		$('c-after').hidden = !(done && step.after);
-		$('c-count').textContent = `${at + 1} / ${STEPS.length}`;
-		$('c-end').hidden = !step.end;
-		$('c-skip').hidden = !!step.end;
+		const info = between ? '' : step.info || '';
+		$('c-info').textContent = info;
+		$('c-info').hidden = !info;
+		const after = done && step.after;
+		$('c-say').textContent = between ? (lesson === LESSONS.length - 1 ? 'That is Shikaku+ VS.' : `${LESSONS[lesson].name}: done.`) : after || step.say;
+		$('c-say').classList.toggle('after', !!after && !between);
+		$('c-count').textContent = between ? '' : `${LESSONS[lesson].name} · ${at + 1} / ${STEPS.length}`;
+		$('c-skip').hidden = between;
+		$('c-end').hidden = !between;
+	}
+	// The end of a lesson: the next lesson first, then the others.
+	function endLesson() {
+		between = true;
+		target = null;
+		bar(0);
+		const end = $('c-end');
+		end.replaceChildren();
+		const order = [lesson + 1, ...LESSONS.keys()].filter((l, k, all) => l < LESSONS.length && all.indexOf(l) === k);
+		for (const l of order) {
+			const b = document.createElement('button');
+			b.type = 'button';
+			b.className = l === lesson + 1 ? 'btn primary' : 'btn';
+			b.textContent = l === lesson ? `${LESSONS[l].name} again` : l === lesson + 1 ? `Next: ${LESSONS[l].name}` : LESSONS[l].name;
+			b.addEventListener('click', () => begin(l));
+			end.append(b);
+		}
+		show();
+		drawVeil();
 	}
 	// A thin line that runs out while the tutorial waits on its own (reading, or the result).
 	function bar(ms) {
@@ -324,12 +366,14 @@
 		el.style.transition = `transform ${ms}ms linear`;
 		el.style.transform = 'scaleX(1)';
 	}
-	$('c-again').addEventListener('click', () => begin());
-	$('c-skip').addEventListener('click', () => at + 1 < STEPS.length && startStep(at + 1));
+	$('c-skip').addEventListener('click', () => startStep(at + 1));
 
-	function begin() {
+	// Every lesson is its own match: full Hearts, no Combo, a new Board.
+	function begin(l = 0) {
 		const now = Date.now();
-		match = new VersusMatch({ rules: RULES, seed: 4242, target: 7 });
+		lesson = l;
+		STEPS = LESSONS[l].steps;
+		match = new VersusMatch({ rules: RULES, seed: 4242 + l * 101, target: 7 });
 		match.startClock(now);
 		match.freezeSide(1, now); // the opponent never moves
 		RULES.gravitySecs = 0;
@@ -337,6 +381,6 @@
 		startStep(0);
 	}
 	begin();
-	window.vsTutorial = { get match() { return match; }, go: startStep, steps: STEPS, get at() { return at; }, get target() { return target; } };
+	window.vsTutorial = { get match() { return match; }, go: startStep, begin, lessons: LESSONS, get lesson() { return lesson; }, get steps() { return STEPS; }, get at() { return at; }, get between() { return between; }, get target() { return target; } };
 	window.__mv = move; // test hook: the same path a drag takes
 })();

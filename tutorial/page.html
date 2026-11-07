@@ -245,11 +245,13 @@ legend { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; col
 .coach { max-width: 520px; margin: -8px auto 0; width: 100%; display: flex; flex-direction: column; gap: 8px; }
 .coach .run { height: 2px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden; }
 .coach .run i { display: block; height: 100%; background: var(--accent); transform-origin: left; transform: scaleX(0); }
-.coach p { margin: 0; font-size: 16px; line-height: 1.55; min-height: 3.1em; }
-.coach #c-after { color: var(--accent); }
+.coach p { margin: 0; }
+.coach #c-info { font-size: 14px; line-height: 1.5; color: var(--fg2); }
+.coach #c-say { font-size: 19px; line-height: 1.4; min-height: 1.4em; }
+.coach #c-say.after { color: var(--accent); }
 .coach .meta { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 12.5px; color: var(--fg3); }
 .coach .meta button { background: none; border: 0; padding: 4px 0; color: var(--fg3); text-decoration: underline; text-underline-offset: 3px; }
-.coach .end { display: flex; gap: 8px; }
+.coach .end { display: flex; gap: 8px; flex-wrap: wrap; }
 </style>
 
 <div class="wrap">
@@ -299,9 +301,9 @@ legend { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; col
 
 	<section class="coach" aria-live="polite">
 		<div class="run"><i id="c-bar"></i></div>
-		<p id="c-text"></p>
-		<p id="c-after" hidden></p>
-		<div class="end" id="c-end" hidden><button class="btn primary" id="c-again" type="button">Play it again</button></div>
+		<p id="c-info" hidden></p>
+		<p id="c-say"></p>
+		<div class="end" id="c-end" hidden></div>
 		<div class="meta"><span class="num" id="c-count"></span><button id="c-skip" type="button">Skip this step</button></div>
 	</section>
 </div>
