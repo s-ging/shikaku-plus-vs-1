@@ -136,14 +136,115 @@
 		}
 	};
 
+
+	// —— The spotlight: everything is dimmed but the one move this step takes, and what the
+	// line under the Board talks about. The Board takes only that move. ——
+	let target = null; // { place: rect } | { erase: rect } | null (no move: just watch or read)
+	let lastPlaced = null;
+	function aim() {
+		const step = STEPS[at];
+		target = null;
+		if (!match || done || !step.do) return;
+		const s = me();
+		const N = s.N;
+		const mineAt = new Set(s.econ.mines.map((m) => m.cell));
+		const iceAt = new Set(s.econ.ice.map((f) => f.cell));
+		const hasMine = (r) => cellsOf(r, N).some((c) => mineAt.has(c));
+		const nextToIce = (r) => cellsOf(r, N).some((c) => [c - N, c + N, c % N ? c - 1 : -1, c % N < N - 1 ? c + 1 : -1].some((n) => iceAt.has(n)));
+		if (step.do === 'erase') {
+			const r = s.rects.find((r) => lastPlaced && key(r) === key(lastPlaced)) || s.rects.find((r) => !hasMine(r));
+			if (r) target = { erase: r };
+			return;
+		}
+		// Open Givens a Tile can go on now, smallest first (a 1-Cell Tile is a tap, so last).
+		const free = unplaced()
+			.filter((r) => !cellsOf(r, N).some((c) => iceAt.has(c)))
+			.sort((a, b) => (area(a) < 2) - (area(b) < 2) || area(a) - area(b));
+		const pickers = {
+			pick: () => free.find((r) => !hasMine(r)) || free[0],
+			avoid: () => free.find((r) => !hasMine(r)),
+			mine: () => free.find(hasMine),
+			ice: () => free.find(nextToIce)
+		};
+		const r = (pickers[step.do] || pickers.pick)();
+		if (r) target = { place: r };
+		else {
+			// Nothing fits (the Board ran out of room): a Do-Over still runs the Tick.
+			const e = s.rects.find((r) => !hasMine(r));
+			if (e) target = { erase: e };
+		}
+	}
+	const allowed = (a) => {
+		if (!STEPS[at].do || done) return false;
+		if (!target) return false;
+		if (target.erase) return a.type === 'erase' && cellsOf(target.erase, me().N).includes(a.y * me().N + a.x);
+		const r = target.place;
+		const [x1, x2] = [Math.min(a.ax, a.bx), Math.max(a.ax, a.bx)];
+		const [y1, y2] = [Math.min(a.ay, a.by), Math.max(a.ay, a.by)];
+		return a.type === 'place' ? key({ x1, y1, x2, y2 }) === key(r) : area(r) === 1 && a.x === r.x1 && a.y === r.y1;
+	};
+
+	const SVG = 'http://www.w3.org/2000/svg';
+	const veil = document.createElementNS(SVG, 'svg');
+	veil.setAttribute('class', 'veil');
+	veil.setAttribute('aria-hidden', 'true');
+	const shade = document.createElementNS(SVG, 'path');
+	shade.setAttribute('class', 'shade');
+	const ring = document.createElementNS(SVG, 'path');
+	ring.setAttribute('class', 'ring');
+	veil.append(shade, ring);
+	document.body.append(veil);
+	const box = (x, y, w, h, r = 6) => {
+		r = Math.min(r, w / 2, h / 2);
+		return `M${x + r},${y}h${w - 2 * r}a${r},${r} 0 0 1 ${r},${r}v${h - 2 * r}a${r},${r} 0 0 1 ${-r},${r}h${2 * r - w}a${r},${r} 0 0 1 ${-r},${-r}v${2 * r - h}a${r},${r} 0 0 1 ${r},${-r}z`;
+	};
+	const ofEl = (el, pad = 4) => {
+		const b = el && el.getBoundingClientRect();
+		return b && b.width ? [b.left - pad, b.top - pad, b.width + 2 * pad, b.height + 2 * pad] : null;
+	};
+	function ofCells(r) {
+		const b = $('you-board').getBoundingClientRect();
+		const k = b.width / me().N;
+		return [b.left + r.x1 * k, b.top + r.y1 * k, (r.x2 - r.x1 + 1) * k, (r.y2 - r.y1 + 1) * k];
+	}
+	const cellBox = (c) => ofCells({ x1: c % me().N, y1: Math.floor(c / me().N), x2: c % me().N, y2: Math.floor(c / me().N) });
+	let veilQueued = false;
+	function drawVeil() {
+		if (veilQueued) return;
+		veilQueued = true;
+		requestAnimationFrame(() => {
+			veilQueued = false;
+			if (!match) return;
+			const step = STEPS[at];
+			const lit = [ofEl(document.querySelector('.coach'), 8)];
+			const show = step.show || [];
+			const el = { hazards: 'you-hazards', ice: 'you-ice', combo: 'you-combo', hearts: 'you-hearts', board: 'you-board' };
+			for (const k of show) if (el[k]) lit.push(ofEl($(el[k])));
+			if (show.includes('mines')) for (const m of me().econ.mines) lit.push(cellBox(m.cell));
+			if (show.includes('frozen')) for (const f of me().econ.ice) lit.push(cellBox(f.cell));
+			const t = target && ofCells(target.place || target.erase);
+			if (t) lit.push(t);
+			const W = innerWidth;
+			const H = innerHeight;
+			veil.setAttribute('viewBox', `0 0 ${W} ${H}`);
+			shade.setAttribute('d', `M0,0H${W}V${H}H0z` + lit.filter(Boolean).map((b) => box(...b)).join(''));
+			ring.setAttribute('d', t ? box(...t) : '');
+		});
+	}
+	addEventListener('resize', drawVeil);
+	addEventListener('scroll', drawVeil, { passive: true });
+	new ResizeObserver(drawVeil).observe(document.body);
+
 	// —— Moves ——
 	function move(a) {
 		if (!match || match.roundOver) return;
+		if (!allowed(a)) return drawVeil(); // only the lit move counts
 		const now = Date.now();
 		const events = match.catchUp(now);
 		const r = match.act(0, a, now);
 		events.push(...r.events);
 		if (r.moved) {
+			if (a.type === 'place') lastPlaced = r.placed || { x1: Math.min(a.ax, a.bx), y1: Math.min(a.ay, a.by), x2: Math.max(a.ax, a.bx), y2: Math.max(a.ay, a.by) };
 			events.push({ kind: a.type === 'place' ? 'placed' : 'erased' });
 			if (again && events.some((e) => e.side === 'you' && e.kind === 'newBoard')) placeAllBut(pickLeave(again.leave, again.biggest));
 			events.push({ kind: 'settled' });
@@ -160,6 +261,8 @@
 		hud.render();
 		const step = STEPS[at];
 		if (!done && step.done && events.some((e) => step.done(e, t))) finish();
+		aim();
+		drawVeil();
 		scheduleGravity();
 	}
 	function scheduleGravity() {
@@ -183,6 +286,8 @@
 		if (step.setup) step.setup(t);
 		hud.render();
 		show();
+		aim();
+		drawVeil();
 		scheduleGravity();
 		if (step.done || step.end) bar(0);
 		else {
@@ -194,6 +299,8 @@
 	}
 	function finish() {
 		done = true;
+		target = null;
+		drawVeil();
 		show();
 		bar(AFTER_MS);
 		nextTimer = setTimeout(() => startStep(at + 1), AFTER_MS);
@@ -230,6 +337,6 @@
 		startStep(0);
 	}
 	begin();
-	window.vsTutorial = { get match() { return match; }, go: startStep, steps: STEPS, get at() { return at; } };
+	window.vsTutorial = { get match() { return match; }, go: startStep, steps: STEPS, get at() { return at; }, get target() { return target; } };
 	window.__mv = move; // test hook: the same path a drag takes
 })();

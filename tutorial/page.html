@@ -233,6 +233,13 @@ legend { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; col
 	.lane { font-size: 14px; }
 }
 
+/* —— Spotlight: everything dims but the one move and what the line talks about —— */
+.veil { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 6; }
+.veil .shade { fill: rgba(8, 8, 10, 0.74); fill-rule: evenodd; }
+.veil .ring { fill: none; stroke: var(--accent); stroke-width: 2; animation: ring 1.1s ease-in-out infinite; }
+@keyframes ring { 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { .veil .ring { animation: none; } }
+.coach { position: relative; z-index: 7; }
 /* —— Coach: one line under the Board —— */
 .foot .time { visibility: hidden; } /* the tutorial has no round clock */
 .coach { max-width: 520px; margin: -8px auto 0; width: 100%; display: flex; flex-direction: column; gap: 8px; }
