@@ -572,6 +572,21 @@
 			el.appendChild(b);
 		}
 	}
+	/** Like seg(), for the Start-a-game style choices: a title and, if given, a line under it. */
+	function cards(el, options, current, onPick, enabled) {
+		el.innerHTML = '';
+		for (const [v, title, sub] of options) {
+			const b = Object.assign(document.createElement('button'), { type: 'button', disabled: !enabled });
+			b.appendChild(Object.assign(document.createElement('strong'), { textContent: title }));
+			if (sub) b.appendChild(Object.assign(document.createElement(el.classList.contains('cfg-cards') ? 'span' : 'small'), { textContent: sub }));
+			b.setAttribute('aria-pressed', String(JSON.stringify(v) === JSON.stringify(current)));
+			b.addEventListener('click', () => {
+				onPick(v);
+				for (const o of el.children) o.setAttribute('aria-pressed', String(o === b));
+			});
+			el.appendChild(b);
+		}
+	}
 	function drawSettings() {
 		const host = room.host;
 		// A new value from the server replaces the draft unless the host is mid-edit.
@@ -589,15 +604,18 @@
 			drawSettings();
 			saveState();
 		};
-		seg($('pick-division'), DIVISIONS.map((d) => [d.id, d.label]), fmt.division && fmt.division.id, (id) => pickFormat(id, (fmt.queue || QUEUES[0]).id), host);
-		seg($('pick-queue'), QUEUES.map((q) => [q.id, q.label]), fmt.queue && fmt.queue.id, (id) => pickFormat((fmt.division || DIVISIONS[0]).id, id), host);
-		const d = fmt.division;
-		$('format-note').textContent = d && fmt.queue
-			? `${d.hearts} Stock a round · first to ${fmt.queue.id === 'competitive' ? d.competitiveTo : 3}${fmt.queue.rated ? '' : ' · never rated'}`
-			: 'Custom: the Stock or First to below don\'t match a division.';
+		const d = fmt.division || DIVISIONS[0];
+		cards($('pick-division'), DIVISIONS.map((x) => [x.id, x.label, x.blurb]), fmt.division && fmt.division.id, (id) => pickFormat(id, (fmt.queue || QUEUES[0]).id), host);
+		cards($('pick-queue'), QUEUES.map((q) => [q.id, q.label, `First to ${q.id === 'competitive' ? d.competitiveTo : 3}`]), fmt.queue && fmt.queue.id, (id) => pickFormat(d.id, id), host);
+		$('queue-note').textContent = !fmt.division || !fmt.queue ? 'Custom: Stock or First to changed.' : fmt.queue.rated ? 'The long set.' : 'Never rated.';
+		$('ft-note').textContent = 'Rounds to win the match.';
+		$('mode-row').hidden = val('mode') !== 'mines'; // Mines is soft-retired: only shown for a room already set to it
 		seg($('pick-mode'), modeSet.options.map(([v, t]) => [v, t.replace(' (no ice, unrated)', '')]), val('mode'), (v) => setDraft('mode', v), host);
-		seg($('pick-ft'), ftSet.options, val('firstTo'), (v) => setDraft('firstTo', v), host);
-		seg($('presets'), PRESETS.map((p) => [p.id, p.label]), null, (id) => {
+		cards($('pick-ft'), ftSet.options.map(([v, t]) => [v, t]), val('firstTo'), (v) => {
+			setDraft('firstTo', v);
+			drawSettings();
+		}, host);
+		seg($('presets'), PRESETS.filter((p) => !p.retired).map((p) => [p.id, p.label]), null, (id) => {
 			draft = { ...PRESETS.find((p) => p.id === id).set };
 			drawSettings();
 			saveState();

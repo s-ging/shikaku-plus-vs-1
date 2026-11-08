@@ -49,8 +49,8 @@ export const defaultOf = (k) => (k in VERSUS_RULES ? VERSUS_RULES[k] : BY_KEY.ge
  * (first to 3, never rated) and Competitive (Standard first to 5, Knockout first to 7).
  * New rooms start on Standard Quickplay. */
 export const DIVISIONS = [
-	{ id: 'standard', label: 'Standard', hearts: 3, competitiveTo: 5 },
-	{ id: 'knockout', label: 'Knockout', hearts: 1, competitiveTo: 7 }
+	{ id: 'standard', label: 'Standard', hearts: 3, competitiveTo: 5, blurb: 'VS as intended. 3 Stock a round: an explosion costs one.' },
+	{ id: 'knockout', label: 'Knockout', hearts: 1, competitiveTo: 7, blurb: '1 Stock a round. The first explosion ends it.' }
 ];
 export const QUEUES = [
 	{ id: 'quickplay', label: 'Quickplay', rated: false },
@@ -87,7 +87,7 @@ export function formatName(o = {}) {
 /** Named starting points. Default is VERSUS_RULES untouched. */
 export const PRESETS = [
 	{ id: 'default', label: 'Default', set: {} },
-	{ id: 'mines', label: 'Mines', set: { mode: 'mines' } },
+	{ id: 'mines', label: 'Mines', set: { mode: 'mines' }, retired: true }, // soft-retired 2026-11-08; may come back as an event
 	{ id: 'spiky', label: 'Spiky', set: { counterRate: 1, cancelOrder: 'orangeFirst' } },
 	{ id: 'calm', label: 'No gravity', set: { gravitySecs: 0 } },
 	{ id: 'short', label: 'Quick (first to 3)', set: { firstTo: 3, rushAfterSecs: 120 } }
