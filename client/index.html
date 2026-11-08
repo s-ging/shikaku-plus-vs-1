@@ -78,6 +78,27 @@ details summary { cursor: pointer; color: var(--fg2); padding: 8px 0 4px; }
 .set input[type=checkbox] { accent-color: var(--accent); }
 #presets button { min-height: 34px; padding: 5px 11px; color: var(--fg2); }
 
+/* —— Room settings, Match tab: like the app's Start a game screen —— */
+.cfg-h { font-family: var(--font-ui); font-weight: 400; font-size: 17px; margin: 18px 0 10px; display: flex; align-items: baseline; gap: 14px; }
+.cfg-h span { color: var(--fg2); font-size: 13px; }
+.cfg-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.cfg-cards button { text-align: left; background: transparent; border: 2px solid var(--cell); border-radius: 8px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+.cfg-cards button strong { font-size: 24px; font-weight: 400; line-height: 1.1; }
+.cfg-cards button span { color: var(--fg2); font-size: 13px; line-height: 1.45; }
+.cfg-cards button:nth-child(2) { border-color: var(--them); }
+.cfg-cards button:nth-child(2) span { color: var(--them); }
+.cfg-cards button[aria-pressed='true'] { background: var(--accent); border-color: var(--accent); color: var(--ink); }
+.cfg-cards button[aria-pressed='true'] span { color: rgba(18, 18, 18, 0.72); }
+.cfg-tiles { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 10px; }
+.cfg-tiles button { background: var(--cell); border-radius: 6px; padding: 10px 6px; min-height: 48px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+.cfg-tiles button strong { font-weight: 400; font-size: 16px; }
+.cfg-tiles button small { color: var(--fg2); font-size: 12.5px; }
+.cfg-tiles button[aria-pressed='true'] { background: var(--accent); color: var(--ink); }
+.cfg-tiles button[aria-pressed='true'] small { color: rgba(18, 18, 18, 0.72); }
+.cfg-presets { margin-top: 18px; align-items: start; }
+.cfg-presets > span { padding-top: 9px; }
+@media (max-width: 420px) { .cfg-cards button strong { font-size: 20px; } .cfg-cards button { padding: 12px; } }
+
 /* —— Score header: three columns, so the title stays dead centre however long the names are —— */
 .vs-head { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 18px; }
 .vs-head .pl:first-child { justify-self: end; }
@@ -303,7 +324,7 @@ canvas.board { display: block; width: 100%; height: auto; aspect-ratio: 1; touch
 		<h2>Practice against a bot</h2>
 		<p class="muted" style="margin: 0 0 8px">Runs on your device only. No connection needed.</p>
 		<div class="row">
-			<select id="practice-mode" aria-label="Mode"><option value="vs">Shikaku+ VS</option><option value="mines">Shikaku+ Mines</option></select>
+			<select id="practice-mode" aria-label="Mode" hidden><!-- Mines soft-retired 2026-11-08 --><option value="vs">Shikaku+ VS</option><option value="mines">Shikaku+ Mines</option></select>
 			<select id="bot-level" aria-label="Bot difficulty"></select>
 			<button id="practice">Play</button>
 		</div>
@@ -330,9 +351,16 @@ canvas.board { display: block; width: 100%; height: auto; aspect-ratio: 1; touch
 			<span class="muted" id="rules-who"></span>
 		</div>
 		<div id="tab-match" role="tabpanel">
-			<div class="pick"><span>Mode</span><div class="seg" id="pick-mode"></div></div>
-			<div class="pick"><span>First to</span><div class="seg" id="pick-ft"></div></div>
-			<div class="pick"><span>Presets</span><div class="seg" id="presets"></div></div>
+			<!-- Laid out like the app's Start a game screen (Krischan, 2026-11-09). -->
+			<h3 class="cfg-h">Division</h3>
+			<div class="cfg-cards" id="pick-division"></div>
+			<h3 class="cfg-h">Match <span id="queue-note"></span></h3>
+			<div class="cfg-tiles" id="pick-queue"></div>
+			<h3 class="cfg-h">First to <span id="ft-note"></span></h3>
+			<div class="cfg-tiles" id="pick-ft"></div>
+			<!-- Mines is soft-retired (Krischan, 2026-11-08: maybe a seasonal or event mode later); the code stays. -->
+			<div class="pick" id="mode-row" hidden><span>Mode</span><div class="seg" id="pick-mode"></div></div>
+			<div class="pick cfg-presets"><span>Presets</span><div class="seg" id="presets"></div></div>
 		</div>
 		<div id="tab-game" role="tabpanel" hidden>
 			<div class="settings" id="settings"></div>
@@ -368,7 +396,7 @@ canvas.board { display: block; width: 100%; height: auto; aspect-ratio: 1; touch
 				<div class="foot">
 					<span class="who" id="you-name">You</span>
 					<span class="time num" id="you-time">0:00</span>
-					<span class="hearts" id="you-hearts" aria-label="Hearts"></span>
+					<span class="hearts" id="you-hearts" aria-label="Stock"></span>
 				</div>
 				<div class="overlay" id="overlay" hidden>
 					<h2 id="ov-title"></h2>
@@ -390,7 +418,7 @@ canvas.board { display: block; width: 100%; height: auto; aspect-ratio: 1; touch
 				<div class="foot">
 					<span class="who" id="them-name">Them</span>
 					<span class="time num" id="them-time">0:00</span>
-					<span class="hearts" id="them-hearts" aria-label="Hearts"></span>
+					<span class="hearts" id="them-hearts" aria-label="Stock"></span>
 				</div>
 			</div>
 		</section>

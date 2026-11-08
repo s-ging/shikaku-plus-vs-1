@@ -240,7 +240,7 @@ test('defaults: ice lands after 2 moves and stacks without a cap; heal needs 4 p
 });
 
 test('counter-spike (full send-back): a clear cancels the orange bank and sends it back on top', () => {
-	const m = new VersusMatch({ seed: 9, rules: { ...VERSUS_RULES, counterRate: 1 } });
+	const m = new VersusMatch({ seed: 9, rules: { ...VERSUS_RULES, counterSpike: true, counterRate: 1 } });
 	const you = m.sides[0];
 	const them = m.sides[1];
 	you.econ.incoming = [{ count: 10, eta: 50 }]; // far away: stays orange the whole board
@@ -432,8 +432,8 @@ test('no spill: icebroken ice is gone for good', () => {
 	assert.equal(e.spill, 0);
 });
 
-test('red first: a clear cancels the red batch before the orange bank, and sends nothing back by default', () => {
-	const m = new VersusMatch({ seed: 9 });
+test('old counter-spike, red first: a clear cancels the red batch before the orange bank, and sends nothing back', () => {
+	const m = new VersusMatch({ seed: 9, rules: { ...VERSUS_RULES, counterSpike: true } });
 	const you = m.sides[0];
 	for (const r of you.puzzle.layout.slice(0, -1)) m.act(0, { type: 'place', ax: r.x1, ay: r.y1, bx: r.x2, by: r.y2 });
 	you.econ.pool = 3;
@@ -584,4 +584,46 @@ test('Mines mode has no ice source at all', () => {
 	for (let g = 0; g < 4000 && !m.roundOver; g++) for (const e of m.act(g % 2, bots[g % 2].decide(m.sides[g % 2])).events) if (e.kind === 'iceIncoming' || e.kind === 'frozen') ice++;
 	assert.ok(m.roundOver, 'the round ends');
 	assert.equal(ice, 0);
+});
+
+// Net cancel (Krischan, 2026-11-08): the attack is spent cancelling first; only the rest is sent.
+const clearAll = (m, i) => {
+	const s = m.sides[i];
+	let ev = [];
+	for (const r of s.puzzle.layout) ev = ev.concat(m.act(i, { type: 'place', ax: r.x1, ay: r.y1, bx: r.x2, by: r.y2 }).events);
+	return ev;
+};
+test('net cancel (default): a 4-Mine clear against 3 red + 20 orange cancels 4, red first, and sends nothing', () => {
+	const m = new VersusMatch({ seed: 9 });
+	const you = m.sides[0];
+	for (const r of you.puzzle.layout.slice(0, -1)) m.act(0, { type: 'place', ax: r.x1, ay: r.y1, bx: r.x2, by: r.y2 });
+	you.econ.pool = 3;
+	you.econ.incoming = [{ count: 20, eta: 50 }];
+	const last = you.puzzle.layout[you.puzzle.layout.length - 1];
+	const send = m.act(0, { type: 'place', ax: last.x1, ay: last.y1, bx: last.x2, by: last.y2 }).events.find((x) => x.kind === 'send');
+	assert.equal(send.count, 4);
+	assert.equal(send.cancelled, 4);
+	assert.equal(send.pass, 0);
+	assert.equal(send.counter, false);
+	assert.equal(you.econ.pool, 0, 'red cancelled first');
+	assert.equal(you.econ.incomingTotal, 19);
+	assert.equal(m.sides[1].econ.incomingTotal, 0);
+});
+test('net cancel: send 14 against 12 incoming, cancel 12 and send 2', () => {
+	const m = new VersusMatch({ seed: 9, rules: { ...VERSUS_RULES, clearSend: 14 } });
+	const you = m.sides[0];
+	you.econ.incoming = [{ count: 12, eta: 50 }];
+	const send = clearAll(m, 0).find((x) => x.kind === 'send');
+	assert.deepEqual([send.count, send.cancelled, send.pass], [14, 12, 2]);
+	assert.equal(m.sides[1].econ.incomingTotal, 2);
+});
+test('Rush ramp: ×1 before 2:00, ×3 from 2:00, ×5 from 3:00', () => {
+	const m = new VersusMatch({ seed: 9 });
+	m.startClock(0, 0);
+	const at = (s) => {
+		m.clock = m.roundStartAt + s * 1000;
+		return m.rushFactor;
+	};
+	assert.deepEqual([at(0), at(119), at(120), at(179), at(180), at(400)], [1, 1, 3, 3, 5, 5]);
+	assert.equal(new VersusMatch({ seed: 9, rules: { ...VERSUS_RULES, rushEarlySecs: 0 } }).rushFactor, 1);
 });

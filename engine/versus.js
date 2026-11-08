@@ -23,9 +23,11 @@ export const VERSUS_RULES = {
 	clearSend: 4,
 	perfectSendsIce: 0, // was 1; frost (below) is now the only ice your opponent sends
 	overflow: 'netCancel',
-	// Counter-spike: a clear cancels up to counterCap mines from your orange bank
-	// (never the red batch) and adds every cancelled mine to its own attack.
-	counterSpike: true,
+	// Net cancel (Krischan, 2026-11-08: "Why would I return it when it's supposed to be cancelled"):
+	// your attack is spent cancelling Mines coming at you first, red batch first, up to counterCap;
+	// only the rest is sent. Send 14 against 12 incoming: cancel 12, send 2.
+	// true = the old counter-spike: a clear cancels up to counterCap for free and still sends everything.
+	counterSpike: 'net',
 	counterCap: 12,
 	counterRate: 0, // share of cancelled mines added back to your attack: 0 = cancel only (2026-11-04), 0.5 = half, 1 = all
 	cancelOrder: 'redFirst', // clears and clutches cancel the red batch first, then orange (2026-11-04); 'orangeFirst' = old // 'netCancel': your attack cancels your in-flight mines first | 'passthrough'
@@ -102,6 +104,10 @@ export const VERSUS_RULES = {
 	// Lazy: nothing runs; whoever handles the next message catches up on owed ticks from timestamps.
 	gravitySecs: 3, // 0 = off
 	rushMultiplier: 5,
+	// The Rush ramp (Krischan, 2026-11-08): a first step before the full Rush, so the squeeze builds
+	// instead of flipping on. ×3 from 2:00, then ×rushMultiplier from rushAfterSecs (3:00). 0 = no first step.
+	rushEarlySecs: 120,
+	rushEarlyMultiplier: 3,
 
 	// Heal: +1 heart after healPerfectBoards perfect clears in a row (0 = off).
 	// A non-perfect clear resets the run; explosions don't count against perfect.

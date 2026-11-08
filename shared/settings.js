@@ -8,14 +8,18 @@ import { VERSUS_RULES, MINES_RULES } from '../engine/versus.js';
 export const SETTINGS = [
 	// Match
 	{ k: 'mode', group: 'Mode', label: 'Mode', type: 'enum', options: [['vs', 'Shikaku+ VS'], ['mines', 'Shikaku+ Mines (no ice, unrated)']], def: 'vs' },
-	{ k: 'firstTo', group: 'Match', label: 'First to', type: 'enum', options: [[1, '1'], [3, '3'], [5, '5'], [7, '7']], def: 7 },
-	{ k: 'hearts', group: 'Match', label: 'Hearts', type: 'int', min: 1, max: 5 },
+	{ k: 'firstTo', group: 'Match', label: 'First to', type: 'enum', options: [[1, '1'], [3, '3'], [5, '5'], [7, '7']], def: 3 },
+	// The rule key stays `hearts` (it's in saved rooms and replays); players call it Stock (Krischan, 2026-11-08).
+	{ k: 'hearts', group: 'Match', label: 'Stock', type: 'int', min: 1, max: 5 },
 	{ k: 'gravitySecs', group: 'Match', label: 'Gravity: a tick every', type: 'num', min: 0, max: 10, step: 0.5, unit: 's', off: 0 },
 	{ k: 'rushAfterSecs', group: 'Match', label: 'Rush after', type: 'int', min: 0, max: 600, step: 30, unit: 's', off: 0 },
 	{ k: 'rushMultiplier', group: 'Match', label: 'Rush multiplier', type: 'int', min: 2, max: 10 },
+	{ k: 'rushEarlySecs', group: 'Match', label: 'Rush first step after', type: 'int', min: 0, max: 600, step: 30, unit: 's', off: 0 },
+	{ k: 'rushEarlyMultiplier', group: 'Match', label: 'Rush first step multiplier', type: 'int', min: 2, max: 10 },
 	{ k: 'clearGrace', group: 'Match', label: 'Grace moves after a clear', type: 'int', min: 0, max: 2 },
 	// Mines
 	{ k: 'clearSend', group: 'Mines', label: 'A clear sends', type: 'int', min: 1, max: 8 },
+	{ k: 'counterSpike', group: 'Mines', label: 'Cancelling', type: 'enum', options: [['net', 'Net: your attack cancels first, the rest is sent'], [true, 'Free: cancel up to 12, send everything (old)']] },
 	{ k: 'counterRate', group: 'Mines', label: 'Counter-spike sends back', type: 'enum', options: [[0, 'Nothing (cancel only)'], [0.5, 'Half'], [1, 'Everything']] },
 	{ k: 'cancelOrder', group: 'Mines', label: 'Clears cancel', type: 'enum', options: [['redFirst', 'Red batch first'], ['orangeFirst', 'Orange bank first']] },
 	{ k: 'batchSize', group: 'Mines', label: 'Most landing per move', type: 'int', min: 2, max: 8 },
@@ -32,18 +36,58 @@ export const SETTINGS = [
 	{ k: 'icebreakReward', group: 'Ice', label: 'Endgame icebreak frost', type: 'int', min: 0, max: 4 },
 	{ k: 'bankFreezeEvery', group: 'Ice', label: 'Sitting bank freezes every', type: 'int', min: 0, max: 12, unit: ' moves', off: 0 },
 	// Healing
-	{ k: 'healPerfectBoards', group: 'Hearts', label: 'Heal after perfect boards', type: 'int', min: 0, max: 6, off: 0 },
-	{ k: 'healCheckpoint', group: 'Hearts', label: 'Heal checkpoint', type: 'int', min: 0, max: 4, off: 0 },
-	{ k: 'maxHealsPerRound', group: 'Hearts', label: 'Heals per round', type: 'int', min: 0, max: 3 }
+	{ k: 'healPerfectBoards', group: 'Stock', label: 'Extra Life after perfect boards', type: 'int', min: 0, max: 6, off: 0 },
+	{ k: 'healCheckpoint', group: 'Stock', label: 'Extra Life checkpoint', type: 'int', min: 0, max: 4, off: 0 },
+	{ k: 'maxHealsPerRound', group: 'Stock', label: 'Extra Lives per round', type: 'int', min: 0, max: 3 }
 ];
 
 const BY_KEY = new Map(SETTINGS.map((s) => [s.k, s]));
 export const defaultOf = (k) => (k in VERSUS_RULES ? VERSUS_RULES[k] : BY_KEY.get(k)?.def);
 
+/** The match formats (Krischan, 2026-11-08; wiki decision 0010). Two divisions, same rules
+ * otherwise: Standard (3 Stock, the original game) and Knockout (1 Stock). Each has Quickplay
+ * (first to 3, never rated) and Competitive (Standard first to 5, Knockout first to 7).
+ * New rooms start on Standard Quickplay. */
+export const DIVISIONS = [
+	{ id: 'standard', label: 'Standard', hearts: 3, competitiveTo: 5, blurb: 'VS as intended. 3 Stock a round: an explosion costs one.' },
+	{ id: 'knockout', label: 'Knockout', hearts: 1, competitiveTo: 7, blurb: '1 Stock a round. The first explosion ends it.' }
+];
+export const QUEUES = [
+	{ id: 'quickplay', label: 'Quickplay', rated: false },
+	{ id: 'competitive', label: 'Competitive', rated: true }
+];
+/** The settings a division and queue set (only hearts and firstTo; everything else is left alone). */
+export function formatSet(o, divisionId, queueId) {
+	const d = DIVISIONS.find((x) => x.id === divisionId);
+	const out = { ...o };
+	if (d.hearts === defaultOf('hearts')) delete out.hearts;
+	else out.hearts = d.hearts;
+	const ft = queueId === 'competitive' ? d.competitiveTo : 3;
+	if (ft === defaultOf('firstTo')) delete out.firstTo;
+	else out.firstTo = ft;
+	return out;
+}
+/** Which division and queue a room's settings are, or null for either when they match neither. */
+export function formatOf(o = {}) {
+	const hearts = o.hearts ?? defaultOf('hearts');
+	const ft = o.firstTo ?? defaultOf('firstTo');
+	const d = DIVISIONS.find((x) => x.hearts === hearts) || null;
+	const q = ft === 3 ? QUEUES[0] : d && ft === d.competitiveTo ? QUEUES[1] : null;
+	return { division: d, queue: q };
+}
+/** "S+VS · Standard · Quickplay", or the plain facts for a custom room. */
+export function formatName(o = {}) {
+	const { division, queue } = formatOf(o);
+	if ((o.mode || 'vs') === 'mines') return 'Mines · Unrated';
+	if (division && queue) return `S+VS · ${division.label} · ${queue.label}`;
+	const hearts = o.hearts ?? defaultOf('hearts');
+	return `S+VS · Custom · ${hearts} Stock`;
+}
+
 /** Named starting points. Default is VERSUS_RULES untouched. */
 export const PRESETS = [
 	{ id: 'default', label: 'Default', set: {} },
-	{ id: 'mines', label: 'Mines', set: { mode: 'mines' } },
+	{ id: 'mines', label: 'Mines', set: { mode: 'mines' }, retired: true }, // soft-retired 2026-11-08; may come back as an event
 	{ id: 'spiky', label: 'Spiky', set: { counterRate: 1, cancelOrder: 'orangeFirst' } },
 	{ id: 'calm', label: 'No gravity', set: { gravitySecs: 0 } },
 	{ id: 'short', label: 'Quick (first to 3)', set: { firstTo: 3, rushAfterSecs: 120 } }
@@ -75,5 +119,5 @@ export function sanitize(input) {
 export function rulesFor(overrides) {
 	const { firstTo, mode, ...rest } = sanitize(overrides);
 	const base = mode === 'mines' ? MINES_RULES : VERSUS_RULES;
-	return { rules: { ...base, ...rest }, firstTo: firstTo ?? 7 };
+	return { rules: { ...base, ...rest }, firstTo: firstTo ?? defaultOf('firstTo') };
 }

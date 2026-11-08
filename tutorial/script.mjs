@@ -4,7 +4,7 @@ import { LESSONS } from './steps.js';
 const lines = [
 	'# VS tutorial: the script',
 	'',
-	'Generated from `tutorial/steps.js` in `s-ging/shikaku-plus-vs-1`; edit the words there. Four lessons, each its own match. Every step dims the screen except the one move it wants; the small line says what the idea is, the big line says what to do, and the next step comes once it is done. Each lesson ends on a Board you complete with no help. Terms follow the glossary: Given, Tile, Cell, Board, Tick, Do-Over, Hazard, Mine, Mine Bank, Mine Queue, Defuse, Heart, Stock, Frozen Cell, Frost, Freeze Over.',
+	'Generated from `tutorial/steps.js` in `s-ging/shikaku-plus-vs-1`; edit the words there. Four lessons, each its own match. Every step dims the screen except the one move it wants; the small line says what the idea is, the big line says what to do, and the next step comes once it is done. Each lesson ends on a Board you complete with no help. Terms follow the glossary: Given, Tile, Cell, Board, Tick, Do-Over, Hazard, Mine, Mine Bank, Mine Queue, Defuse, Stock, Frozen Cell, Frost, Freeze Over.',
 	''
 ];
 for (const l of LESSONS) {

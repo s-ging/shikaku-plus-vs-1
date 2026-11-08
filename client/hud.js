@@ -388,10 +388,22 @@ export function createHud(opts) {
 	const comboTier = (c) => (c >= 8 ? 3 : c >= 6 ? 2 : c >= 4 ? 1 : 0);
 
 	// —— The lane above each board: callouts on the left, combo on the right ——
-	const lanes = [0, 1].map((i) => ({ el: $(PREFIX[i] + '-calls'), cur: null, nextAt: 0 }));
+	const lanes = [0, 1].map((i) => ({ el: $(PREFIX[i] + '-calls'), cur: null, nextAt: 0, holdUntil: 0, held: null, holdTimer: 0 }));
 	function callout(idx, c) {
 		const L = lanes[idx];
 		const now = performance.now();
+		// A sticky callout (EXTRA LIFE!) is never knocked off early (Krischan, 2026-11-08: it "gets
+		// buried in other text"). What comes in meanwhile waits, and only the newest one is kept.
+		if (now < L.holdUntil) {
+			L.held = c;
+			clearTimeout(L.holdTimer);
+			L.holdTimer = setTimeout(() => {
+				const h = L.held;
+				L.held = null;
+				if (h) showCall(L, h);
+			}, L.holdUntil - now);
+			return;
+		}
 		const wait = Math.max(0, L.nextAt - now);
 		L.nextAt = now + wait + 240; // two moments on one move play in order instead of overwriting at once
 		if (wait) setTimeout(() => showCall(L, c), wait);
@@ -416,6 +428,7 @@ export function createHud(opts) {
 		});
 		L.el.appendChild(el);
 		L.cur = el;
+		if (c.sticky) L.holdUntil = performance.now() + c.life;
 		// Full strength for its life (SENT 0.8s, the rest 1.2s), then a slow fade.
 		setTimeout(() => el.isConnected && !el.classList.contains('knocked') && el.classList.add('fade'), c.life);
 	}
@@ -429,6 +442,9 @@ export function createHud(opts) {
 			L.el.innerHTML = '';
 			L.cur = null;
 			L.nextAt = 0;
+			L.holdUntil = 0;
+			L.held = null;
+			clearTimeout(L.holdTimer);
 		}
 		comboSeen[0] = comboSeen[1] = 0;
 		for (const i of [0, 1]) $(PREFIX[i] + '-combo').hidden = true;
@@ -447,7 +463,8 @@ export function createHud(opts) {
 			const tier = comboTier(n);
 			el.hidden = false;
 			el.className = 'combo t' + tier;
-			span.textContent = `COMBO ${n}`;
+			// Playing: just ×N in the corner, it reads cleaner (Krischan, 2026-11-08). Watching: COMBO N.
+			span.textContent = view === 'play' ? `×${n}` : `COMBO ${n}`;
 			if (REDUCED) return;
 			void el.offsetWidth;
 			// Emphasis grows with the combo (Krischan, 2026-11-07): from 4 in a row every step blinks,
@@ -650,6 +667,7 @@ export function createHud(opts) {
 		const calls = [[], []];
 		const defuseClear = [0, 0];
 		const breaks = [0, 0];
+		const clutches = [0, 0];
 		for (const e of events || []) {
 			const si = screenOf(e);
 			const v = views[si];
@@ -668,6 +686,8 @@ export function createHud(opts) {
 			}
 			if (si < 0) continue;
 			if (e.kind === 'clear' && e.defuseBonus) defuseClear[si] = e.defuseBonus;
+			// Net cancel: an attack that cancelled everything it had still says so.
+			if (e.kind === 'send' && !e.pass && e.cancelled > 0) calls[si].push({ text: `CANCEL ${e.cancelled}`, tier: 0, blinks: 0, life: 800 });
 			if (e.kind === 'send' && e.pass > 0) {
 				fire(si, e.pass, tierFor(e.pass, e.rush) >= 2);
 				const counter = e.cancelled > 0;
@@ -675,7 +695,7 @@ export function createHud(opts) {
 				const tier = tierFor(e.pass, e.rush);
 				calls[si].push({ text: `${label} ${e.pass}`, tier, blinks: Math.max(BLINKS[tier], counter ? 2 : 0), life: label === 'SENT' ? 800 : 1200 });
 			}
-			if (e.kind === 'clutch') calls[si].push({ text: e.cancelled ? `CLUTCH −${e.cancelled}` : 'CLUTCH', tier: 1, blinks: 2, life: 1200 });
+			if (e.kind === 'clutch') clutches[si]++; // one callout for the move: CLUTCH ×N (Krischan, 2026-11-08)
 			if (e.kind === 'frostFire') {
 				frostShot(si, e.count);
 				if (e.deflected) calls[si].push({ text: e.deflected > 1 ? `DEFLECT ×${e.deflected}` : 'DEFLECT', tier: 'i', blinks: 0, life: 1200 });
@@ -690,11 +710,12 @@ export function createHud(opts) {
 			}
 			if (e.kind === 'heal' && e.healed) {
 				pulseHearts(si);
-				calls[si].push({ text: 'EXTRA LIFE!', tier: 2, blinks: 2, life: 1400 });
+				calls[si].push({ text: 'EXTRA LIFE!', tier: 3, blinks: 4, life: 2600, sticky: true });
 			}
 		}
 		for (const i of [0, 1]) {
 			if (breaks[i]) calls[i].unshift({ text: breaks[i] > 1 ? `ICEBREAK ×${breaks[i]}` : 'ICEBREAK', tier: 'i', blinks: 0, life: 1200 });
+			if (clutches[i]) calls[i].unshift({ text: clutches[i] > 1 ? `CLUTCH ×${clutches[i]}` : 'CLUTCH', tier: 1, blinks: 2, life: 1200 });
 			for (const c of calls[i]) callout(i, c);
 		}
 		kick();
@@ -717,6 +738,7 @@ export function createHud(opts) {
 		view = v;
 		$('stage').className = 'stage ' + v + (mines ? ' mines' : '');
 		$('seat-them').classList.toggle('mini', v === 'play');
+		for (const i of [0, 1]) if (comboSeen[i] >= 2) $(PREFIX[i] + '-combo').firstChild.textContent = v === 'play' ? `×${comboSeen[i]}` : `COMBO ${comboSeen[i]}`;
 		kick();
 	}
 

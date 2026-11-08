@@ -165,7 +165,8 @@
 		$('score-you').textContent = m.score[v.me];
 		$('score-them').textContent = m.score[1 - v.me];
 		$('mode-title').textContent = mines ? 'Mines' : 'Versus';
-		$('mode-line').textContent = `${mines ? 'Mines · Unrated' : 'VS'} · 6×6 · FT${m.target}${m.rush ? ` · Rush ×${rules.rushMultiplier}` : ''}`;
+		const rx = m.rushFactor;
+		$('mode-line').textContent = `${mode === 'online' && room ? formatName(room.o) : mines ? 'Mines · Unrated' : 'S+VS'} · FT${m.target}${rx > 1 ? ` · Rush ×${rx}` : ''}`;
 		$('brand').hidden = true;
 		let you = 'You';
 		let them = 'Them';
@@ -219,17 +220,27 @@
 		const over = !!m.roundOver;
 		const ms = Math.max(0, serverNow() - (m.roundStartAt ?? serverNow()));
 		const t = `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, '0')}`;
-		// Rush: the clock turns white and says so, blinking on a 0.8s beat (same rule as VersusMatch.rush, asked about now).
-		const rush = !over && (rules.rushAfterSecs ? ms >= rules.rushAfterSecs * 1000 : !!m.rush);
+		// Rush: the clock turns white and says so, blinking on a 0.8s beat (same rule as VersusMatch.rushFactor, asked about now).
+		// The ramp (Krischan, 2026-11-08): ×3 from 2:00 with the bell, ×5 from 3:00 with the bell and the crowd.
+		const full = rules.rushAfterSecs * 1000;
+		const early = rules.rushEarlySecs && rules.rushEarlyMultiplier > 1 ? rules.rushEarlySecs * 1000 : 0;
+		const rx = over ? 1 : rules.rushAfterSecs ? (ms >= full ? rules.rushMultiplier : early && ms >= early ? rules.rushEarlyMultiplier : 1) : m.rushFactor;
+		const rush = rx > 1;
 		const roundKey = m.roundStartAt ?? 0;
-		if (rush && rushCued !== roundKey && mode !== 'replay') {
-			rushCued = roundKey;
-			if (!rules.rushAfterSecs || ms - rules.rushAfterSecs * 1000 < 2000) sound.cue('rush'); // not when joining long after it began
+		const cueKey = `${roundKey}:${rx}`;
+		if (rush && rushCued !== cueKey && mode !== 'replay') {
+			rushCued = cueKey;
+			const stepAt = rx === rules.rushMultiplier ? full : early;
+			if (!rules.rushAfterSecs || ms - stepAt < 2000) {
+				// not when joining long after it began
+				sound.cue('bell');
+				if (rx === rules.rushMultiplier) sound.cue('crowd');
+			}
 		}
 		for (const id of ['you-time', 'them-time']) {
 			const el = $(id);
 			if (over && el.textContent) continue; // keep the time the round ended on
-			el.textContent = rush ? `RUSH • ${t}` : t;
+			el.textContent = rush ? `RUSH ×${rx} • ${t}` : t;
 			el.classList.toggle('rush', rush);
 		}
 		if (!over) clockTimer = setTimeout(renderTime, Math.max(50, 1000 - (ms % 1000)));
@@ -561,6 +572,21 @@
 			el.appendChild(b);
 		}
 	}
+	/** Like seg(), for the Start-a-game style choices: a title and, if given, a line under it. */
+	function cards(el, options, current, onPick, enabled) {
+		el.innerHTML = '';
+		for (const [v, title, sub] of options) {
+			const b = Object.assign(document.createElement('button'), { type: 'button', disabled: !enabled });
+			b.appendChild(Object.assign(document.createElement('strong'), { textContent: title }));
+			if (sub) b.appendChild(Object.assign(document.createElement(el.classList.contains('cfg-cards') ? 'span' : 'small'), { textContent: sub }));
+			b.setAttribute('aria-pressed', String(JSON.stringify(v) === JSON.stringify(current)));
+			b.addEventListener('click', () => {
+				onPick(v);
+				for (const o of el.children) o.setAttribute('aria-pressed', String(o === b));
+			});
+			el.appendChild(b);
+		}
+	}
 	function drawSettings() {
 		const host = room.host;
 		// A new value from the server replaces the draft unless the host is mid-edit.
@@ -571,9 +597,25 @@
 		const val = (k) => (k in draft ? draft[k] : defaultOf(k));
 		const modeSet = SETTINGS.find((x) => x.k === 'mode');
 		const ftSet = SETTINGS.find((x) => x.k === 'firstTo');
+		// Division and match (Krischan, 2026-11-08): Standard or Knockout, Quickplay or Competitive.
+		const fmt = formatOf(draft);
+		const pickFormat = (d, q) => {
+			draft = formatSet(draft, d, q);
+			drawSettings();
+			saveState();
+		};
+		const d = fmt.division || DIVISIONS[0];
+		cards($('pick-division'), DIVISIONS.map((x) => [x.id, x.label, x.blurb]), fmt.division && fmt.division.id, (id) => pickFormat(id, (fmt.queue || QUEUES[0]).id), host);
+		cards($('pick-queue'), QUEUES.map((q) => [q.id, q.label, `First to ${q.id === 'competitive' ? d.competitiveTo : 3}`]), fmt.queue && fmt.queue.id, (id) => pickFormat(d.id, id), host);
+		$('queue-note').textContent = !fmt.division || !fmt.queue ? 'Custom: Stock or First to changed.' : fmt.queue.rated ? 'The long set.' : 'Never rated.';
+		$('ft-note').textContent = 'Rounds to win the match.';
+		$('mode-row').hidden = val('mode') !== 'mines'; // Mines is soft-retired: only shown for a room already set to it
 		seg($('pick-mode'), modeSet.options.map(([v, t]) => [v, t.replace(' (no ice, unrated)', '')]), val('mode'), (v) => setDraft('mode', v), host);
-		seg($('pick-ft'), ftSet.options, val('firstTo'), (v) => setDraft('firstTo', v), host);
-		seg($('presets'), PRESETS.map((p) => [p.id, p.label]), null, (id) => {
+		cards($('pick-ft'), ftSet.options.map(([v, t]) => [v, t]), val('firstTo'), (v) => {
+			setDraft('firstTo', v);
+			drawSettings();
+		}, host);
+		seg($('presets'), PRESETS.filter((p) => !p.retired).map((p) => [p.id, p.label]), null, (id) => {
 			draft = { ...PRESETS.find((p) => p.id === id).set };
 			drawSettings();
 			saveState();

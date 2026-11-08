@@ -164,9 +164,18 @@ export class VersusMatch {
 		return (this.sides[0].econ.ticks + this.sides[1].econ.ticks) / 2;
 	}
 	get rush() {
+		return this.rushFactor > 1;
+	}
+	/** What every Mine attack is multiplied by right now: 1, the ramp's first step, or the full Rush. */
+	get rushFactor() {
 		const r = this.rules;
-		if (r.rushAfterSecs && this.clock != null && this.roundStartAt != null) return this.clock - this.roundStartAt >= r.rushAfterSecs * 1000;
-		return !!r.rushAfter && this.moves >= r.rushAfter;
+		if (r.rushAfterSecs && this.clock != null && this.roundStartAt != null) {
+			const ms = this.clock - this.roundStartAt;
+			if (ms >= r.rushAfterSecs * 1000) return r.rushMultiplier;
+			if (r.rushEarlySecs && r.rushEarlyMultiplier > 1 && ms >= r.rushEarlySecs * 1000) return r.rushEarlyMultiplier;
+			return 1;
+		}
+		return r.rushAfter && this.moves >= r.rushAfter ? r.rushMultiplier : 1;
 	}
 
 	/**
@@ -284,7 +293,7 @@ export class VersusMatch {
 	attackPreview(i) {
 		const s = this.sides[i];
 		const r = this.rules;
-		const base = r.clearSend * (this.rush ? r.rushMultiplier : 1);
+		const base = r.clearSend * this.rushFactor;
 		const cancel = r.counterSpike === true && (r.counterRate ?? 1) > 0 ? Math.min(s.econ.bank, r.counterCap) : 0;
 		return { send: base + Math.floor(cancel * (r.counterRate ?? 1)), counter: cancel };
 	}
@@ -324,10 +333,16 @@ export class VersusMatch {
 	_route(s, opp, out) {
 		const { mines, ice } = s.econ.drainOut();
 		if (mines) {
-			const n = this.rush ? mines * this.rules.rushMultiplier : mines;
+			const x = this.rushFactor;
+			const n = mines * x;
 			let cancelled = 0;
 			let pass;
-			if (this.rules.counterSpike === 'refund') {
+			if (this.rules.counterSpike === 'net') {
+				// Net cancel: the attack is spent on Mines coming at you first (red batch first when
+				// cancelOrder says so), up to counterCap; only the rest goes out.
+				cancelled = s.econ.cancelAny(Math.min(n, this.rules.counterCap));
+				pass = n - cancelled;
+			} else if (this.rules.counterSpike === 'refund') {
 				// Net-cancel, plus a refund: your attack cancels first, the rest goes out,
 				// and a share of what you cancelled is added back on top.
 				cancelled = s.econ.cancelIncoming(Math.min(n, this.rules.counterCap));
@@ -341,7 +356,7 @@ export class VersusMatch {
 				pass = n - cancelled;
 			}
 			if (pass) opp.econ.receiveMines(pass).forEach((e) => out.push({ side: opp.name, ...e }));
-			out.push({ side: s.name, kind: 'send', count: n, cancelled, pass, counter: !!this.rules.counterSpike && cancelled > 0 && (this.rules.counterRate ?? 1) > 0, rush: this.rush });
+			out.push({ side: s.name, kind: 'send', count: n, cancelled, pass, counter: !!this.rules.counterSpike && this.rules.counterSpike !== 'net' && cancelled > 0 && (this.rules.counterRate ?? 1) > 0, rush: x > 1, rushX: x });
 		}
 		if (ice) {
 			opp.econ.receiveIce(ice, opp.landable()).forEach((e) => out.push({ side: opp.name, ...e }));
