@@ -452,7 +452,7 @@
 		]],
 		['Mines', [
 			{ k: 'clearSend', label: 'Clear sends', min: 1, max: 10, step: 1 },
-			{ k: 'counterSpike', label: 'Counter', options: [[true, 'Counter-spike (clear cancels yours)'], ['refund', 'Refund (attack cancels, part comes back)'], [false, 'Plain net-cancel']] },
+			{ k: 'counterSpike', label: 'Counter', options: [['net', 'Net cancel (attack cancels first, the rest is sent)'], [true, 'Counter-spike (clear cancels yours)'], ['refund', 'Refund (attack cancels, part comes back)'], [false, 'Plain net-cancel']] },
 			{ k: 'counterRate', label: 'Counter adds back', min: 0, max: 1, step: 0.25, fmt: (v) => (v ? pct(v) : 'cancel only') },
 			{ k: 'cancelOrder', label: 'Cancels first', options: [['redFirst', 'Red batch, then bank'], ['orangeFirst', 'Bank only']] },
 			{ k: 'incomingEta', label: 'Moves until landing', min: 1, max: 6, step: 1 },

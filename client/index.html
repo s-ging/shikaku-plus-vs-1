@@ -330,6 +330,9 @@ canvas.board { display: block; width: 100%; height: auto; aspect-ratio: 1; touch
 			<span class="muted" id="rules-who"></span>
 		</div>
 		<div id="tab-match" role="tabpanel">
+			<div class="pick"><span>Division</span><div class="seg" id="pick-division"></div></div>
+			<div class="pick"><span>Match</span><div class="seg" id="pick-queue"></div></div>
+			<p class="muted" id="format-note" style="margin: 0 0 4px"></p>
 			<div class="pick"><span>Mode</span><div class="seg" id="pick-mode"></div></div>
 			<div class="pick"><span>First to</span><div class="seg" id="pick-ft"></div></div>
 			<div class="pick"><span>Presets</span><div class="seg" id="presets"></div></div>
@@ -368,7 +371,7 @@ canvas.board { display: block; width: 100%; height: auto; aspect-ratio: 1; touch
 				<div class="foot">
 					<span class="who" id="you-name">You</span>
 					<span class="time num" id="you-time">0:00</span>
-					<span class="hearts" id="you-hearts" aria-label="Hearts"></span>
+					<span class="hearts" id="you-hearts" aria-label="Stock"></span>
 				</div>
 				<div class="overlay" id="overlay" hidden>
 					<h2 id="ov-title"></h2>
@@ -390,7 +393,7 @@ canvas.board { display: block; width: 100%; height: auto; aspect-ratio: 1; touch
 				<div class="foot">
 					<span class="who" id="them-name">Them</span>
 					<span class="time num" id="them-time">0:00</span>
-					<span class="hearts" id="them-hearts" aria-label="Hearts"></span>
+					<span class="hearts" id="them-hearts" aria-label="Stock"></span>
 				</div>
 			</div>
 		</section>

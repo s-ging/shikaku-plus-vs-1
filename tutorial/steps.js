@@ -3,7 +3,8 @@
 // separate the action from the information, split the dense steps, end on a Board with no help,
 // and group it into the categories so it is not 30 steps at once.
 // The words follow Krischan's Fundamentals (2026-11-05): Given, Tile, Cell, Board, Tick, Do-Over,
-// Hazard, Mine, Mine Bank, Mine Queue, Defuse, Heart, Stock, Frozen Cell, Frost, Freeze Over.
+// Hazard, Mine, Mine Bank, Mine Queue, Defuse, Stock, Frozen Cell, Frost, Freeze Over.
+// Krischan, 2026-11-08: call the lives Stock, not Hearts ("standard language for competitive games").
 //
 // A step: { info?, say, after?, board?, setup?(t), move?, show?, done?(e, t) }
 //   info    the small line: what the idea is. One or two short sentences.
@@ -79,9 +80,9 @@ export const LESSONS = [
 				done: (e) => e.kind === 'defuse'
 			},
 			{
-				info: 'An exploding Mine removes the Tiles around it and takes 1 Heart. Lose all 3 Hearts and you lose the round.',
+				info: 'An exploding Mine removes the Tiles around it and costs 1 Stock. Lose all your Stock and you lose the round.',
 				say: 'Place the lit Tile. Let the Mine explode.',
-				after: 'That cost 1 Heart.',
+				after: 'That cost 1 Stock.',
 				setup: (t) => t.mine({ fuse: 1, nearTiles: true }),
 				move: 'avoid',
 				show: ['mines', 'hearts'],
@@ -98,7 +99,7 @@ export const LESSONS = [
 				done: (e) => e.kind === 'mineLand'
 			},
 			{
-				info: 'Completing a Board cancels up to 12 incoming Mines. You still send all of yours.',
+				info: 'The Mines a Board sends cancel Mines coming at you first, up to 12. Only the rest is sent.',
 				say: 'Complete the Board.',
 				after: 'Cancelled.',
 				board: { leave: 2 },
@@ -269,7 +270,7 @@ export const LESSONS = [
 				show: ['hazards']
 			},
 			{
-				say: 'From 3:00 into a round, everything you send is 5 times as many Mines. The clock reads RUSH.'
+				say: 'From 2:00 into a round, everything you send is 3 times as many Mines, and from 3:00, 5 times. The clock reads RUSH.'
 			},
 			{
 				...COMPLETE,
