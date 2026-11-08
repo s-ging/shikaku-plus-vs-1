@@ -67,7 +67,7 @@ export const LESSONS = [
 				board: { leave: 6 },
 				setup: (t) => t.queue(3),
 				move: 'avoid',
-				show: ['hazards'],
+				show: ['hazards', 'mines'],
 				done: (e) => e.kind === 'mineLand'
 			},
 			{
