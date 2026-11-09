@@ -273,6 +273,9 @@ export const LESSONS = [
 				say: 'From 2:00 into a round, everything you send is 3 times as many Mines, and from 3:00, 5 times. The clock reads RUSH.'
 			},
 			{
+				say: 'Every new Board dealt from 2:00 has at most 7 Givens.'
+			},
+			{
 				...COMPLETE,
 				board: { leave: 6 },
 				setup: (t) => {
