@@ -629,6 +629,41 @@ test('Rush ramp: ×1 before 2:00, ×3 from 2:00, ×5 from 3:00', () => {
 	assert.equal(new VersusMatch({ seed: 9, rules: { ...VERSUS_RULES, rushEarlySecs: 0 } }).rushFactor, 1);
 });
 
+test('Rush boards: from the first Rush step a new Board has at most 7 Givens, a snapshot rebuilds it, old rules are untouched', () => {
+	const solve = (m, i) => {
+		for (const r of m.sides[i].puzzle.layout) m.act(i, { type: 'place', ax: r.x1, ay: r.y1, bx: r.x2, by: r.y2 }, m.clock);
+	};
+	const run = (rules, secs) => {
+		const m = new VersusMatch({ seed: 5, rules });
+		m.startClock(0, 0);
+		m.clock = m.roundStartAt + secs * 1000;
+		solve(m, 0);
+		return m;
+	};
+	// Before the first Rush step: the usual cap of 10.
+	assert.equal(run(VERSUS_RULES, 119).sides[0].rushCap || 0, 0);
+	// After it: every Board dealt has at most 7 Givens, and a snapshot gives the same Board back.
+	let seen = 0;
+	for (let seed = 1; seed <= 30; seed++) {
+		const m = new VersusMatch({ seed, rules: VERSUS_RULES });
+		m.startClock(0, 0);
+		m.clock = m.roundStartAt + 130 * 1000;
+		for (let k = 0; k < 3; k++) {
+			solve(m, 0);
+			assert.ok(m.sides[0].puzzle.layout.length <= 7, 'at most 7 Givens in Rush');
+			seen++;
+		}
+		const back = VersusMatch.fromState(JSON.parse(JSON.stringify(m.toState())), VERSUS_RULES);
+		assert.deepEqual(back.sides[0].puzzle.layout, m.sides[0].puzzle.layout);
+	}
+	assert.equal(seen, 90);
+	// Rules recorded before the cap existed (no rushMaxGivens) deal exactly as before.
+	const { rushMaxGivens, ...old } = VERSUS_RULES;
+	const o = run(old, 130);
+	assert.equal(o.sides[0].rushCap || 0, 0);
+	assert.ok(!('rc' in o.toState().sides[0]));
+});
+
 test('a perfect Board gives 1 Frost; a Board with a Do-Over gives none', () => {
 	const e = p();
 	e.onBoardCleared();

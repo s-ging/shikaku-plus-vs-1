@@ -114,6 +114,9 @@ export const VERSUS_RULES = {
 	// instead of flipping on. ×3 from 2:00, then ×rushMultiplier from rushAfterSecs (3:00). 0 = no first step.
 	rushEarlySecs: 120,
 	rushEarlyMultiplier: 3,
+	// Boards dealt from the first Rush step have at most this many Givens (Krischan, 2026-11-09: the endgame
+	// landings that no routing can answer; fewer Givens = fewer unanswerable ones). 0 = no cap.
+	rushMaxGivens: 7,
 
 	// Heal: +1 heart after healPerfectBoards perfect clears in a row (0 = off).
 	// A non-perfect clear resets the run; explosions don't count against perfect.
