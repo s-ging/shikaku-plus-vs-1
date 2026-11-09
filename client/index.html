@@ -323,6 +323,14 @@ canvas.board { display: block; width: 100%; height: auto; aspect-ratio: 1; touch
 	<div class="panel">
 		<h2>Practice against a bot</h2>
 		<p class="muted" style="margin: 0 0 8px">Runs on your device only. No connection needed.</p>
+		<!-- The same match settings as a room, before a bot match (Krischan, 2026-11-09). -->
+		<h3 class="cfg-h">Division</h3>
+		<div class="cfg-cards" id="pr-division"></div>
+		<h3 class="cfg-h">Match <span id="pr-queue-note"></span></h3>
+		<div class="cfg-tiles" id="pr-queue"></div>
+		<h3 class="cfg-h">First to</h3>
+		<div class="cfg-tiles" id="pr-ft"></div>
+		<h3 class="cfg-h">Bot</h3>
 		<div class="row">
 			<select id="practice-mode" aria-label="Mode" hidden><!-- Mines soft-retired 2026-11-08 --><option value="vs">Shikaku+ VS</option><option value="mines">Shikaku+ Mines</option></select>
 			<select id="bot-level" aria-label="Bot difficulty"></select>

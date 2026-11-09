@@ -42,7 +42,7 @@ export const VERSUS_RULES = {
 	blastRadius: 1, // 3×3
 
 	// Ice
-	iceEta: 2, // was 3: two moves of warning is more threatening
+	iceEta: 3, // 3 again (Krischan, 2026-11-09: "I'd much rather have the ice come in 3 ticks instead so it's defensible"); was 2 for a while, "more threatening"
 	maxIceIncoming: 0, // 0 = no cap: ice stacks if the opponent is cracked
 	telegraphIce: false, // false: no target cell shown; the board just catches a chill until it lands
 	thawPoints: 4,
@@ -67,6 +67,12 @@ export const VERSUS_RULES = {
 	// frostHoldAtBoxesLeft boxes, where it holds and fires with your clear.
 	frostMeter: 4, // 0 = off
 	frostEarlyDefuse: 1,
+	// A perfect Board (no Do-Overs) gives Frost too (Krischan, 2026-11-09): clean play feeds attack
+	// and defence alike, while Mines stay the main fuel.
+	perfectFrost: 1,
+	// Frost shield (a room toggle, off by default; Krischan, 2026-11-09: "not 100% sold"): when a
+	// Frozen Cell would land, this many Frost points are spent instead and it doesn't. 0 = off.
+	frostShield: 0,
 	frostActiveThaw: 2,
 	frostHoldAtBoxesLeft: 4,
 	frostMaxHeld: 12, // 3 ice: one clear alone can never freeze someone over
@@ -458,6 +464,7 @@ export class VersusPlayer {
 		this.outMines += r.clearSend + defuseBonus + comboBonus;
 		if (perfect) {
 			this.outIce += r.perfectSendsIce;
+			if (r.frostMeter && r.perfectFrost) this.frost += r.perfectFrost;
 			this.stats.perfects++;
 			this.stats.sentIce += r.perfectSendsIce;
 		}
@@ -590,6 +597,15 @@ export class VersusPlayer {
 			if (w.eta > 0) continue;
 			if (grace) {
 				w.eta = 0;
+				continue;
+			}
+			if (r.frostShield && r.frostMeter && this.frost >= r.frostShield) {
+				// The shield: spend Frost, and this Frozen Cell never lands.
+				this.frost -= r.frostShield;
+				this.armed = Math.min(this.armed, Math.floor(this.frost / r.frostMeter));
+				this.iceIncoming.splice(this.iceIncoming.indexOf(w), 1);
+				this.stats.shielded = (this.stats.shielded || 0) + 1;
+				ev.push({ kind: 'shield', spent: r.frostShield });
 				continue;
 			}
 			const occ = new Set([...this.mines.map((m) => m.cell), ...this.ice.map((f) => f.cell)]);
