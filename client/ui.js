@@ -5,7 +5,7 @@
 (() => {
 	const $ = (id) => document.getElementById(id);
 	const show = (id) => {
-		['home', 'lobby', 'game'].forEach((s) => ($(s).hidden = s !== id));
+		['home', 'lobby', 'game', 'practice-page'].forEach((s) => ($(s).hidden = s !== id));
 		if (id !== 'game') {
 			try {
 				sound.rest(); // off the game screen: suspend once the last sound ends
@@ -533,12 +533,37 @@
 		$('lobby-hint').textContent = room.host ? '' : 'The host starts the match.';
 		$('rules-who').textContent = room.host ? '(you are the host: you choose)' : '(the host chooses)';
 		$('admin-tools').hidden = !room.admin;
-		drawSettings();
+		useSettings(roomCtx);
 	}
 
-	// —— Room settings, TETR.IO-style: a Match tab and a Game tab; the host edits a draft and saves ——
-	let draft = null; // the host's unsaved settings
-	let savedJSON = null; // room.o as last drawn
+	// —— Match settings, TETR.IO-style: a Match tab and a Game tab ——
+	// One panel (#cfg-panel), used by the room (the host edits a draft and saves) and by the
+	// Practice page (every change applies at once and is remembered on this device).
+	let draft = null; // unsaved settings
+	let savedJSON = null; // the saved settings as last drawn
+	const roomCtx = {
+		slot: 'lobby-cfg-slot',
+		get host() {
+			return !!(room && room.host);
+		},
+		get saved() {
+			return (room && room.o) || {};
+		},
+		save: (o) => net.send({ t: 'set', o }),
+		auto: false
+	};
+	let ctx = roomCtx;
+	function useSettings(c) {
+		if (ctx !== c) {
+			ctx = c;
+			draft = null; // a different set of settings: start from what it has saved
+			savedJSON = null;
+		}
+		const slot = $(c.slot);
+		if (slot.nextElementSibling !== $('cfg-panel')) slot.after($('cfg-panel'));
+		$('rules-who').textContent = c.auto ? '' : c.host ? '(you are the host: you choose)' : '(the host chooses)';
+		drawSettings();
+	}
 	const sameO = (a, b) => JSON.stringify(a || {}) === JSON.stringify(b || {});
 	const fmtSet = (s, v) => (s.off != null && v === s.off ? 'off' : s.type === 'bool' ? (v ? 'on' : 'off') : `${v}${s.unit || ''}`);
 	for (const t of document.querySelectorAll('.tabs [data-tab]'))
@@ -548,7 +573,7 @@
 			$('tab-game').hidden = t.dataset.tab !== 'game';
 		});
 	$('save').addEventListener('click', () => {
-		if (draft) net.send({ t: 'set', o: draft });
+		if (draft) ctx.save(draft);
 	});
 	function setDraft(k, v) {
 		draft = { ...draft };
@@ -557,7 +582,11 @@
 		saveState();
 	}
 	function saveState() {
-		const dirty = !sameO(draft, room.o);
+		if (ctx.auto) {
+			ctx.save(draft); // practice: nothing to confirm with anyone
+			return;
+		}
+		const dirty = !sameO(draft, ctx.saved);
 		$('save').disabled = !dirty;
 		$('save-note').textContent = dirty ? 'Unsaved changes. Saving un-readies both players.' : 'Saved.';
 	}
@@ -567,8 +596,8 @@
 			const b = Object.assign(document.createElement('button'), { type: 'button', textContent: label, disabled: !enabled });
 			b.setAttribute('aria-pressed', String(JSON.stringify(v) === JSON.stringify(current)));
 			b.addEventListener('click', () => {
-				onPick(v);
 				for (const o of el.children) o.setAttribute('aria-pressed', String(o === b));
+				onPick(v); // last: it may redraw the whole row
 			});
 			el.appendChild(b);
 		}
@@ -582,44 +611,46 @@
 			if (sub) b.appendChild(Object.assign(document.createElement(el.classList.contains('cfg-cards') ? 'span' : 'small'), { textContent: sub }));
 			b.setAttribute('aria-pressed', String(JSON.stringify(v) === JSON.stringify(current)));
 			b.addEventListener('click', () => {
-				onPick(v);
 				for (const o of el.children) o.setAttribute('aria-pressed', String(o === b));
+				onPick(v); // last: it may redraw the whole row
 			});
 			el.appendChild(b);
 		}
 	}
 	function drawSettings() {
-		const host = room.host;
-		// A new value from the server replaces the draft unless the host is mid-edit.
-		if (!draft || savedJSON !== JSON.stringify(room.o || {})) {
-			if (!draft || sameO(draft, JSON.parse(savedJSON || '{}'))) draft = { ...(room.o || {}) };
-			savedJSON = JSON.stringify(room.o || {});
+		const host = ctx.host;
+		const saved = ctx.saved;
+		// A new saved value replaces the draft unless the host is mid-edit.
+		if (!draft || savedJSON !== JSON.stringify(saved)) {
+			if (!draft || sameO(draft, JSON.parse(savedJSON || '{}'))) draft = { ...saved };
+			savedJSON = JSON.stringify(saved);
 		}
 		const val = (k) => (k in draft ? draft[k] : defaultOf(k));
 		const modeSet = SETTINGS.find((x) => x.k === 'mode');
 		const ftSet = SETTINGS.find((x) => x.k === 'firstTo');
 		// Division and match (Krischan, 2026-11-08): Standard or Knockout, Quickplay or Competitive.
 		const fmt = formatOf(draft);
+		// Save first, then redraw: the redraw compares the draft with what's saved.
 		const pickFormat = (d, q) => {
 			draft = formatSet(draft, d, q);
-			drawSettings();
 			saveState();
+			drawSettings();
 		};
 		const d = fmt.division || DIVISIONS[0];
 		cards($('pick-division'), DIVISIONS.map((x) => [x.id, x.label, x.blurb]), fmt.division && fmt.division.id, (id) => pickFormat(id, (fmt.queue || QUEUES[0]).id), host);
 		cards($('pick-queue'), QUEUES.map((q) => [q.id, q.label, `First to ${q.id === 'competitive' ? d.competitiveTo : 3}`]), fmt.queue && fmt.queue.id, (id) => pickFormat(d.id, id), host);
-		$('queue-note').textContent = !fmt.division || !fmt.queue ? 'Custom: Stock or First to changed.' : fmt.queue.rated ? 'The long set.' : 'Never rated.';
+		$('queue-note').textContent = !fmt.division || !fmt.queue ? 'Custom: Stock or First to changed.' : ctx.auto ? 'Bot matches are never rated.' : fmt.queue.rated ? 'The long set.' : 'Never rated.';
 		$('ft-note').textContent = 'Rounds to win the match.';
 		$('mode-row').hidden = val('mode') !== 'mines'; // Mines is soft-retired: only shown for a room already set to it
 		seg($('pick-mode'), modeSet.options.map(([v, t]) => [v, t.replace(' (no ice, unrated)', '')]), val('mode'), (v) => setDraft('mode', v), host);
 		cards($('pick-ft'), ftSet.options.map(([v, t]) => [v, t]), val('firstTo'), (v) => {
-			setDraft('firstTo', v);
+			setDraft('firstTo', v); // saves (practice) or marks unsaved (room)
 			drawSettings();
 		}, host);
 		seg($('presets'), PRESETS.filter((p) => !p.retired).map((p) => [p.id, p.label]), null, (id) => {
 			draft = { ...PRESETS.find((p) => p.id === id).set };
-			drawSettings();
 			saveState();
+			drawSettings();
 		}, host);
 		const box = $('settings');
 		box.innerHTML = '';
@@ -662,8 +693,8 @@
 			input.disabled = !host;
 			box.appendChild(row);
 		}
-		$('save-row').hidden = !host;
-		if (host) saveState();
+		$('save-row').hidden = !host || ctx.auto;
+		if (host && !ctx.auto) saveState();
 	}
 
 	function copy(text, msg) {
@@ -700,8 +731,9 @@
 	});
 	$('leave').addEventListener('click', () => {
 		if (mode === 'online') net.close();
+		const back = mode === 'practice' ? '/practice' : '/'; // a bot match goes back to its setup
 		practice.stop();
-		history.pushState(null, '', '/');
+		history.pushState(null, '', back);
 		route();
 	});
 
@@ -956,26 +988,33 @@
 	};
 	$('join').addEventListener('click', joinIt);
 	$('join-code').addEventListener('keydown', (e) => e.key === 'Enter' && joinIt());
-	// Practice settings: Division, Match and First to, like a room's Match tab; remembered on this device.
+	// —— Home: create, join, practice ——
+	$('join-open').addEventListener('click', () => {
+		const open = $('join-row').hidden;
+		$('join-row').hidden = !open;
+		$('join-open').setAttribute('aria-expanded', String(open));
+		if (open) $('join-code').focus();
+	});
+	$('practice-open').addEventListener('click', () => go('/practice'));
+	$('practice-back').addEventListener('click', () => go('/'));
+
+	// —— Practice page: the room's settings panel, applied at once, remembered on this device ——
 	let practiceO = {};
 	try {
 		practiceO = sanitize(JSON.parse(store.get('vs.practice') || '{}'));
 	} catch {}
-	function drawPractice() {
-		const fmt = formatOf(practiceO);
-		const d = fmt.division || DIVISIONS[0];
-		const set = (o) => {
-			practiceO = o;
+	const practiceCtx = {
+		slot: 'practice-cfg-slot',
+		host: true,
+		get saved() {
+			return practiceO;
+		},
+		save: (o) => {
+			practiceO = sanitize(o);
 			store.set('vs.practice', JSON.stringify(practiceO));
-			drawPractice();
-		};
-		cards($('pr-division'), DIVISIONS.map((x) => [x.id, x.label, x.blurb]), fmt.division && fmt.division.id, (id) => set(formatSet(practiceO, id, (fmt.queue || QUEUES[0]).id)), true);
-		cards($('pr-queue'), QUEUES.map((q) => [q.id, q.label, `First to ${q.id === 'competitive' ? d.competitiveTo : 3}`]), fmt.queue && fmt.queue.id, (id) => set(formatSet(practiceO, d.id, id)), true);
-		$('pr-queue-note').textContent = !fmt.division || !fmt.queue ? 'Custom.' : 'Bot matches are never rated.';
-		const ft = SETTINGS.find((x) => x.k === 'firstTo');
-		cards($('pr-ft'), ft.options.map(([v, t]) => [v, t]), practiceO.firstTo ?? defaultOf('firstTo'), (v) => set(sanitize({ ...practiceO, firstTo: v })), true);
-	}
-	drawPractice();
+		},
+		auto: true
+	};
 	$('practice').addEventListener('click', () => {
 		store.set('vs.name', $('name').value.slice(0, 16));
 		practice.start($('bot-level').value, $('practice-mode').value, practiceO);
@@ -992,6 +1031,13 @@
 		const rpm = location.pathname.match(/^\/replay\/([a-z0-9]{12,24})\/?$/);
 		if (rpm) return replay.open(rpm[1]);
 		replay.stop();
+		if (/^\/practice\/?$/.test(location.pathname)) {
+			practice.stop();
+			mode = null;
+			show('practice-page');
+			useSettings(practiceCtx);
+			return;
+		}
 		const r = parseRoomPath(location.pathname);
 		if (!r) {
 			mode = null;
