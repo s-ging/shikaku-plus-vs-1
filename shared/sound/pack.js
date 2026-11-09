@@ -13,7 +13,7 @@ export const SoundPack = (() => {
 	const VERSION = 1;
 	// Every sound the Sound Lab has (its SLOTS list, 2026-11-07).
 	const SLOTS = ['place', 'refused', 'clear', 'boom', 'sent', 'combo', 'iceLand', 'iceBoard', 'iceBreak', 'frost', 'frostFire', 'deflect', 'freezeOver',
-		'mineLand', 'mineTick', 'defuse', 'clutch', 'bank', 'queue', 'counter', 'streak', 'doOver', 'countdown', 'start', 'rush', 'win', 'lose', 'matchWin',
+		'mineLand', 'mineTick', 'defuse', 'clutch', 'bank', 'queue', 'counter', 'streak', 'doOver', 'comboBreak', 'extraLife', 'countdown', 'start', 'rush', 'win', 'lose', 'matchWin',
 		'thunder', 'force', 'crowd', 'bell', 'perfect', 'timeLow', 'timeUp', 'badge'];
 
 	// [key, min, max] — the lab's slider ranges (the Sound Lab's SPEC tables).

@@ -520,6 +520,84 @@
      "steps": "0 9 17 21"
     }
    },
+   "comboBreak": {
+    "also": [],
+    "fx": {
+     "eqHigh": 0,
+     "eqLow": 0,
+     "eqMid": 0,
+     "fadeOut": 120,
+     "gain": -4,
+     "highcut": 5000,
+     "lowcut": 200,
+     "maxLen": 450,
+     "room": 0.25,
+     "warmth": 0,
+     "wobble": 0
+    },
+    "haptic": "",
+    "layers": [
+     {
+      "attack": 0,
+      "decay": 140,
+      "delay": 60,
+      "end": 65,
+      "freq": 261.5,
+      "gain": 0.5,
+      "glide": 160,
+      "on": true,
+      "type": "tone",
+      "wave": "sine"
+     },
+     {
+      "attack": 0,
+      "decay": 140,
+      "delay": 60,
+      "end": 523.25,
+      "freq": 1046.5,
+      "gain": 0.4,
+      "glide": 160,
+      "on": true,
+      "type": "tone",
+      "wave": "sine"
+     },
+     {
+      "attack": 0,
+      "decay": 120,
+      "delay": 60,
+      "end": 261.63,
+      "freq": 523.25,
+      "gain": 0.6,
+      "glide": 160,
+      "on": true,
+      "type": "tone",
+      "wave": "triangle"
+     },
+     {
+      "attack": 0,
+      "decay": 50,
+      "delay": 60,
+      "end": 392,
+      "freq": 783.99,
+      "gain": 0.15,
+      "glide": 160,
+      "on": true,
+      "type": "tone",
+      "wave": "sine"
+     },
+     {
+      "attack": 30,
+      "decay": 60,
+      "delay": 60,
+      "filter": "bandpass",
+      "freq": 1200,
+      "gain": 0.12,
+      "on": true,
+      "q": 1.5,
+      "type": "noise"
+     }
+    ]
+   },
    "countdown": {
     "also": [],
     "fx": {
@@ -807,6 +885,132 @@
     },
     "haptic": "",
     "layers": []
+   },
+   "extraLife": {
+    "also": [],
+    "fx": {
+     "eqHigh": 0,
+     "eqLow": 0,
+     "eqMid": 0,
+     "fadeOut": 250,
+     "gain": -4,
+     "highcut": 7200,
+     "lowcut": 20,
+     "maxLen": 1200,
+     "room": 0.35,
+     "warmth": 0,
+     "wobble": 0
+    },
+    "haptic": "20 100 35",
+    "layers": [
+     {
+      "attack": 140,
+      "decay": 40,
+      "delay": 20,
+      "filter": "highpass",
+      "freq": 5000,
+      "gain": 0.12,
+      "on": true,
+      "q": 0.7,
+      "type": "noise"
+     },
+     {
+      "attack": 0,
+      "decay": 80,
+      "delay": 160,
+      "end": 1046.5,
+      "freq": 1046.5,
+      "gain": 0.8,
+      "glide": 20,
+      "on": true,
+      "type": "tone",
+      "wave": "sine"
+     },
+     {
+      "attack": 0,
+      "decay": 80,
+      "delay": 215,
+      "end": 1318.51,
+      "freq": 1318.51,
+      "gain": 0.8,
+      "glide": 20,
+      "on": true,
+      "type": "tone",
+      "wave": "sine"
+     },
+     {
+      "attack": 0,
+      "decay": 80,
+      "delay": 270,
+      "end": 1567.98,
+      "freq": 1567.98,
+      "gain": 0.85,
+      "glide": 20,
+      "on": true,
+      "type": "tone",
+      "wave": "sine"
+     },
+     {
+      "attack": 0,
+      "decay": 320,
+      "delay": 325,
+      "end": 2093,
+      "freq": 2093,
+      "gain": 1,
+      "glide": 20,
+      "on": true,
+      "type": "tone",
+      "wave": "sine"
+     },
+     {
+      "attack": 0,
+      "decay": 300,
+      "delay": 325,
+      "end": 1046.5,
+      "freq": 1046.5,
+      "gain": 0.3,
+      "glide": 20,
+      "on": true,
+      "type": "tone",
+      "wave": "triangle"
+     },
+     {
+      "attack": 0,
+      "decay": 15,
+      "delay": 325,
+      "end": 3135.96,
+      "freq": 3135.96,
+      "gain": 0.1,
+      "glide": 20,
+      "on": true,
+      "type": "tone",
+      "wave": "sine"
+     },
+     {
+      "attack": 0,
+      "decay": 60,
+      "delay": 440,
+      "end": 70,
+      "freq": 110,
+      "gain": 0.9,
+      "glide": 40,
+      "on": true,
+      "type": "tone",
+      "wave": "sine"
+     },
+     {
+      "attack": 0,
+      "decay": 60,
+      "delay": 580,
+      "end": 70,
+      "freq": 110,
+      "gain": 0.7,
+      "glide": 40,
+      "on": true,
+      "type": "tone",
+      "wave": "sine"
+     }
+    ]
    },
    "force": {
     "also": [],

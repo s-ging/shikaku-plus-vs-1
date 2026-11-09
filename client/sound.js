@@ -36,7 +36,7 @@ export function createSound(rawPack) {
 	// (Ice on the board, Mine tick, Mine Bank and Queue), Streak and Do-Over (Krischan, 2026-11-06),
 	// and the flourishes Crowd and Thunder (Krischan, 2026-11-07). Ice stays: it is gameplay.
 	const MINIMAL = new Set(['refused', 'clear', 'combo', 'sent', 'counter', 'boom', 'mineLand', 'defuse', 'clutch', 'iceLand', 'iceBreak', 'frost',
-		'frostFire', 'deflect', 'freezeOver', 'force', 'bell', 'countdown', 'start', 'rush', 'win', 'lose', 'matchWin']);
+		'frostFire', 'deflect', 'freezeOver', 'force', 'bell', 'comboBreak', 'extraLife', 'countdown', 'start', 'rush', 'win', 'lose', 'matchWin']);
 	const LEVELS = ['full', 'minimal', 'off'];
 
 	const pref = (k, dflt) => {
@@ -342,7 +342,10 @@ export function createSound(rawPack) {
 			one('clear');
 			if (e.combo) combo(e.combo);
 		} else if (k === 'mineExplode') one('boom');
-		else if (k === 'send') {
+		else if (k === 'comboBreak') one('comboBreak'); // your chain ended (an explosion or a Freeze Over)
+		else if (k === 'heal') {
+			if (e.healed) one('extraLife'); // a Stock came back
+		} else if (k === 'send') {
 			if (e.counter && sounds.counter) one('counter'); // your attack cancelled theirs
 			else if (e.pass > 0) sent(e.pass);
 		} else if (k === 'frozen') one('iceLand'); // a Frozen Cell lands (its pack plays Ice on the board with it)
