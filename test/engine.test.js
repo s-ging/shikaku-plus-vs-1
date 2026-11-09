@@ -223,10 +223,11 @@ test('ice: with maxIceIncoming 2, extra is dropped; no target cell is shown by d
 	assert.equal(e.ice.length, 2, 'lands on random free cells');
 });
 
-test('defaults: ice lands after 2 moves and stacks without a cap; heal needs 4 perfect boards', () => {
+test('defaults: ice lands after 3 moves and stacks without a cap; heal needs 4 perfect boards', () => {
 	const e = p();
 	e.receiveIce(5, FREE);
 	assert.equal(e.iceIncoming.length, 5);
+	e.tick(FREE);
 	e.tick(FREE);
 	assert.equal(e.ice.length, 0);
 	e.tick(FREE);
@@ -626,4 +627,29 @@ test('Rush ramp: ×1 before 2:00, ×3 from 2:00, ×5 from 3:00', () => {
 	};
 	assert.deepEqual([at(0), at(119), at(120), at(179), at(180), at(400)], [1, 1, 3, 3, 5, 5]);
 	assert.equal(new VersusMatch({ seed: 9, rules: { ...VERSUS_RULES, rushEarlySecs: 0 } }).rushFactor, 1);
+});
+
+test('a perfect Board gives 1 Frost; a Board with a Do-Over gives none', () => {
+	const e = p();
+	e.onBoardCleared();
+	assert.equal(e.frost, 1);
+	const d = p();
+	d.onErase();
+	d.onBoardCleared();
+	assert.equal(d.frost, 0);
+});
+test('Frost shield (off by default): with 2 Frost, a Frozen Cell is blocked and 2 Frost spent', () => {
+	const off = p();
+	off.frost = 3;
+	off.receiveIce(1, FREE);
+	for (let k = 0; k < 3; k++) off.tick(FREE);
+	assert.equal(off.ice.length, 1, 'off: it lands');
+	const e = p({ frostShield: 2 });
+	e.frost = 3;
+	e.receiveIce(2, FREE);
+	let ev = [];
+	for (let k = 0; k < 3; k++) ev = ev.concat(e.tick(FREE));
+	assert.equal(ev.filter((x) => x.kind === 'shield').length, 1);
+	assert.equal(e.frost, 1);
+	assert.equal(e.ice.length, 1, 'the second one lands: not enough Frost left');
 });

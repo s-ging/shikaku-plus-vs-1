@@ -350,6 +350,7 @@ export function createSound(rawPack) {
 		else if (k === 'thawPulse') one('iceBoard'); // the ice reacts as it thaws, every turn it's there
 		else if (k === 'forceBreak') one('force'); // Icebreak: the board forces a Frozen Cell open
 		else if (k === 'frozenOut') one('freezeOver'); // the board froze over
+		else if (k === 'shield') one('deflect'); // the Frost shield borrows the deflect sound for now
 		else if (k === 'frostFire') {
 			one('frostFire');
 			if (e.deflected > 0) one('deflect'); // your frost knocked incoming ice away

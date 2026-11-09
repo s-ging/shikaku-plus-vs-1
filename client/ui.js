@@ -166,7 +166,8 @@
 		$('score-them').textContent = m.score[1 - v.me];
 		$('mode-title').textContent = mines ? 'Mines' : 'Versus';
 		const rx = m.rushFactor;
-		$('mode-line').textContent = `${mode === 'online' && room ? formatName(room.o) : mines ? 'Mines · Unrated' : 'S+VS'} · FT${m.target}${rx > 1 ? ` · Rush ×${rx}` : ''}`;
+		const fo = mode === 'online' && room ? room.o : mode === 'practice' ? { ...practice.o, mode: practice.mode } : null;
+		$('mode-line').textContent = `${fo ? formatName(fo) : mines ? 'Mines · Unrated' : 'S+VS'} · FT${m.target}${rx > 1 ? ` · Rush ×${rx}` : ''}`;
 		$('brand').hidden = true;
 		let you = 'You';
 		let them = 'Them';
@@ -709,11 +710,14 @@
 		bot: null,
 		timer: 0,
 		level: 'normal',
-		start(level, modeKey = 'vs') {
+		start(level, modeKey = 'vs', o = {}) {
 			this.level = level;
 			this.mode = modeKey;
-			rules = { ...(modeKey === 'mines' ? MINES_RULES : VERSUS_RULES) };
-			const m = new VersusMatch({ rules, seed: Math.floor(Math.random() * 1e6) + 1, target: 7 });
+			this.o = o;
+			// The same rules a room with these settings would play (shared/settings.js rulesFor).
+			const run = rulesFor({ ...o, mode: modeKey });
+			rules = run.rules;
+			const m = new VersusMatch({ rules, seed: Math.floor(Math.random() * 1e6) + 1, target: run.firstTo });
 			m.startClock(Date.now(), COUNTDOWN_MS);
 			const preset = BOT_PRESETS[level] || BOT_PRESETS.normal;
 			this.preset = preset;
@@ -771,7 +775,7 @@
 		},
 		next() {
 			const m = core.confirmed;
-			if (m.over) return this.start(this.level, this.mode);
+			if (m.over) return this.start(this.level, this.mode, this.o);
 			m.newRound();
 			m.startClock(Date.now(), COUNTDOWN_MS);
 			render();
@@ -952,9 +956,29 @@
 	};
 	$('join').addEventListener('click', joinIt);
 	$('join-code').addEventListener('keydown', (e) => e.key === 'Enter' && joinIt());
+	// Practice settings: Division, Match and First to, like a room's Match tab; remembered on this device.
+	let practiceO = {};
+	try {
+		practiceO = sanitize(JSON.parse(store.get('vs.practice') || '{}'));
+	} catch {}
+	function drawPractice() {
+		const fmt = formatOf(practiceO);
+		const d = fmt.division || DIVISIONS[0];
+		const set = (o) => {
+			practiceO = o;
+			store.set('vs.practice', JSON.stringify(practiceO));
+			drawPractice();
+		};
+		cards($('pr-division'), DIVISIONS.map((x) => [x.id, x.label, x.blurb]), fmt.division && fmt.division.id, (id) => set(formatSet(practiceO, id, (fmt.queue || QUEUES[0]).id)), true);
+		cards($('pr-queue'), QUEUES.map((q) => [q.id, q.label, `First to ${q.id === 'competitive' ? d.competitiveTo : 3}`]), fmt.queue && fmt.queue.id, (id) => set(formatSet(practiceO, d.id, id)), true);
+		$('pr-queue-note').textContent = !fmt.division || !fmt.queue ? 'Custom.' : 'Bot matches are never rated.';
+		const ft = SETTINGS.find((x) => x.k === 'firstTo');
+		cards($('pr-ft'), ft.options.map(([v, t]) => [v, t]), practiceO.firstTo ?? defaultOf('firstTo'), (v) => set(sanitize({ ...practiceO, firstTo: v })), true);
+	}
+	drawPractice();
 	$('practice').addEventListener('click', () => {
 		store.set('vs.name', $('name').value.slice(0, 16));
-		practice.start($('bot-level').value, $('practice-mode').value);
+		practice.start($('bot-level').value, $('practice-mode').value, practiceO);
 	});
 	function go(path) {
 		store.set('vs.name', $('name').value.slice(0, 16));

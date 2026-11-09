@@ -701,6 +701,7 @@ export function createHud(opts) {
 				if (e.deflected) calls[si].push({ text: e.deflected > 1 ? `DEFLECT ×${e.deflected}` : 'DEFLECT', tier: 'i', blinks: 0, life: 1200 });
 			}
 			if (e.kind === 'forceBreak') breaks[si]++;
+			if (e.kind === 'shield') calls[si].push({ text: 'SHIELD', tier: 'i', blinks: 0, life: 1200 });
 			if (e.kind === 'frozenOut') {
 				calls[si].push({ text: 'FROZEN OVER', tier: 'i', blinks: 3, life: 1400 });
 				if (v) {
