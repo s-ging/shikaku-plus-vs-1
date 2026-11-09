@@ -2,24 +2,24 @@
  "format": "shikaku-sound-pack",
  "version": 1,
  "sampleRate": 48000,
- "savedAt": "2026-11-06T18:02:23.005Z",
+ "savedAt": "2026-11-09T20:24:02.026Z",
  "pack": {
   "name": "Base pack draft",
   "sounds": {
    "badge": {
     "also": [],
     "fx": {
-     "eqHigh": 0,
+     "lowcut": 20,
      "eqLow": 0,
      "eqMid": 0,
-     "fadeOut": 200,
-     "gain": 0,
+     "eqHigh": 0,
      "highcut": 7200,
-     "lowcut": 20,
-     "maxLen": 1000,
-     "room": 0.3,
      "warmth": 0,
-     "wobble": 0
+     "room": 0.3,
+     "gain": 0,
+     "wobble": 0,
+     "maxLen": 1000,
+     "fadeOut": 200
     },
     "haptic": "",
     "layers": [
@@ -61,17 +61,17 @@
    "bank": {
     "also": [],
     "fx": {
-     "eqHigh": 0,
+     "lowcut": 40,
      "eqLow": 0,
      "eqMid": 0,
-     "fadeOut": 80,
-     "gain": -6,
+     "eqHigh": 0,
      "highcut": 2000,
-     "lowcut": 40,
-     "maxLen": 400,
-     "room": 0,
      "warmth": 0,
-     "wobble": 2
+     "room": 0,
+     "gain": -6,
+     "wobble": 2,
+     "maxLen": 400,
+     "fadeOut": 80
     },
     "haptic": "",
     "layers": [
@@ -99,22 +99,23 @@
       "type": "tone",
       "wave": "triangle"
      }
-    ]
+    ],
+    "ready": true
    },
    "bell": {
     "also": [],
     "fx": {
-     "eqHigh": 0,
+     "lowcut": 300,
      "eqLow": 0,
      "eqMid": 0,
-     "fadeOut": 82,
-     "gain": -3,
+     "eqHigh": 0,
      "highcut": 9000,
-     "lowcut": 300,
-     "maxLen": 1350,
-     "room": 0.15,
      "warmth": 0,
-     "wobble": 0
+     "room": 0.15,
+     "gain": -3,
+     "wobble": 0,
+     "maxLen": 1350,
+     "fadeOut": 82
     },
     "haptic": "30 220 30 220 30",
     "layers": [
@@ -215,6 +216,7 @@
       "wave": "sine"
      }
     ],
+    "ready": true,
     "seq": {
      "gap": 250,
      "keepLength": true,
@@ -228,17 +230,17 @@
    "boom": {
     "also": [],
     "fx": {
-     "eqHigh": 4,
+     "lowcut": 23,
      "eqLow": 0.5,
      "eqMid": 0,
-     "fadeOut": 120,
-     "gain": -2,
+     "eqHigh": 4,
      "highcut": 10000,
-     "lowcut": 23,
-     "maxLen": 500,
-     "room": 0,
      "warmth": 0.08,
-     "wobble": 10
+     "room": 0,
+     "gain": -2,
+     "wobble": 10,
+     "maxLen": 500,
+     "fadeOut": 120
     },
     "haptic": "50 12 50",
     "layers": [
@@ -296,17 +298,17 @@
    "clear": {
     "also": [],
     "fx": {
-     "eqHigh": 0,
+     "lowcut": 80,
      "eqLow": 0,
      "eqMid": 0,
-     "fadeOut": 10,
-     "gain": 0,
+     "eqHigh": 0,
      "highcut": 6000,
-     "lowcut": 80,
-     "maxLen": 320,
-     "room": 0.4,
      "warmth": 0,
-     "wobble": 0
+     "room": 0.4,
+     "gain": 0,
+     "wobble": 0,
+     "maxLen": 320,
+     "fadeOut": 10
     },
     "haptic": "",
     "layers": [
@@ -367,17 +369,17 @@
      }
     ],
     "fx": {
-     "eqHigh": 0,
+     "lowcut": 80,
      "eqLow": 0,
      "eqMid": 0,
-     "fadeOut": 150,
-     "gain": 0,
+     "eqHigh": 0,
      "highcut": 6000,
-     "lowcut": 80,
-     "maxLen": 1350,
-     "room": 0.3,
      "warmth": 0,
-     "wobble": 0
+     "room": 0.3,
+     "gain": 0,
+     "wobble": 0,
+     "maxLen": 1350,
+     "fadeOut": 150
     },
     "haptic": "8 30 8",
     "layers": [
@@ -418,7 +420,7 @@
       "wave": "sine"
      }
     ],
-    "ready": false,
+    "ready": true,
     "seq": {
      "gap": 55,
      "keepLength": false,
@@ -432,17 +434,17 @@
    "combo": {
     "also": [],
     "fx": {
-     "eqHigh": 0,
+     "lowcut": 80,
      "eqLow": 0,
      "eqMid": 0,
-     "fadeOut": 0,
-     "gain": -1,
+     "eqHigh": 0,
      "highcut": 5000,
-     "lowcut": 80,
-     "maxLen": 0,
-     "room": 0.4,
      "warmth": 0,
-     "wobble": 0
+     "room": 0.4,
+     "gain": -1,
+     "wobble": 0,
+     "maxLen": 0,
+     "fadeOut": 0
     },
     "haptic": "10",
     "ladder": "0 1 2 3 5 7 8 9",
@@ -520,20 +522,98 @@
      "steps": "0 9 17 21"
     }
    },
+   "comboBreak": {
+    "also": [],
+    "fx": {
+     "lowcut": 200,
+     "eqLow": 0,
+     "eqMid": 0,
+     "eqHigh": 0,
+     "highcut": 5000,
+     "warmth": 0,
+     "room": 0.25,
+     "gain": -4,
+     "wobble": 0,
+     "maxLen": 450,
+     "fadeOut": 120
+    },
+    "haptic": "",
+    "layers": [
+     {
+      "attack": 0,
+      "decay": 140,
+      "delay": 60,
+      "end": 65,
+      "freq": 261.5,
+      "gain": 0.5,
+      "glide": 160,
+      "on": true,
+      "type": "tone",
+      "wave": "sine"
+     },
+     {
+      "attack": 0,
+      "decay": 140,
+      "delay": 60,
+      "end": 523.25,
+      "freq": 1046.5,
+      "gain": 0.4,
+      "glide": 160,
+      "on": true,
+      "type": "tone",
+      "wave": "sine"
+     },
+     {
+      "attack": 0,
+      "decay": 120,
+      "delay": 60,
+      "end": 261.63,
+      "freq": 523.25,
+      "gain": 0.6,
+      "glide": 160,
+      "on": true,
+      "type": "tone",
+      "wave": "triangle"
+     },
+     {
+      "attack": 0,
+      "decay": 50,
+      "delay": 60,
+      "end": 392,
+      "freq": 783.99,
+      "gain": 0.15,
+      "glide": 160,
+      "on": true,
+      "type": "tone",
+      "wave": "sine"
+     },
+     {
+      "attack": 30,
+      "decay": 60,
+      "delay": 60,
+      "filter": "bandpass",
+      "freq": 1200,
+      "gain": 0.12,
+      "on": true,
+      "q": 1.5,
+      "type": "noise"
+     }
+    ]
+   },
    "countdown": {
     "also": [],
     "fx": {
-     "eqHigh": 0,
+     "lowcut": 20,
      "eqLow": 0,
      "eqMid": 0,
-     "fadeOut": 30,
-     "gain": -4,
+     "eqHigh": 0,
      "highcut": 6000,
-     "lowcut": 20,
-     "maxLen": 200,
-     "room": 0,
      "warmth": 0,
-     "wobble": 0
+     "room": 0,
+     "gain": -4,
+     "wobble": 0,
+     "maxLen": 200,
+     "fadeOut": 30
     },
     "haptic": "",
     "layers": [
@@ -576,17 +656,17 @@
      }
     ],
     "fx": {
-     "eqHigh": 0,
+     "lowcut": 40,
      "eqLow": 0,
      "eqMid": 0,
-     "fadeOut": 200,
-     "gain": -2,
+     "eqHigh": 0,
      "highcut": 7000,
-     "lowcut": 40,
-     "maxLen": 1400,
-     "room": 0.8,
      "warmth": 0.3,
-     "wobble": 2
+     "room": 0.8,
+     "gain": -2,
+     "wobble": 2,
+     "maxLen": 1400,
+     "fadeOut": 200
     },
     "haptic": "25",
     "layers": [],
@@ -595,17 +675,17 @@
    "crowd": {
     "also": [],
     "fx": {
-     "eqHigh": 0,
+     "lowcut": 40,
      "eqLow": 0,
      "eqMid": 0,
-     "fadeOut": 80,
-     "gain": -2,
+     "eqHigh": 0,
      "highcut": 7000,
-     "lowcut": 40,
-     "maxLen": 1400,
-     "room": 0.8,
      "warmth": 0.3,
-     "wobble": 2
+     "room": 0.8,
+     "gain": -2,
+     "wobble": 2,
+     "maxLen": 1400,
+     "fadeOut": 80
     },
     "haptic": "",
     "layers": [
@@ -623,7 +703,8 @@
       "tail": 1,
       "type": "fit"
      }
-    ]
+    ],
+    "ready": true
    },
    "deflect": {
     "also": [
@@ -633,17 +714,17 @@
      }
     ],
     "fx": {
-     "eqHigh": 0,
+     "lowcut": 20,
      "eqLow": 0,
      "eqMid": 0,
-     "fadeOut": 100,
-     "gain": 0,
+     "eqHigh": 0,
      "highcut": 9000,
-     "lowcut": 20,
-     "maxLen": 500,
-     "room": 0.2,
      "warmth": 0,
-     "wobble": 2
+     "room": 0.2,
+     "gain": 0,
+     "wobble": 2,
+     "maxLen": 500,
+     "fadeOut": 100
     },
     "haptic": "10 20 10",
     "layers": [
@@ -706,22 +787,23 @@
       "q": 0.7,
       "type": "noise"
      }
-    ]
+    ],
+    "ready": true
    },
    "defuse": {
     "also": [],
     "fx": {
-     "eqHigh": 0,
+     "lowcut": 20,
      "eqLow": 0,
      "eqMid": 0,
-     "fadeOut": 60,
-     "gain": -3,
+     "eqHigh": 0,
      "highcut": 7000,
-     "lowcut": 20,
-     "maxLen": 300,
-     "room": 0,
      "warmth": 0,
-     "wobble": 2
+     "room": 0,
+     "gain": -3,
+     "wobble": 2,
+     "maxLen": 300,
+     "fadeOut": 60
     },
     "haptic": "8",
     "layers": [
@@ -793,35 +875,161 @@
    "doOver": {
     "also": [],
     "fx": {
-     "eqHigh": 0,
+     "lowcut": 20,
      "eqLow": 0,
      "eqMid": 0,
-     "fadeOut": 40,
-     "gain": -5,
+     "eqHigh": 0,
      "highcut": 6000,
-     "lowcut": 20,
-     "maxLen": 250,
-     "room": 0,
      "warmth": 0,
-     "wobble": 2
+     "room": 0,
+     "gain": -5,
+     "wobble": 2,
+     "maxLen": 250,
+     "fadeOut": 40
     },
     "haptic": "",
     "layers": []
    },
+   "extraLife": {
+    "also": [],
+    "fx": {
+     "lowcut": 20,
+     "eqLow": 0,
+     "eqMid": 0,
+     "eqHigh": 0,
+     "highcut": 7200,
+     "warmth": 0,
+     "room": 0.35,
+     "gain": -4,
+     "wobble": 0,
+     "maxLen": 1200,
+     "fadeOut": 250
+    },
+    "haptic": "20 100 35",
+    "layers": [
+     {
+      "attack": 140,
+      "decay": 40,
+      "delay": 20,
+      "filter": "highpass",
+      "freq": 5000,
+      "gain": 0.12,
+      "on": true,
+      "q": 0.7,
+      "type": "noise"
+     },
+     {
+      "attack": 0,
+      "decay": 80,
+      "delay": 160,
+      "end": 1046.5,
+      "freq": 1046.5,
+      "gain": 0.8,
+      "glide": 20,
+      "on": true,
+      "type": "tone",
+      "wave": "sine"
+     },
+     {
+      "attack": 0,
+      "decay": 80,
+      "delay": 215,
+      "end": 1318.51,
+      "freq": 1318.51,
+      "gain": 0.8,
+      "glide": 20,
+      "on": true,
+      "type": "tone",
+      "wave": "sine"
+     },
+     {
+      "attack": 0,
+      "decay": 80,
+      "delay": 270,
+      "end": 1567.98,
+      "freq": 1567.98,
+      "gain": 0.85,
+      "glide": 20,
+      "on": true,
+      "type": "tone",
+      "wave": "sine"
+     },
+     {
+      "attack": 0,
+      "decay": 320,
+      "delay": 325,
+      "end": 2093,
+      "freq": 2093,
+      "gain": 1,
+      "glide": 20,
+      "on": true,
+      "type": "tone",
+      "wave": "sine"
+     },
+     {
+      "attack": 0,
+      "decay": 300,
+      "delay": 325,
+      "end": 1046.5,
+      "freq": 1046.5,
+      "gain": 0.3,
+      "glide": 20,
+      "on": true,
+      "type": "tone",
+      "wave": "triangle"
+     },
+     {
+      "attack": 0,
+      "decay": 15,
+      "delay": 325,
+      "end": 3135.96,
+      "freq": 3135.96,
+      "gain": 0.1,
+      "glide": 20,
+      "on": true,
+      "type": "tone",
+      "wave": "sine"
+     },
+     {
+      "attack": 0,
+      "decay": 60,
+      "delay": 440,
+      "end": 70,
+      "freq": 110,
+      "gain": 0.9,
+      "glide": 40,
+      "on": true,
+      "type": "tone",
+      "wave": "sine"
+     },
+     {
+      "attack": 0,
+      "decay": 60,
+      "delay": 580,
+      "end": 70,
+      "freq": 110,
+      "gain": 0.7,
+      "glide": 40,
+      "on": true,
+      "type": "tone",
+      "wave": "sine"
+     }
+    ]
+   },
    "force": {
     "also": [],
     "fx": {
-     "eqHigh": 0,
+     "lowcut": 40,
      "eqLow": 0,
      "eqMid": 0,
-     "fadeOut": 200,
-     "gain": -2,
+     "eqHigh": 0,
      "highcut": 7000,
-     "lowcut": 40,
-     "maxLen": 1400,
-     "room": 0.8,
      "warmth": 0.3,
-     "wobble": 2
+     "room": 0.8,
+     "gain": -2,
+     "wobble": 2,
+     "maxLen": 1400,
+     "fadeOut": 200
     },
     "haptic": "30",
     "layers": [
@@ -901,7 +1109,8 @@
       "tail": 0.8,
       "type": "fit"
      }
-    ]
+    ],
+    "ready": true
    },
    "freezeOver": {
     "also": [
@@ -920,35 +1129,36 @@
      }
     ],
     "fx": {
-     "eqHigh": 0,
+     "lowcut": 50,
      "eqLow": 0,
      "eqMid": 0,
-     "fadeOut": 300,
-     "gain": 0,
+     "eqHigh": 0,
      "highcut": 9000,
-     "lowcut": 50,
-     "maxLen": 1300,
-     "room": 0.35,
      "warmth": 0.2,
-     "wobble": 2
+     "room": 0.35,
+     "gain": 0,
+     "wobble": 2,
+     "maxLen": 1300,
+     "fadeOut": 300
     },
     "haptic": "60 40 30",
-    "layers": []
+    "layers": [],
+    "ready": true
    },
    "frost": {
     "also": [],
     "fx": {
-     "eqHigh": 0,
+     "lowcut": 70,
      "eqLow": 0,
      "eqMid": 0,
-     "fadeOut": 90,
-     "gain": -4,
+     "eqHigh": 0,
      "highcut": 7200,
-     "lowcut": 70,
-     "maxLen": 300,
-     "room": 0.1,
      "warmth": 0,
-     "wobble": 3
+     "room": 0.1,
+     "gain": -4,
+     "wobble": 3,
+     "maxLen": 300,
+     "fadeOut": 90
     },
     "haptic": "10 28 10 28 10 28 10",
     "layers": [
@@ -1030,17 +1240,17 @@
      }
     ],
     "fx": {
-     "eqHigh": 0,
+     "lowcut": 20,
      "eqLow": 0,
      "eqMid": 0,
-     "fadeOut": 80,
-     "gain": -3,
+     "eqHigh": 0,
      "highcut": 9000,
-     "lowcut": 20,
-     "maxLen": 400,
-     "room": 0.15,
      "warmth": 0,
-     "wobble": 2
+     "room": 0.15,
+     "gain": -3,
+     "wobble": 2,
+     "maxLen": 400,
+     "fadeOut": 80
     },
     "haptic": "15",
     "layers": [
@@ -1073,17 +1283,17 @@
    "iceBoard": {
     "also": [],
     "fx": {
-     "eqHigh": 0,
+     "lowcut": 20,
      "eqLow": 0,
      "eqMid": 0,
-     "fadeOut": 120,
-     "gain": -8,
+     "eqHigh": 0,
      "highcut": 9000,
-     "lowcut": 20,
-     "maxLen": 600,
-     "room": 0,
      "warmth": 0,
-     "wobble": 10
+     "room": 0,
+     "gain": -8,
+     "wobble": 10,
+     "maxLen": 600,
+     "fadeOut": 120
     },
     "haptic": "",
     "layers": [
@@ -1107,17 +1317,17 @@
    "iceBreak": {
     "also": [],
     "fx": {
-     "eqHigh": 0,
+     "lowcut": 300,
      "eqLow": 3,
      "eqMid": 0,
-     "fadeOut": 30,
-     "gain": -5,
+     "eqHigh": 0,
      "highcut": 8000,
-     "lowcut": 300,
-     "maxLen": 380,
-     "room": 0.5,
      "warmth": 0.3,
-     "wobble": 4
+     "room": 0.5,
+     "gain": -5,
+     "wobble": 4,
+     "maxLen": 380,
+     "fadeOut": 30
     },
     "haptic": "12 30 8",
     "layers": [
@@ -1169,17 +1379,17 @@
      }
     ],
     "fx": {
-     "eqHigh": 0,
+     "lowcut": 45,
      "eqLow": 0,
      "eqMid": 0,
-     "fadeOut": 0,
-     "gain": -4,
+     "eqHigh": 0,
      "highcut": 9000,
-     "lowcut": 45,
-     "maxLen": 0,
-     "room": 0,
      "warmth": 0,
-     "wobble": 2
+     "room": 0,
+     "gain": -4,
+     "wobble": 2,
+     "maxLen": 0,
+     "fadeOut": 0
     },
     "haptic": "",
     "layers": [
@@ -1203,17 +1413,17 @@
    "lose": {
     "also": [],
     "fx": {
-     "eqHigh": 0,
+     "lowcut": 20,
      "eqLow": 0,
      "eqMid": 0,
-     "fadeOut": 150,
-     "gain": 0,
+     "eqHigh": 0,
      "highcut": 4000,
-     "lowcut": 20,
-     "maxLen": 900,
-     "room": 0.15,
      "warmth": 0,
-     "wobble": 0
+     "room": 0.15,
+     "gain": 0,
+     "wobble": 0,
+     "maxLen": 900,
+     "fadeOut": 150
     },
     "haptic": "",
     "layers": [
@@ -1244,17 +1454,17 @@
    "matchWin": {
     "also": [],
     "fx": {
-     "eqHigh": 0,
+     "lowcut": 20,
      "eqLow": 0,
      "eqMid": 0,
-     "fadeOut": 300,
-     "gain": 0,
+     "eqHigh": 0,
      "highcut": 7200,
-     "lowcut": 20,
-     "maxLen": 1600,
-     "room": 0.35,
      "warmth": 0,
-     "wobble": 0
+     "room": 0.35,
+     "gain": 0,
+     "wobble": 0,
+     "maxLen": 1600,
+     "fadeOut": 300
     },
     "haptic": "20 40 20 40 60",
     "layers": [
@@ -1308,17 +1518,17 @@
    "mineLand": {
     "also": [],
     "fx": {
-     "eqHigh": 0,
+     "lowcut": 90,
      "eqLow": 0,
      "eqMid": 0,
-     "fadeOut": 40,
-     "gain": -2.5,
+     "eqHigh": 0,
      "highcut": 6000,
-     "lowcut": 90,
-     "maxLen": 250,
-     "room": 0,
      "warmth": 0,
-     "wobble": 4
+     "room": 0,
+     "gain": -2.5,
+     "wobble": 4,
+     "maxLen": 250,
+     "fadeOut": 40
     },
     "haptic": "12",
     "layers": [
@@ -1366,17 +1576,17 @@
    "mineTick": {
     "also": [],
     "fx": {
-     "eqHigh": 0,
+     "lowcut": 20,
      "eqLow": 0,
      "eqMid": 0,
-     "fadeOut": 10,
-     "gain": -14,
+     "eqHigh": 0,
      "highcut": 7000,
-     "lowcut": 20,
-     "maxLen": 60,
-     "room": 0,
      "warmth": 0,
-     "wobble": 3
+     "room": 0,
+     "gain": -14,
+     "wobble": 3,
+     "maxLen": 60,
+     "fadeOut": 10
     },
     "haptic": "",
     "layers": [
@@ -1403,7 +1613,8 @@
       "type": "tone",
       "wave": "triangle"
      }
-    ]
+    ],
+    "ready": true
    },
    "perfect": {
     "also": [
@@ -1413,17 +1624,17 @@
      }
     ],
     "fx": {
-     "eqHigh": 0,
+     "lowcut": 20,
      "eqLow": 0,
      "eqMid": 0,
-     "fadeOut": 150,
-     "gain": 0,
+     "eqHigh": 0,
      "highcut": 9000,
-     "lowcut": 20,
-     "maxLen": 700,
-     "room": 0.3,
      "warmth": 0,
-     "wobble": 0
+     "room": 0.3,
+     "gain": 0,
+     "wobble": 0,
+     "maxLen": 700,
+     "fadeOut": 150
     },
     "haptic": "",
     "layers": [
@@ -1457,17 +1668,17 @@
    "place": {
     "also": [],
     "fx": {
-     "eqHigh": 0,
+     "lowcut": 115,
      "eqLow": 0,
      "eqMid": 0,
-     "fadeOut": 0,
-     "gain": 0.01111,
+     "eqHigh": 0,
      "highcut": 7000,
-     "lowcut": 115,
-     "maxLen": 0,
-     "room": 0,
      "warmth": 0.1,
-     "wobble": 10
+     "room": 0,
+     "gain": 0.01111,
+     "wobble": 10,
+     "maxLen": 0,
+     "fadeOut": 0
     },
     "haptic": "5",
     "layers": [
@@ -1524,17 +1735,17 @@
    "queue": {
     "also": [],
     "fx": {
-     "eqHigh": 0,
+     "lowcut": 50,
      "eqLow": 0,
      "eqMid": 0,
-     "fadeOut": 50,
-     "gain": -8,
+     "eqHigh": 0,
      "highcut": 2500,
-     "lowcut": 50,
-     "maxLen": 250,
-     "room": 0,
      "warmth": 0,
-     "wobble": 2
+     "room": 0,
+     "gain": -8,
+     "wobble": 2,
+     "maxLen": 250,
+     "fadeOut": 50
     },
     "haptic": "",
     "layers": [
@@ -1562,22 +1773,23 @@
       "type": "tone",
       "wave": "triangle"
      }
-    ]
+    ],
+    "ready": true
    },
    "refused": {
     "also": [],
     "fx": {
-     "eqHigh": 0,
+     "lowcut": 20,
      "eqLow": 0,
      "eqMid": 0,
-     "fadeOut": 0,
-     "gain": 0.01,
+     "eqHigh": 0,
      "highcut": 4000,
-     "lowcut": 20,
-     "maxLen": 0,
-     "room": 0,
      "warmth": 0,
-     "wobble": 2
+     "room": 0,
+     "gain": 0.01,
+     "wobble": 2,
+     "maxLen": 0,
+     "fadeOut": 0
     },
     "haptic": "18 45 18",
     "layers": [
@@ -1666,35 +1878,36 @@
      }
     ],
     "fx": {
-     "eqHigh": 0,
+     "lowcut": 20,
      "eqLow": 0,
      "eqMid": 0,
-     "fadeOut": 150,
-     "gain": -4,
+     "eqHigh": 0,
      "highcut": 5000,
-     "lowcut": 20,
-     "maxLen": 800,
-     "room": 0,
      "warmth": 0.3,
-     "wobble": 0
+     "room": 0,
+     "gain": -4,
+     "wobble": 0,
+     "maxLen": 800,
+     "fadeOut": 150
     },
     "haptic": "40",
-    "layers": []
+    "layers": [],
+    "ready": true
    },
    "sent": {
     "also": [],
     "fx": {
-     "eqHigh": 0,
+     "lowcut": 20,
      "eqLow": 0,
      "eqMid": 0,
-     "fadeOut": 30,
-     "gain": -4,
+     "eqHigh": 0,
      "highcut": 7000,
-     "lowcut": 20,
-     "maxLen": 300,
-     "room": 0.2,
      "warmth": 0.45,
-     "wobble": 0
+     "room": 0.2,
+     "gain": -4,
+     "wobble": 0,
+     "maxLen": 300,
+     "fadeOut": 30
     },
     "haptic": "",
     "layers": [
@@ -1749,17 +1962,17 @@
      "2": {
       "also": [],
       "fx": {
-       "eqHigh": 0,
+       "lowcut": 20,
        "eqLow": 0,
        "eqMid": 0,
-       "fadeOut": 30,
-       "gain": -4,
+       "eqHigh": 0,
        "highcut": 7000,
-       "lowcut": 20,
-       "maxLen": 500,
-       "room": 0.2,
        "warmth": 0.45,
-       "wobble": 0
+       "room": 0.2,
+       "gain": -4,
+       "wobble": 0,
+       "maxLen": 500,
+       "fadeOut": 30
       },
       "layers": [
        {
@@ -1839,17 +2052,17 @@
      "5": {
       "also": [],
       "fx": {
-       "eqHigh": 0,
+       "lowcut": 20,
        "eqLow": 0,
        "eqMid": 0,
-       "fadeOut": 30,
-       "gain": -4,
+       "eqHigh": 0,
        "highcut": 7000,
-       "lowcut": 20,
-       "maxLen": 500,
-       "room": 0.2,
        "warmth": 0.45,
-       "wobble": 0
+       "room": 0.2,
+       "gain": -4,
+       "wobble": 0,
+       "maxLen": 500,
+       "fadeOut": 30
       },
       "layers": [
        {
@@ -1955,17 +2168,17 @@
      "8": {
       "also": [],
       "fx": {
-       "eqHigh": 0,
+       "lowcut": 20,
        "eqLow": 0,
        "eqMid": 0,
-       "fadeOut": 30,
-       "gain": -4,
+       "eqHigh": 0,
        "highcut": 7000,
-       "lowcut": 20,
-       "maxLen": 800,
-       "room": 0.2,
        "warmth": 0.45,
-       "wobble": 0
+       "room": 0.2,
+       "gain": -4,
+       "wobble": 0,
+       "maxLen": 800,
+       "fadeOut": 30
       },
       "layers": [
        {
@@ -2106,17 +2319,17 @@
        }
       ],
       "fx": {
-       "eqHigh": 0,
+       "lowcut": 80,
        "eqLow": 0,
        "eqMid": 0,
-       "fadeOut": 30,
-       "gain": -4,
+       "eqHigh": 0,
        "highcut": 7000,
-       "lowcut": 80,
-       "maxLen": 800,
-       "room": 0.2,
        "warmth": 0.45,
-       "wobble": 0
+       "room": 0.2,
+       "gain": -4,
+       "wobble": 0,
+       "maxLen": 800,
+       "fadeOut": 30
       },
       "layers": [
        {
@@ -2253,17 +2466,17 @@
    "start": {
     "also": [],
     "fx": {
-     "eqHigh": 0,
+     "lowcut": 20,
      "eqLow": 0,
      "eqMid": 0,
-     "fadeOut": 120,
-     "gain": 0,
+     "eqHigh": 0,
      "highcut": 7000,
-     "lowcut": 20,
-     "maxLen": 600,
-     "room": 0.2,
      "warmth": 0,
-     "wobble": 0
+     "room": 0.2,
+     "gain": 0,
+     "wobble": 0,
+     "maxLen": 600,
+     "fadeOut": 120
     },
     "haptic": "20",
     "layers": [
@@ -2297,17 +2510,17 @@
    "streak": {
     "also": [],
     "fx": {
-     "eqHigh": 0,
+     "lowcut": 20,
      "eqLow": 0,
      "eqMid": 0,
-     "fadeOut": 80,
-     "gain": -4,
+     "eqHigh": 0,
      "highcut": 8000,
-     "lowcut": 20,
-     "maxLen": 400,
-     "room": 0,
      "warmth": 0.3,
-     "wobble": 2
+     "room": 0,
+     "gain": -4,
+     "wobble": 2,
+     "maxLen": 400,
+     "fadeOut": 80
     },
     "haptic": "",
     "layers": []
@@ -2315,17 +2528,17 @@
    "thunder": {
     "also": [],
     "fx": {
-     "eqHigh": 0,
+     "lowcut": 80,
      "eqLow": 0,
      "eqMid": 0,
-     "fadeOut": 50,
-     "gain": 0,
+     "eqHigh": 0,
      "highcut": 7000,
-     "lowcut": 80,
-     "maxLen": 1000,
-     "room": 1,
      "warmth": 0.19,
-     "wobble": 10
+     "room": 1,
+     "gain": 0,
+     "wobble": 10,
+     "maxLen": 1000,
+     "fadeOut": 50
     },
     "haptic": "",
     "layers": [
@@ -2379,17 +2592,17 @@
    "timeLow": {
     "also": [],
     "fx": {
-     "eqHigh": 0,
+     "lowcut": 20,
      "eqLow": 0,
      "eqMid": 0,
-     "fadeOut": 15,
-     "gain": -8,
+     "eqHigh": 0,
      "highcut": 6000,
-     "lowcut": 20,
-     "maxLen": 100,
-     "room": 0,
      "warmth": 0,
-     "wobble": 0
+     "room": 0,
+     "gain": -8,
+     "wobble": 0,
+     "maxLen": 100,
+     "fadeOut": 15
     },
     "haptic": "",
     "layers": [
@@ -2416,7 +2629,8 @@
       "q": 3,
       "type": "noise"
      }
-    ]
+    ],
+    "ready": true
    },
    "timeUp": {
     "also": [
@@ -2426,35 +2640,36 @@
      }
     ],
     "fx": {
-     "eqHigh": 0,
+     "lowcut": 20,
      "eqLow": 0,
      "eqMid": 0,
-     "fadeOut": 120,
-     "gain": -6,
+     "eqHigh": 0,
      "highcut": 3000,
-     "lowcut": 20,
-     "maxLen": 600,
-     "room": 0,
      "warmth": 0.3,
-     "wobble": 0
+     "room": 0,
+     "gain": -6,
+     "wobble": 0,
+     "maxLen": 600,
+     "fadeOut": 120
     },
     "haptic": "60",
-    "layers": []
+    "layers": [],
+    "ready": true
    },
    "win": {
     "also": [],
     "fx": {
-     "eqHigh": 0,
+     "lowcut": 20,
      "eqLow": 0,
      "eqMid": 0,
-     "fadeOut": 150,
-     "gain": 0,
+     "eqHigh": 0,
      "highcut": 7000,
-     "lowcut": 20,
-     "maxLen": 900,
-     "room": 0.2,
      "warmth": 0,
-     "wobble": 0
+     "room": 0.2,
+     "gain": 0,
+     "wobble": 0,
+     "maxLen": 900,
+     "fadeOut": 150
     },
     "haptic": "",
     "layers": [
@@ -2497,7 +2712,216 @@
   }
  },
  "models": {
+  "switch": {
+   "name": "Light switch",
+   "src": "Pixabay, Dragon Studio, light-switch-on",
+   "builtIn": true,
+   "order": 24,
+   "A": [
+    1,
+    -2.86005,
+    4.55289,
+    -5.06295,
+    3.7909,
+    -1.33473,
+    -0.92036,
+    1.88676,
+    -1.30906,
+    -0.04319,
+    1.03961,
+    -1.06355,
+    0.25371,
+    0.57493,
+    -0.84888,
+    0.41999,
+    0.27471,
+    -0.66507,
+    0.50998,
+    -0.01077,
+    -0.43142,
+    0.53792,
+    -0.32964,
+    0.09828,
+    0.01943
+   ],
+   "E": [
+    190,
+    235,
+    204,
+    165,
+    136,
+    146,
+    142,
+    121,
+    127,
+    135,
+    123,
+    121,
+    120,
+    107,
+    92,
+    90,
+    90,
+    49,
+    0,
+    24,
+    30,
+    33,
+    54,
+    30,
+    50,
+    77,
+    67,
+    80,
+    81,
+    84,
+    83,
+    89,
+    91,
+    111,
+    105,
+    118,
+    136,
+    146,
+    141,
+    133,
+    137,
+    129,
+    134,
+    142,
+    148,
+    141,
+    134,
+    140,
+    161,
+    153,
+    145,
+    162,
+    170,
+    156,
+    158,
+    159,
+    151,
+    151,
+    165,
+    174,
+    181,
+    182,
+    168,
+    181,
+    180,
+    160,
+    175,
+    162,
+    183,
+    180,
+    193,
+    188,
+    181,
+    199,
+    204,
+    200,
+    172,
+    174,
+    175,
+    176,
+    189,
+    198,
+    179,
+    186,
+    187,
+    178,
+    183,
+    199,
+    193,
+    190,
+    202,
+    209,
+    202,
+    199,
+    206,
+    205,
+    201,
+    204,
+    197,
+    199,
+    201,
+    195,
+    194,
+    216,
+    205,
+    199,
+    203,
+    205,
+    205,
+    205,
+    208,
+    207,
+    218,
+    209,
+    217,
+    201,
+    222,
+    217,
+    207,
+    201,
+    209,
+    205,
+    214,
+    209,
+    195,
+    206,
+    202,
+    195,
+    212,
+    224,
+    195,
+    207,
+    205,
+    224,
+    203,
+    211,
+    231,
+    222,
+    218,
+    210,
+    217,
+    205,
+    220,
+    243,
+    234,
+    223,
+    221,
+    210,
+    221,
+    226,
+    225,
+    230,
+    225,
+    208,
+    228,
+    219,
+    240,
+    224,
+    235,
+    236,
+    233,
+    229,
+    220,
+    225,
+    252,
+    224,
+    228,
+    220,
+    227,
+    217
+   ]
+  },
   "clack": {
+   "name": "Wood clack",
+   "src": "Pixabay, freesound_community, clack-85854",
+   "builtIn": true,
+   "order": 24,
    "A": [
     1,
     -2.44673,
@@ -2791,10 +3215,7 @@
     229,
     226,
     229
-   ],
-   "name": "Wood clack",
-   "order": 24,
-   "src": "Pixabay, freesound_community, clack-85854"
+   ]
   },
   "rec-processed-dragon-studio-wind-blowing-sfx-mw3zub5vw": {
    "A": [
@@ -5828,7 +6249,7 @@
    ],
    "name": "processed-dragon-studio-wind-blowing-sfx-01-423673_1",
    "order": 24,
-   "src": "Pixabay, Dragon Studio, wind blowing sfx 01 (cut by Krischan) \u00b7 fitted 2026-11-06"
+   "src": "Pixabay, Dragon Studio, wind blowing sfx 01 (cut by Krischan) · fitted 2026-11-06"
   },
   "rec-processed-freesound-community-glass-brok-mw3zub5vg": {
    "A": [
@@ -7682,7 +8103,7 @@
    ],
    "name": "processed-freesound_community-glass-broken-43626",
    "order": 48,
-   "src": "Pixabay, freesound_community, glass broken \u00b7 fitted 2026-11-06"
+   "src": "Pixabay, freesound_community, glass broken · fitted 2026-11-06"
   },
   "rec-processed-tanweraman-ice-freezing-445024-mw3zub5vf": {
    "A": [
@@ -10572,7 +10993,7 @@
    ],
    "name": "processed-tanweraman-ice-freezing-445024",
    "order": 32,
-   "src": "Pixabay, tanweraman, ice freezing \u00b7 fitted 2026-11-06"
+   "src": "Pixabay, tanweraman, ice freezing · fitted 2026-11-06"
   },
   "rec-processed-vishiv-crowd-cheering-in-stadi-mw51zlgy": {
    "A": [
