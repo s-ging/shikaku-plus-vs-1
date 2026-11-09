@@ -82,11 +82,10 @@ details summary { cursor: pointer; color: var(--fg2); padding: 8px 0 4px; }
 .cfg-h { font-family: var(--font-ui); font-weight: 400; font-size: 17px; margin: 18px 0 10px; display: flex; align-items: baseline; gap: 14px; }
 .cfg-h span { color: var(--fg2); font-size: 13px; }
 .cfg-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.cfg-cards button { text-align: left; background: transparent; border: 2px solid var(--cell); border-radius: 8px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+.cfg-cards button { text-align: left; background: transparent; border: 2px solid rgba(208, 184, 120, 0.55); color: var(--fg); border-radius: 8px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
 .cfg-cards button strong { font-size: 24px; font-weight: 400; line-height: 1.1; }
-.cfg-cards button span { color: var(--fg2); font-size: 13px; line-height: 1.45; }
-.cfg-cards button:nth-child(2) { border-color: var(--them); }
-.cfg-cards button:nth-child(2) span { color: var(--them); }
+.cfg-cards button span { color: var(--accent); font-size: 13px; line-height: 1.45; }
+/* Both divisions are amber, like Classic in the app: not blue, which is Hokan's (Krischan, 2026-11-09). */
 .cfg-cards button[aria-pressed='true'] { background: var(--accent); border-color: var(--accent); color: var(--ink); }
 .cfg-cards button[aria-pressed='true'] span { color: rgba(18, 18, 18, 0.72); }
 .cfg-tiles { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 10px; }
@@ -95,7 +94,10 @@ details summary { cursor: pointer; color: var(--fg2); padding: 8px 0 4px; }
 .cfg-tiles button small { color: var(--fg2); font-size: 12.5px; }
 .cfg-tiles button[aria-pressed='true'] { background: var(--accent); color: var(--ink); }
 .cfg-tiles button[aria-pressed='true'] small { color: rgba(18, 18, 18, 0.72); }
-.cfg-presets { margin-top: 18px; align-items: start; }
+.cfg-presets { margin: 4px 0 8px; align-items: start; }
+.home-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.home-actions button { min-height: 52px; font-size: 15px; }
+@media (max-width: 420px) { .home-actions { grid-template-columns: minmax(0, 1fr); } }
 .cfg-presets > span { padding-top: 9px; }
 @media (max-width: 420px) { .cfg-cards button strong { font-size: 20px; } .cfg-cards button { padding: 12px; } }
 
@@ -311,34 +313,37 @@ canvas.board { display: block; width: 100%; height: auto; aspect-ratio: 1; touch
 		<p class="muted" style="margin: 0 0 8px">Four short lessons: Fundamentals, Mines, Frozen Cells, Advanced.</p>
 		<div class="row"><a class="btn" id="learn" href="/learn" style="display: inline-flex; align-items: center; color: inherit; text-decoration: none">Start the tutorial</a></div>
 	</div>
+	<!-- Three ways in (Krischan, 2026-11-09): create, join, practice. -->
 	<div class="panel">
-		<h2>Play a friend</h2>
-		<div class="row">
+		<div class="home-actions">
 			<button class="primary" id="create">Create a room</button>
-			<span class="muted">or</span>
-			<input type="text" id="join-code" maxlength="4" placeholder="Room code" aria-label="Room code" style="width: 120px; text-transform: uppercase">
-			<button id="join">Join</button>
+			<button id="join-open" aria-expanded="false">Join a room</button>
+			<button id="practice-open">Practice</button>
 		</div>
-	</div>
-	<div class="panel">
-		<h2>Practice against a bot</h2>
-		<p class="muted" style="margin: 0 0 8px">Runs on your device only. No connection needed.</p>
-		<!-- The same match settings as a room, before a bot match (Krischan, 2026-11-09). -->
-		<h3 class="cfg-h">Division</h3>
-		<div class="cfg-cards" id="pr-division"></div>
-		<h3 class="cfg-h">Match <span id="pr-queue-note"></span></h3>
-		<div class="cfg-tiles" id="pr-queue"></div>
-		<h3 class="cfg-h">First to</h3>
-		<div class="cfg-tiles" id="pr-ft"></div>
-		<h3 class="cfg-h">Bot</h3>
-		<div class="row">
-			<select id="practice-mode" aria-label="Mode" hidden><!-- Mines soft-retired 2026-11-08 --><option value="vs">Shikaku+ VS</option><option value="mines">Shikaku+ Mines</option></select>
-			<select id="bot-level" aria-label="Bot difficulty"></select>
-			<button id="practice">Play</button>
+		<div class="row" id="join-row" hidden style="margin-top: 10px">
+			<input type="text" id="join-code" maxlength="4" placeholder="Room code" aria-label="Room code" style="width: 140px; text-transform: uppercase">
+			<button class="primary" id="join">Join</button>
 		</div>
 	</div>
 </section>
 
+<!-- Practice: set up a bot match the way a room is set up (Krischan, 2026-11-09). The settings
+     panel (#cfg-panel) moves here from the lobby while this page shows. -->
+<section id="practice-page" hidden style="display: flex; flex-direction: column; gap: 12px">
+	<div class="panel">
+		<div class="row" style="justify-content: space-between">
+			<h2 style="margin: 0">Practice against a bot</h2>
+			<button id="practice-back">Back</button>
+		</div>
+		<p class="muted" style="margin: 6px 0 10px">Runs on your device only. No connection needed. Never rated.</p>
+		<div class="row">
+			<select id="practice-mode" aria-label="Mode" hidden><!-- Mines soft-retired 2026-11-08 --><option value="vs">Shikaku+ VS</option><option value="mines">Shikaku+ Mines</option></select>
+			<select id="bot-level" aria-label="Bot difficulty"></select>
+			<button class="primary" id="practice">Play</button>
+		</div>
+	</div>
+	<div id="practice-cfg-slot"></div>
+</section>
 <section id="lobby" hidden style="display: flex; flex-direction: column; gap: 12px">
 	<div class="panel">
 		<div class="row" style="justify-content: space-between">
@@ -352,8 +357,9 @@ canvas.board { display: block; width: 100%; height: auto; aspect-ratio: 1; touch
 			<span class="muted" id="lobby-hint"></span>
 		</div>
 	</div>
-	<div class="panel">
-		<div class="tabs" role="tablist" aria-label="Room settings">
+	<div id="lobby-cfg-slot"></div>
+	<div class="panel" id="cfg-panel">
+		<div class="tabs" role="tablist" aria-label="Match settings">
 			<button type="button" role="tab" data-tab="match" aria-selected="true">Match</button>
 			<button type="button" role="tab" data-tab="game" aria-selected="false">Game</button>
 			<span class="muted" id="rules-who"></span>
@@ -368,9 +374,9 @@ canvas.board { display: block; width: 100%; height: auto; aspect-ratio: 1; touch
 			<div class="cfg-tiles" id="pick-ft"></div>
 			<!-- Mines is soft-retired (Krischan, 2026-11-08: maybe a seasonal or event mode later); the code stays. -->
 			<div class="pick" id="mode-row" hidden><span>Mode</span><div class="seg" id="pick-mode"></div></div>
-			<div class="pick cfg-presets"><span>Presets</span><div class="seg" id="presets"></div></div>
 		</div>
 		<div id="tab-game" role="tabpanel" hidden>
+			<div class="pick cfg-presets"><span>Presets</span><div class="seg" id="presets"></div></div>
 			<div class="settings" id="settings"></div>
 		</div>
 		<div class="save-row" id="save-row" hidden><span class="muted" id="save-note"></span><button class="primary" id="save">Save</button></div>
