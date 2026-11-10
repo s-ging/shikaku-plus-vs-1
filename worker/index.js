@@ -118,7 +118,8 @@ export class Room {
 		if (msg.t === 'hello') {
 			if (typeof msg.id !== 'string' || !/^[a-z0-9]{8,32}$/.test(msg.id)) return sock.close(1008, 'bad id');
 			sock.serializeAttachment({ ...att, id: msg.id });
-			if (!core.hello(msg.id, msg, now)) sock.close(1000, 'full');
+			const ok = core.hello(msg.id, msg, now);
+			if (ok !== true) sock.close(1000, ok); // 'full' or 'update': the client shows why and doesn't retry
 			return;
 		}
 		if (att.id) core.message(att.id, msg, now);

@@ -384,7 +384,7 @@
 					ws.send('ping');
 				}, 4000);
 				banner(null);
-				ws.send(JSON.stringify({ t: 'hello', id: myId, name: myName(), k: key || undefined, dev: device() }));
+				ws.send(JSON.stringify({ t: 'hello', id: myId, name: myName(), k: key || undefined, dev: device(), pv: PROTOCOL_VERSION }));
 				// Learn the server's clock now, not at the first move: a device clock a few seconds off
 				// showed a 10-second "3-2-1" and stamped early moves wrong. Three samples, the best one wins.
 				for (let k = 0; k < 3; k++) setTimeout(() => ws.readyState === 1 && ws.send(JSON.stringify({ t: 'time', c: Date.now() })), k * 400);
@@ -410,6 +410,7 @@
 				this.ready = false;
 				if (this.closedByUs) return;
 				if (ev.reason === 'full') return banner('This room is full: two players are already in it.');
+				if (ev.reason === 'update') return banner('Shikaku+ VS has been updated. Reload the page to play online.');
 				banner('Connection lost. Reconnecting…');
 				this.later();
 			};
@@ -472,6 +473,7 @@
 			return;
 		}
 		if (msg.t === 'err') {
+			if (msg.why === 'update') return banner('Shikaku+ VS has been updated. Reload the page to play online.');
 			banner(msg.why === 'full' ? 'This room is full.' : 'Something went wrong: ' + msg.why);
 			return;
 		}

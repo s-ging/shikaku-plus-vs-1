@@ -412,3 +412,27 @@ test('clock check: the server answers a time ping at once, unsequenced and unsav
 	assert.ok(got[0].s > 0);
 	assert.equal(w.saved.length, saves);
 });
+
+test('protocol version: a hello below the minimum is told to update and gets no seat; no pv counts as version 1', async () => {
+	const { MIN_PROTOCOL_VERSION, PROTOCOL_VERSION, helloVersion } = await import('../shared/protocol.js');
+	assert.equal(helloVersion({}), 1, 'a web client from before pv is version 1');
+	assert.equal(helloVersion({ pv: 'x' }), 1);
+	assert.equal(helloVersion({ pv: PROTOCOL_VERSION }), PROTOCOL_VERSION);
+	assert.ok(PROTOCOL_VERSION >= MIN_PROTOCOL_VERSION, 'our own client is never refused');
+	const sent = [];
+	const conns = [{ conn: 'a', id: 'aaaaaaaa1' }, { conn: 'b', id: 'bbbbbbbb2' }, { conn: 'c', id: 'cccccccc3' }];
+	const io = { send: (conn, obj) => sent.push([conn, obj]), conns: () => conns, save: () => {}, report: () => {} };
+	const room = new RoomCore('QWER', io, null, null);
+	assert.equal(room.hello('aaaaaaaa1', { t: 'hello', id: 'aaaaaaaa1', name: 'Old web' }, 1000), true, 'no pv is still welcome');
+	assert.equal(room.hello('bbbbbbbb2', { t: 'hello', id: 'bbbbbbbb2', name: 'App', pv: PROTOCOL_VERSION }, 1000), true);
+	assert.equal(room.seats.length, 2);
+	// The day the minimum goes up: a client below it is turned away before it takes a seat.
+	room.minVersion = PROTOCOL_VERSION + 1;
+	assert.equal(room.hello('cccccccc3', { t: 'hello', id: 'cccccccc3', name: 'Old app', pv: PROTOCOL_VERSION }, 1000), 'update');
+	assert.deepEqual(sent.at(-1), ['c', { t: 'err', why: 'update', min: PROTOCOL_VERSION + 1 }]);
+	assert.equal(room.hello('aaaaaaaa1', { t: 'hello', id: 'aaaaaaaa1', name: 'Old web' }, 1000), 'update', 'even a seated player, on rejoin');
+	assert.equal(room.seats.length, 2);
+	room.minVersion = undefined;
+	assert.equal(room.hello('cccccccc3', { t: 'hello', id: 'cccccccc3', name: 'Third', pv: PROTOCOL_VERSION }, 1000), 'full', 'a full room says why');
+	assert.equal(room.seats.length, 2);
+});

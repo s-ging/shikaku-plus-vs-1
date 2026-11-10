@@ -10,7 +10,7 @@
 //               (the round's messages, ~25 B a move). The saved room also carries the current round's
 //               replay so far, so a sleeping room loses nothing: ~6 KB plus ~25 B a move.
 import { VersusMatch } from '../engine/versus-match.js';
-import { decodeAction, encodeAction, stateHash, testerCode, RESULT_MS, COUNTDOWN_MS } from '../shared/protocol.js';
+import { decodeAction, encodeAction, stateHash, testerCode, helloVersion, MIN_PROTOCOL_VERSION, RESULT_MS, COUNTDOWN_MS } from '../shared/protocol.js';
 import { rulesFor, sanitize } from '../shared/settings.js';
 
 const STALE_MS = 20000; // no ping or message this long = really gone (a phone that lost signal may never close its socket).
@@ -153,13 +153,18 @@ export class RoomCore {
 	}
 
 	// —— connection events ——
-	/** A socket said hello. Returns false if the room is full. */
+	/** A socket said hello. Returns true, or why it was turned away: 'update' (client too old) or 'full'. */
 	hello(id, msg, now) {
+		const min = this.minVersion ?? MIN_PROTOCOL_VERSION; // tests raise it
+		if (helloVersion(msg) < min) {
+			this._to(id, { t: 'err', why: 'update', min });
+			return 'update';
+		}
 		let i = this._seatOf(id);
 		if (i < 0) {
 			if (this.seats.length >= 2) {
 				this._to(id, { t: 'err', why: 'full' });
-				return false;
+				return 'full';
 			}
 			this.seats.push({ id, name: cleanName(msg.name), ready: false, connected: true, admin: false, dev: null, tele: [], reconnects: 0, gone: 0, goneRound: 0, timing: null });
 			i = this.seats.length - 1;
