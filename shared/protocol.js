@@ -3,7 +3,9 @@
 // on reconnect, on a new round, and when a client reports that it drifted.
 //
 // Client → server
-//   hello  { t, id, name, k?, dev, pv? } join or rejoin (id is a random per-browser id; pv = PROTOCOL_VERSION)
+//   hello  { t, id, name, k?, dev, pv?, tok? }  join or rejoin (id is a random per-browser id; pv = PROTOCOL_VERSION;
+//                                        tok = the player's Shikaku+ account token: the server checks it and shows the
+//                                        account's name and badge instead of the typed name: worker/identity.js)
 //   set    { t, o }                      host only, in the lobby: setting overrides
 //   ready  { t, v }                      lobby ready toggle
 //   start  { t }                         host only, both ready
@@ -18,7 +20,8 @@
 //   report { t }                         admin only: the match report so far
 //
 // Server → client (sequenced ones carry n, the server's message number, and t, server time)
-//   room   { t, code, you, host, admin, phase, seats, o }       lobby / room state
+//   room   { t, code, you, host, admin, phase, seats, o }       lobby / room state; a seat is { name, ready, connected,
+//                                                                badge?, v? } (v: the name is the account's, checked)
 //   full   { t, n, st, o, phase }                               whole match state
 //   mv     { t, n, i, a, at, h, s? }                            an accepted move (s echoed to its sender)
 //   no     { t, s, why }                                        a refused move (only to its sender)

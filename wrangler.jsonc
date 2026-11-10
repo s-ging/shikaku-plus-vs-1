@@ -22,6 +22,13 @@
 	},
 	"previews": {
 	},
+	// Account checks for signed-in players (worker/identity.js, decision 0017). Both are public by
+	// design: the same URL and anon key ship inside every Shikaku+ app build. Remove them and
+	// everyone simply joins as a guest.
+	"vars": {
+		"SUPABASE_URL": "https://facboumzeprcfzfhchnq.supabase.co",
+		"SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZhY2JvdW16ZXByY2Z6ZmhjaG5xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzMTUwODUsImV4cCI6MjA5NTg5MTA4NX0.I_lxa8Dh2_bBdqeZ-PtzWj7wR2l7GTcp0rNDb84qq-w"
+	},
 	"migrations": [{ "tag": "v1", "new_sqlite_classes": ["Room", "Reports"] }]
 	// The admin secret is NOT here. Set it once with: npx wrangler secret put ADMIN_KEY
 }
