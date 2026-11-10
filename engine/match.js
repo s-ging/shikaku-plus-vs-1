@@ -16,11 +16,11 @@ export const VS_GEN = { size: 6, maxAreaFrac: 0.32, maxGivens: 10 };
  * Board `index` of a match's shared sequence. Classic generator untouched; VS
  * caps givens by retry (oddChance/oddDimLean: original algorithm lost — not yet reimplemented).
  */
-export function vsBoard(seed, index) {
+export function vsBoard(seed, index, maxGivens = VS_GEN.maxGivens) {
 	for (let k = 0; ; k++) {
 		const s = (seed * 7919 + index * 104729 + k * 15485863) % 2147483646;
 		const p = generatePuzzle(VS_GEN.size, VS_GEN.maxAreaFrac, s);
-		if (p.layout.length <= VS_GEN.maxGivens || k > 50) return { ...p, seed: s };
+		if (p.layout.length <= maxGivens || k > 50) return { ...p, seed: s };
 	}
 }
 

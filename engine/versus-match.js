@@ -54,11 +54,11 @@ export class VersusSide {
 
 // Boards are regenerated from (roundSeed, index); cache them so restoring a snapshot is cheap.
 const BOARD_CACHE = new Map();
-function cachedBoard(roundSeed, index) {
-	const k = roundSeed + ':' + index;
+function cachedBoard(roundSeed, index, cap = 0) {
+	const k = roundSeed + ':' + index + (cap ? ':' + cap : '');
 	let b = BOARD_CACHE.get(k);
 	if (!b) {
-		b = vsBoard(roundSeed, index);
+		b = cap ? vsBoard(roundSeed, index, cap) : vsBoard(roundSeed, index);
 		BOARD_CACHE.set(k, b);
 		if (BOARD_CACHE.size > 64) BOARD_CACHE.delete(BOARD_CACHE.keys().next().value);
 	}
@@ -96,6 +96,7 @@ export class VersusMatch {
 					gAt: s.gAt ?? null,
 					frozenAt: s.frozenAt ?? null,
 					pausedUntil: s.pausedUntil ?? 0,
+					...(s.rushCap ? { rc: s.rushCap } : {}),
 					rng: s.econ.rng.s,
 					econ: JSON.parse(JSON.stringify(econ))
 				};
@@ -126,7 +127,8 @@ export class VersusMatch {
 			if (typeof s.econ.armed !== 'number') s.econ.armed = 0;
 			s.boardIndex = ss.boardIndex;
 			s.cleared = ss.cleared;
-			s.deal(cachedBoard(st.roundSeed, ss.boardIndex));
+			s.rushCap = ss.rc || 0;
+			s.deal(cachedBoard(st.roundSeed, ss.boardIndex, s.rushCap));
 			s.rects = ss.rects.map(([a, b, c, d]) => Object.assign(new Rect(a, b, c, d), { valid: true }));
 			s.gAt = ss.gAt ?? undefined;
 			s.frozenAt = ss.frozenAt;
@@ -153,7 +155,10 @@ export class VersusMatch {
 			new VersusSide('you', this.rules, this.roundSeed * 3 + 1),
 			new VersusSide('them', this.rules, this.roundSeed * 3 + 2)
 		];
-		for (const s of this.sides) s.deal(cachedBoard(this.roundSeed, 0));
+		for (const s of this.sides) {
+			s.rushCap = 0;
+			s.deal(cachedBoard(this.roundSeed, 0));
+		}
 		this.roundOver = null;
 		this.leadChanges = 0;
 		this._lead = 0;
@@ -275,7 +280,7 @@ export class VersusMatch {
 			tag(s, s.econ.onBoardCleared());
 			s.cleared++;
 			s.boardIndex++;
-			s.deal(cachedBoard(this.roundSeed, s.boardIndex));
+			this._dealNext(s);
 			s.econ.retargetIce(s.landable());
 			if (s.econ.spill) {
 				tag(s, s.econ.receiveIce(s.econ.spill, s.landable()));
@@ -287,6 +292,17 @@ export class VersusMatch {
 		this._route(s, opp, out);
 		this._tickSide(s, opp, tag, out);
 		return { moved: true, events: out, placed: a.placed };
+	}
+
+	/**
+	 * Deal side s its next Board. From the first Rush step on, a Board has at most rushMaxGivens Givens
+	 * (Krischan, 2026-11-09): fewer regions leave fewer Mine landings that no sequence of moves can answer.
+	 * The Board is still a pure function of (roundSeed, index, cap); the cap is kept on the side so a snapshot
+	 * rebuilds the same Board. Off (0/absent) for rules recorded before this existed, so old replays hold.
+	 */
+	_dealNext(s) {
+		s.rushCap = this.rules.rushMaxGivens && this.rushFactor > 1 ? this.rules.rushMaxGivens : 0;
+		s.deal(cachedBoard(this.roundSeed, s.boardIndex, s.rushCap));
 	}
 
 	/** What side i's clear would send right now (base, counter-spike, rush). */
@@ -315,7 +331,7 @@ export class VersusMatch {
 		if (this.rules.freezeOver === 'loseBoard' && s.econ.ice.length >= this.rules.freezeOverAt && !s.econ.isKO) {
 			tag(s, s.econ.loseBoard());
 			s.boardIndex++;
-			s.deal(cachedBoard(this.roundSeed, s.boardIndex));
+			this._dealNext(s);
 			s.econ.retargetIce(s.landable());
 			s.pausedUntil = (this.clock ?? 0) + this.rules.frozenPauseMs;
 			out.push({ side: s.name, kind: 'newBoard', index: s.boardIndex, frozen: true });
