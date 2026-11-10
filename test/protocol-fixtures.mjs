@@ -347,13 +347,18 @@ function sessions() {
 		const b = w.addClient(1, 'bbbbbbbb2', 'Ben');
 		lobbyToMatch(w, a, b, { firstTo: 1 });
 		w.run(6000, playLoop(w));
+		// B moves and the line dies while the server's echo is on its way back: the server has
+		// the move, B doesn't know. On reconnect the full state's ls tells B not to resend it.
+		const p = b.core.predicted;
+		b.move(b.bot.decide(p.sides[b.core.me]) || { type: 'erase', x: 0, y: 0 });
+		w.run(100);
 		w.drop(1);
 		const offline = playLoop(w, { pace: [900, 1100], offline: true });
 		w.run(5000, (now) => offline(now));
 		w.reconnect(1);
 		w.run(2000);
 		w.run(6000, playLoop(w));
-		out.push(pack('dropout', 'B drops mid-round, keeps playing offline, reconnects: queued moves are resent and land once', w));
+		out.push(pack('dropout', 'B drops mid-round with an echo still in flight, keeps playing offline, reconnects: queued moves are resent and land once, the one the server already had is not', w));
 	});
 
 	// 3. A long dropout: B is frozen, comes back as a fresh client (an app restart: new ClientCore,
