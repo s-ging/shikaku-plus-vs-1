@@ -13,7 +13,20 @@ import { VersusMatch } from '../engine/versus-match.js';
 import { decodeAction, encodeAction, stateHash, testerCode, helloVersion, MIN_PROTOCOL_VERSION, RESULT_MS, COUNTDOWN_MS } from '../shared/protocol.js';
 import { rulesFor, sanitize } from '../shared/settings.js';
 
-const STALE_MS = 20000; // no ping or message this long = really gone (a phone that lost signal may never close its socket).
+// Dropouts (2026-11-11, decision 0019). A connected client is heard at least every 2s (a ping, answered at
+// Cloudflare's edge; read lazily from its timestamp). A player who loses signal may never close their socket.
+//   QUIET_MS     silent this long: their clock stops, backdated to QUIET_MS after they were last heard, so the
+//                server noticing late costs them nothing. They thaw the moment they're heard again.
+//   HOLD_MS      silent this long: the battle is on hold for everyone (nothing ticks); both players could play
+//                until then. Their phone stops taking moves at the same point, and the moves it made before
+//                count when they're back (applied outside time, on the board they played on).
+//   HOLD_WAIT_MS back within this: a 3-2-1, play resumes, and both are offered a remake. Not back: they forfeit
+//                the match. Noticed lazily, at the next message (the waiting player's app sends 'claim').
+const QUIET_MS = 3000;
+const HOLD_MS = 5000;
+const HOLD_WAIT_MS = 30000;
+// Names an account has before its player picks one (supabase migration 15): not worth showing over the typed one.
+const PLACEHOLDER_NAMES = new Set(['Player', 'Guest']);
 // Shorter hiccups never freeze anyone: the client keeps playing and its queued moves arrive when the line comes back.
 const REMAKE_AFTER_MS = 10000; // a seat gone this long in one round may call a remake vote
 const VOTE_MS = 20000;
@@ -59,6 +72,7 @@ export class RoomCore {
 			n: 0,
 			next: [false, false],
 			vote: null, // { yes: [bool|null, bool|null], until }
+			hold: null, // the battle on hold: { i (who's missing), at, until }
 			report: null,
 			matchState: null,
 			_roundLogged: false,
@@ -71,8 +85,8 @@ export class RoomCore {
 	// —— persistence ——
 	_save() {
 		this.matchState = this.match ? this.match.toState() : null;
-		const { code, phase, seats, o, n, next, vote, report, matchState, _roundLogged, rlog } = this;
-		this.io.save({ code, phase, seats, o, n, next, vote, report, matchState, _roundLogged, rlog });
+		const { code, phase, seats, o, n, next, vote, hold, report, matchState, _roundLogged, rlog } = this;
+		this.io.save({ code, phase, seats, o, n, next, vote, hold, report, matchState, _roundLogged, rlog });
 	}
 
 	// —— helpers ——
@@ -98,7 +112,8 @@ export class RoomCore {
 			seats: this.seats.map((s) => ({ name: s.name, ready: s.ready, connected: s.connected, ...(s.badge ? { badge: s.badge } : {}), ...(s.v ? { v: true } : {}) })),
 			replay: this.report && this.match && this.match.over ? this.report.replayId : null,
 			o: this.o,
-			vote: this.vote ? { open: true, yes: this.vote.yes } : null
+			vote: this.vote ? { open: true, yes: this.vote.yes } : null,
+			hold: this.hold ? { i: this.hold.i, at: this.hold.at, until: this.hold.until } : null
 		};
 	}
 	_roomAll() {
@@ -118,17 +133,24 @@ export class RoomCore {
 
 	// —— replays (2026-11-05) ——
 	// A replay is the match header plus, per round, every sequenced message the server applied:
-	//   ['m', seat, action, at, g]   a move        ['t', seat, at, g]   a gravity catch-up
+	//   ['m', seat, action, at, g]   a move (at and g null: an offline move applied outside time; then a
+	//                                6th entry says when it arrived, for the replay's timeline only)
+	//   ['t', seat, at, g]           a gravity catch-up
 	//   ['f', seat, at]              a freeze      ['h', seat, at, g]   a thaw
+	//   ['H', seat, at]              the battle on hold (seat: who's missing)
+	//   ['G', null, at]              resume at `at` (after a 3-2-1)    ['X', seat, at]   seat forfeits
 	// The engine is deterministic, so replaying these from the round's seed rebuilds the round
 	// exactly; the last state hash is kept to prove it. About 25 bytes per move.
 	_record(obj, h) {
 		const r = this.rlog;
 		if (!r) return;
-		if (obj.t === 'mv') r.msgs.push(['m', obj.i, obj.a, obj.at, obj.g]);
+		if (obj.t === 'mv') r.msgs.push(obj.at == null ? ['m', obj.i, obj.a, null, null, this._now] : ['m', obj.i, obj.a, obj.at, obj.g]);
 		else if (obj.t === 'tk') r.msgs.push(['t', obj.i ?? null, obj.at, obj.g ?? null]);
 		else if (obj.t === 'fz') r.msgs.push(['f', obj.i, obj.at]);
 		else if (obj.t === 'th') r.msgs.push(['h', obj.i, obj.at, obj.g ?? null]);
+		else if (obj.t === 'hold') r.msgs.push(['H', obj.i, obj.at]);
+		else if (obj.t === 'go') r.msgs.push(['G', null, obj.at]);
+		else if (obj.t === 'ff') r.msgs.push(['X', obj.i, obj.at]);
 		else return;
 		r.hash = h;
 	}
@@ -161,6 +183,7 @@ export class RoomCore {
 	 * rejoin's check fails (offline token refresh): only a new checked account replaces them.
 	 */
 	hello(id, msg, now, who = null) {
+		this._now = now;
 		const min = this.minVersion ?? MIN_PROTOCOL_VERSION; // tests raise it
 		if (helloVersion(msg) < min) {
 			this._to(id, { t: 'err', why: 'update', min });
@@ -184,7 +207,7 @@ export class RoomCore {
 		if (who && who.uid) {
 			seat.uid = who.uid;
 			seat.badge = who.badge || null;
-			if (who.name) {
+			if (who.name && !PLACEHOLDER_NAMES.has(who.name)) {
 				seat.name = who.name;
 				seat.v = true; // the name is the account's, checked by the server
 			}
@@ -192,6 +215,7 @@ export class RoomCore {
 		if (this.adminKey && msg.k && msg.k === this.adminKey) seat.admin = true;
 		if (msg.dev && typeof msg.dev === 'object') seat.dev = JSON.parse(JSON.stringify(msg.dev).slice(0, 600) || 'null');
 		seat.lastSeen = now;
+		this._expireHold(now); // back too late: the match is already lost
 		this._resume(i, now);
 		this._reap(now);
 		this._roomAll();
@@ -210,19 +234,63 @@ export class RoomCore {
 		seat.left = null;
 		seat.goneFrom = null;
 		seat.connected = true;
+		if (this.hold) {
+			// Back from a hold. Once everyone is here, a 3-2-1 for both, then play on; both may ask for a remake.
+			if (this.seats.some((s) => s.left != null)) return;
+			const go = now + COUNTDOWN_MS;
+			this.match.resumeAll(go);
+			this.hold = null;
+			this._all(this._seq({ t: 'go', at: go }), seat.id);
+			if (!this.match.roundOver) this.vote = { yes: [null, null], until: go + VOTE_MS };
+			return;
+		}
 		this.match.thawSide(i, now);
 		this._all(this._seq({ t: 'th', i, at: now, g }), seat.id);
 		if (seat.goneRound >= REMAKE_AFTER_MS && !this.match.roundOver && !this.vote) this.vote = { yes: [null, null], until: now + VOTE_MS };
 	}
 
+	/** When a seat was last heard from: its last message, or its last ping (answered at the edge). */
+	_seen(s) {
+		return Math.max(s.lastSeen || 0, (this.io.lastPing && this.io.lastPing(s.id)) || 0);
+	}
+
+	/** A seat has been silent HOLD_MS: hold the battle for everyone, and wait HOLD_WAIT_MS for them. */
+	_holdBattle(i, now) {
+		const m = this.match;
+		m.catchUp(now);
+		m.holdAll(now);
+		this.hold = { i, at: now, until: now + HOLD_WAIT_MS };
+		this.vote = null;
+		if (this.report) this.report.holds = (this.report.holds || 0) + 1;
+		this._all(this._seq({ t: 'hold', i, at: now, until: this.hold.until }));
+		this._roomAll();
+	}
+
+	/** The wait is over and they're still gone: they forfeit the match. */
+	_expireHold(now) {
+		const h = this.hold;
+		if (!h || !this.match || now < h.until || this.seats[h.i]?.left == null) return;
+		this.hold = null;
+		this.match.forfeit(h.i, now);
+		if (this.report) this.report.forfeitBy = h.i;
+		this._all(this._seq({ t: 'ff', i: h.i, at: now }));
+		this._afterChange(now);
+		this._roomAll();
+		this._save();
+	}
+
 	/** Lazy dead-connection check, run whenever anything arrives. No timers. */
 	_reap(now) {
-		if (!this.match || this.phase !== 'match') return;
+		if (!this.match || this.phase !== 'match' || this.match.over) return;
 		this.seats.forEach((s, i) => {
 			if (s.left != null || !s.connected) return;
-			const seen = Math.max(s.lastSeen || 0, (this.io.lastPing && this.io.lastPing(s.id)) || 0);
-			if (seen && now - seen > STALE_MS) this._drop(i, now, seen);
+			const seen = this._seen(s);
+			if (seen && now - seen > QUIET_MS) this._drop(i, now, seen);
 		});
+		if (!this.hold && !this.match.roundOver) {
+			const i = this.seats.findIndex((s) => s.left != null && now - (s.goneFrom ?? s.left) >= HOLD_MS);
+			if (i >= 0) this._holdBattle(i, now);
+		}
 	}
 
 	closed(id, now) {
@@ -246,10 +314,16 @@ export class RoomCore {
 			this.seats.splice(i, 1);
 		} else if (this.match && this.phase === 'match') {
 			seat.left = now;
-			const g = this._pay(now);
-			this.match.freezeSide(i, g);
+			// Their clock stops QUIET_MS after they were last heard (or now, for a socket that closed): noticing
+			// later costs them nothing. Nothing was paid past that yet: this check runs before every message.
+			const at = Math.min(now, since + QUIET_MS);
+			this.match.catchUp(at);
+			this.match.freezeSide(i, at);
+			// Moves they made before the battle went on hold count when they're back (see _move).
+			seat.offlineFrom = since;
+			seat.offlineUntil = since + HOLD_MS;
 			// Sent to the frozen seat too: if its socket was only quiet, it hears this and answers.
-			this._all(this._seq({ t: 'fz', i, at: g }));
+			this._all(this._seq({ t: 'fz', i, at }));
 			// Everyone gone mid-match: record it as abandoned now. If they come back and finish,
 			// the finished report replaces this one (same key).
 			if (!this.match.over && this.seats.every((s) => !s.connected)) this._sendReport(now);
@@ -258,10 +332,12 @@ export class RoomCore {
 	}
 
 	message(id, msg, now) {
+		this._now = now; // for replays: when an offline move arrived
 		const i = this._seatOf(id);
 		if (i < 0 || !msg || typeof msg.t !== 'string') return;
 		const seat = this.seats[i];
 		seat.lastSeen = now;
+		this._expireHold(now);
 		if (seat.left != null) {
 			this._resume(i, now); // it was only quiet, not gone
 			this._roomAll();
@@ -354,7 +430,37 @@ export class RoomCore {
 		// The move's own time, if it's believable: no older than LAG_MS, never before this seat's
 		// last message, never in the future.
 		const claimed = Number.isFinite(msg.at) ? Math.round(msg.at) : now;
-		const at = Math.min(now, Math.max(claimed, now - LAG_MS, seat.lastAt || 0));
+		// A move made while this player was offline, before the battle went on hold, arriving now that they're
+		// back: it counts (2026-11-11, decision 0019). It's applied outside time, on the board they played on:
+		// no gravity paid, no clock (at null; clients and replays apply it the same way). Their phone stopped
+		// taking moves at HOLD_MS, so anything claimed later isn't one of these.
+		const side = m.sides[i];
+		const offline =
+			seat.offlineUntil != null &&
+			claimed >= (seat.offlineFrom ?? 0) &&
+			claimed <= seat.offlineUntil &&
+			(side.frozenAt != null || now < (side.pausedUntil || 0));
+		if (offline) {
+			const r = action && !m.roundOver ? m.act(i, action, null) : { moved: false, denied: 'bad' };
+			if (!r.moved) {
+				this._to(seat.id, { t: 'no', s: msg.s, why: r.denied || 'invalid' });
+				this._afterChange(now);
+				return;
+			}
+			const echo = this._seq({ t: 'mv', i, a: encodeAction(action), at: null, g: null });
+			this._to(seat.id, { ...echo, s: msg.s });
+			this._all(echo, seat.id);
+			this._afterChange(now);
+			return;
+		}
+		// The battle is on hold: nobody moves until it resumes. A move made before the hold began, still on
+		// its way, counts, timed at the hold's start (both boards are frozen from then: no gravity owed).
+		if (this.hold && claimed > this.hold.at) {
+			this._to(seat.id, { t: 'no', s: msg.s, why: 'hold' });
+			return;
+		}
+		let at = Math.min(now, Math.max(claimed, now - LAG_MS, seat.lastAt || 0));
+		if (this.hold) at = Math.min(at, this.hold.at);
 		const g = this._pay(now, i, at);
 		const r = action && !m.roundOver ? m.act(i, action, at) : { moved: false, denied: 'bad' };
 		if (!r.moved) {
@@ -457,8 +563,10 @@ export class RoomCore {
 		this._roundLogged = false;
 		this.next = [false, false];
 		this.vote = null;
+		this.hold = null;
 		for (const s of this.seats) {
 			s.goneRound = 0;
+			s.offlineFrom = s.offlineUntil = null;
 			if (s.left != null) m.freezeSide(this._seatOf(s.id), now);
 		}
 		this._openRound(now);

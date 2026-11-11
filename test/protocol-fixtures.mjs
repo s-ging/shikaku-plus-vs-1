@@ -16,6 +16,7 @@
 //             "recorded games" data: feed a client the same calls, get the same messages and hashes.
 //             Log entries: ['in', at, raw, confirmedHash, predictedHash, pending] a server message
 //             ['out', at, raw] sent · ['move', at, action, moved, c, p, pending] · ['tick', at, c, p, pending]
+//             (sessions 'hold' and 'forfeit' cover dropouts: protocol 2, decision 0019)
 //             (only ticks that did something) · ['inject', at, action, c, p, pending] a move sent though
 //             the prediction was stale · ['close', at] / ['open', at] the socket dropped / came back.
 //
@@ -199,7 +200,9 @@ function world({ latency, seed }) {
 		conns: () => [...conns.values()].filter((c) => c.open).map((c) => ({ conn: c, id: c.id })),
 		save: () => {},
 		report: () => {},
-		replay: () => {}
+		replay: () => {},
+		// The app's heartbeat: an open client was heard about a second ago; a dropped one wasn't.
+		lastPing: (id) => ([...conns.values()].some((c) => c.id === id && c.open) ? now - 1000 : 0)
 	};
 	const room = new RoomCore('QWER', io, null, null);
 	const H = (m) => (m ? stateHash(m) : null);
@@ -292,6 +295,12 @@ function world({ latency, seed }) {
 		c.log.push(['close', now]);
 		room.closed(c.id, now);
 	}
+	/** The line dies without closing (Wi-Fi to mobile data): nothing gets through, and the server isn't told. */
+	function vanish(seat) {
+		const c = clients[seat];
+		c.conn.open = false;
+		c.log.push(['close', now]);
+	}
 	function run(ms, onStep) {
 		const end = now + ms;
 		while (now < end) {
@@ -302,7 +311,7 @@ function world({ latency, seed }) {
 			onStep?.(now);
 		}
 	}
-	return { room, addClient, reconnect, drop, run, clients, all, get now() { return now; } };
+	return { room, addClient, reconnect, drop, vanish, run, clients, all, get now() { return now; } };
 }
 
 function playLoop(w, { pace = [900, 1300], hovers = false, offline = false } = {}) {
@@ -325,6 +334,9 @@ function playLoop(w, { pace = [900, 1300], hovers = false, offline = false } = {
 				due[c.seat] = now + pace[c.seat];
 				const p = c.core.predicted;
 				if (p.roundOver) continue;
+				// The screen takes no moves while my board is frozen (the battle on hold) or paused (a 3-2-1).
+				const mine = p.sides[c.core.me];
+				if (mine.frozenAt != null || c.core.serverNow() < (mine.pausedUntil || 0)) continue;
 				const a = c.bot.decide(p.sides[c.core.me]) || { type: 'erase', x: 0, y: 0 };
 				// A drag first, like a finger would: the box it's about to place, then gone.
 				if (hovers && a.type === 'place' && c.hover() % 3 === 0) {
@@ -425,6 +437,44 @@ function sessions() {
 		a.inject({ type: 'erase', x: 0, y: 0 });
 		w.run(5000, playLoop(w));
 		out.push(pack('remake', 'B drops long enough to freeze, restarts the app and rejoins, a remake vote passes; A reconnects, asks for a resync, and has a move refused', w));
+	});
+	// 4. Krischan's dropout (2026-11-11, decision 0019): B's line dies silently mid-round; B plays on offline
+	//    for 5s (then its phone stops taking moves), A plays on; the battle holds; B is back at 12s, every
+	//    offline move counts, a 3-2-1, a remake vote both decline, and play goes on.
+	withSeededCrypto(4, () => {
+		const w = world({ latency: [60, 90], seed: 4 });
+		const a = w.addClient(0, 'aaaaaaaa1', 'Ana');
+		const b = w.addClient(1, 'bbbbbbbb2', 'Ben');
+		lobbyToMatch(w, a, b, { firstTo: 1 });
+		w.run(3000);
+		w.run(6000, playLoop(w));
+		const gone = w.now;
+		w.vanish(1);
+		const both = playLoop(w, { pace: [900, 700], offline: true });
+		const onlyA = playLoop(w, { pace: [900, 700] });
+		w.run(12000, (now) => (now - gone < 5000 ? both(now) : onlyA(now)));
+		w.reconnect(1);
+		w.run(800);
+		a.send({ t: 'vote', v: false });
+		w.run(3500);
+		w.run(6000, playLoop(w));
+		out.push(pack('hold', "B's line dies silently; B plays on offline for 5s; the battle holds; B is back at 12s, nothing snaps back, 3-2-1, the remake declined", w));
+	});
+
+	// 5. Not back in time: B's line dies; after the 30s wait A claims the match by forfeit.
+	withSeededCrypto(5, () => {
+		const w = world({ latency: [50, 70], seed: 5 });
+		const a = w.addClient(0, 'aaaaaaaa1', 'Ana');
+		const b = w.addClient(1, 'bbbbbbbb2', 'Ben');
+		lobbyToMatch(w, a, b, { firstTo: 3 });
+		w.run(3000);
+		w.run(5000, playLoop(w));
+		w.vanish(1);
+		w.run(8000, playLoop(w));
+		w.run(29500);
+		a.send({ t: 'claim' });
+		w.run(500);
+		out.push(pack('forfeit', 'B never comes back: after the 30s hold A claims, B forfeits the match', w));
 	});
 	return out;
 }
