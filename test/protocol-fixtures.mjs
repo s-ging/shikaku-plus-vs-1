@@ -27,6 +27,7 @@ import { RoomCore } from '../worker/room-core.js';
 import { ClientCore } from '../shared/client-core.js';
 import { VersusMatch, TiltBot, BOT_PRESETS } from '../engine/versus-match.js';
 import { VERSUS_RULES, MINES_RULES } from '../engine/versus.js';
+import { SETTINGS, DIVISIONS, QUEUES, PRESETS, defaultOf, formatSet, formatOf, formatName, sanitize, rulesFor } from '../shared/settings.js';
 import { encodeAction, decodeAction, stateHash, isRoomCode, parseRoomPath, testerCode, newRoomCode, PROTOCOL_VERSION, MIN_PROTOCOL_VERSION } from '../shared/protocol.js';
 
 /** Park–Miller, the same tiny picker as the engine parity harness. */
@@ -91,6 +92,44 @@ function codes() {
 		parseRoomPath: ['/QWER', '/qwer', 'QWER', '/QWER+sekrit', '/QWER+a+b', '/QWER/extra', '/QW', '/%51WER', '', '/', '/QWEI'].map((p) => [p, parseRoomPath(p)]),
 		testerCode: ['aaaaaaaa1', 'bbbbbbbb2', 'k3j4h5g6f7d8s9a0', '', 'ü'].map((id) => [id, testerCode(id)]),
 		newRoomCode: rooms
+	};
+}
+
+// —— room settings (shared/settings.js): the lobby's menu, and what the server accepts ——
+function settings() {
+	const inputs = [
+		{},
+		{ firstTo: 5 },
+		{ firstTo: 7, hearts: 1 },
+		{ hearts: 1 },
+		{ hearts: 3, firstTo: 3 },
+		{ hearts: 2, firstTo: 3 },
+		{ mode: 'mines' },
+		{ gravitySecs: 2.74, rushAfterSecs: 95.5, hearts: 99, bogus: 1, firstTo: 4 },
+		{ counterSpike: true, counterRate: 0.5, cancelOrder: 'orangeFirst', mineCluster: false },
+		{ counterSpike: 'free', counterRate: 0.25, mineCluster: 'yes', hearts: '3', clearSend: -4 },
+		{ frostMeter: 0, healPerfectBoards: 6.6, maxHealsPerRound: 1.49 },
+		null,
+		'nope'
+	];
+	return {
+		list: SETTINGS,
+		divisions: DIVISIONS,
+		queues: QUEUES,
+		presets: PRESETS,
+		defaults: Object.fromEntries(SETTINGS.map((x) => [x.k, defaultOf(x.k) ?? null])),
+		cases: inputs.map((o) => {
+			const clean = sanitize(o);
+			const f = formatOf(clean);
+			return {
+				o,
+				sanitize: clean,
+				formatOf: { division: f.division?.id ?? null, queue: f.queue?.id ?? null },
+				formatName: formatName(clean),
+				rulesFor: rulesFor(o),
+				formatSet: Object.fromEntries(DIVISIONS.flatMap((d) => QUEUES.map((q) => [`${d.id}/${q.id}`, formatSet(clean, d.id, q.id)])))
+			};
+		})
 	};
 }
 
@@ -397,6 +436,7 @@ export function makeFixtures() {
 		minProtocolVersion: MIN_PROTOCOL_VERSION,
 		actions: actions(),
 		codes: codes(),
+		settings: settings(),
 		hashes: [
 			{ id: 'vs-moves', variant: 'vs', timed: false, seed: 14, a: 'normal', b: 'impossible', target: 3, every: 50 },
 			{ id: 'vs-timed', variant: 'vs', timed: true, seed: 21, a: 'hard', b: 'normal', target: 2, every: 50 },
