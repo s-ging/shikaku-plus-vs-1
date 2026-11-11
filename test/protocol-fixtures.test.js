@@ -75,6 +75,7 @@ test('protocol fixtures: the clients agree with the server at the end of each se
 		if (!s.server) continue;
 		const live = new Map(s.clients.map((c) => [c.seat, c])); // the last client per seat
 		for (const c of live.values()) {
+			if (c.log.at(-1)?.[0] === 'close') continue; // gone for good (the forfeit session): it never hears the end
 			const last = c.log.filter((e) => e[0] === 'in' && e[3]).at(-1);
 			assert.equal(last[3], s.server, `${s.id}: seat ${c.seat} confirmed state ends on the server's`);
 		}

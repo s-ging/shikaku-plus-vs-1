@@ -62,15 +62,21 @@ export class ClientCore {
 		if (msg.n !== this.n + 1) return this._askFull('gap');
 		this.n = msg.n;
 		const c = this.confirmed;
-		// The same two catch-ups the server made: everyone to the horizon g, the sender to its own time.
-		const events = c.catchUp(msg.g ?? msg.at);
-		if (msg.i != null && msg.g != null) events.push(...c.catchUp(msg.at, msg.i));
-		if (msg.t === 'mv') {
+		// Resume (at is in the future: the 3-2-1) and forfeit pay no gravity first; nor does an offline move
+		// applied outside time (at null). Otherwise the same two catch-ups the server made: everyone to the
+		// horizon g, the sender to its own time.
+		const outside = msg.t === 'go' || msg.t === 'ff' || (msg.t === 'mv' && msg.at == null);
+		const events = outside ? [] : c.catchUp(msg.g ?? msg.at);
+		if (!outside && msg.i != null && msg.g != null) events.push(...c.catchUp(msg.at, msg.i));
+		if (msg.t === 'hold') c.holdAll(msg.at);
+		else if (msg.t === 'go') c.resumeAll(msg.at);
+		else if (msg.t === 'ff') events.push(...c.forfeit(msg.i, msg.at));
+		else if (msg.t === 'mv') {
 			const r = c.act(msg.i, decodeAction(msg.a), msg.at);
 			events.push(...r.events);
 			if (msg.i === this.me && msg.s != null) {
 				const p = this.pending.find((q) => q.s === msg.s);
-				if (p) this._rtt(p.sentAt, msg.at);
+				if (p && msg.at != null) this._rtt(p.sentAt, msg.at);
 				this.pending = this.pending.filter((q) => q.s !== msg.s);
 			}
 		} else if (msg.t === 'fz') c.freezeSide(msg.i, msg.at);
@@ -149,6 +155,13 @@ export class ClientCore {
 	_repredict() {
 		const p = VersusMatch.fromState(this.confirmed.toState(), this.rules);
 		for (const q of this.pending) {
+			// While my side is frozen or paused (a hold, the 3-2-1 after it), my unconfirmed moves were made
+			// offline before the hold: the server applies them outside time, so predict them that way too.
+			const s = p.sides[this.me];
+			if (s.frozenAt != null || q.at < (s.pausedUntil || 0)) {
+				p.act(this.me, q.a, null);
+				continue;
+			}
 			p.catchUp(q.at);
 			p.act(this.me, q.a, q.at);
 		}

@@ -93,7 +93,13 @@
 		},
 		rules: () => rules,
 		onMove: (a) => onMove(a),
-		canInput: () => mode !== 'replay' && !!core && !!core.predicted && !core.predicted.roundOver,
+		// No moves while my board is frozen (the battle on hold, or my line is down) or paused (a 3-2-1).
+		canInput: () => {
+			if (mode === 'replay' || !core || !core.predicted || core.predicted.roundOver) return false;
+			if (mode === 'online' && !net.ready) return false; // "Reconnecting…": moves wait for the line
+			const mine = core.predicted.sides[core.me];
+			return mine.frozenAt == null && serverNow() >= (mine.pausedUntil || 0);
+		},
 		onHover: (r) => sendHover(r)
 	});
 	let view = 'play';
@@ -192,7 +198,8 @@
 		clearTimeout(countTimer);
 		const v = sides();
 		const el = $('count');
-		const left = v && !v.match.roundOver ? (v.match.roundStartAt ?? 0) - serverNow() : 0;
+		// Before a round, and after a hold (my board paused until play resumes).
+		const left = v && !v.match.roundOver ? Math.max(v.match.roundStartAt ?? 0, v.you.pausedUntil || 0) - serverNow() : 0;
 		if (left <= 0) {
 			if (el.dataset.n && mode !== 'replay' && left > -500) sound.cue('start'); // the 3-2-1 just ran out
 			el.hidden = true;
@@ -261,7 +268,14 @@
 		}
 		sound.rest(); // let the result sound finish, then rest until the next 3-2-1 wakes it
 		const who = ro.winner == null ? null : mode === 'replay' ? $(ro.winner === 0 ? 'name-you' : 'name-them').textContent : ro.winner === me ? 'You' : $('name-them').textContent;
-		$('ov-title').textContent = who == null ? 'Double KO' : `${who} won the ${m.over ? 'match' : 'round'}`;
+		$('ov-title').textContent =
+			ro.by === 'forfeit'
+				? ro.winner === me
+					? `${$('name-them').textContent} didn't come back. You win.`
+					: 'You were gone too long: the match is lost.'
+				: who == null
+					? 'Double KO'
+					: `${who} won the ${m.over ? 'match' : 'round'}`;
 		$('ov-sub').textContent = `${m.score[me]} – ${m.score[1 - me]}`;
 		$('ov-next').hidden = !m.over || mode === 'replay'; // rounds move on by themselves; only a finished match waits
 		const rid = mode === 'online' && room && room.replay;
@@ -365,13 +379,14 @@
 			ws.onopen = () => {
 				if (this.retry) this.reconnects++;
 				this.retry = 0;
-				// Heartbeat: one 4-byte ping every 4s, answered by the edge without waking the
-				// room. No pong for 10s means the connection is dead even if the socket says open.
+				// Heartbeat: one 4-byte ping every 2s, answered by the edge without waking the room
+				// (2026-11-11: was 4s). No pong for 5s means the connection is dead even if the socket
+				// says open: the board stops taking moves (the server holds the battle at the same point).
 				this.lastPong = Date.now();
 				clearInterval(this.beat);
 				this.beat = setInterval(() => {
 					if (ws.readyState !== 1) return;
-					if (Date.now() - this.lastPong > 10000) {
+					if (Date.now() - this.lastPong > 5000) {
 						clearInterval(this.beat);
 						this.ready = false;
 						ws.onclose = null;
@@ -382,7 +397,7 @@
 						return this.later();
 					}
 					ws.send('ping');
-				}, 4000);
+				}, 2000);
 				banner(null);
 				ws.send(JSON.stringify({ t: 'hello', id: myId, name: myName(), k: key || undefined, dev: device(), pv: PROTOCOL_VERSION }));
 				// Learn the server's clock now, not at the first move: a device clock a few seconds off
@@ -435,6 +450,28 @@
 		}
 	});
 
+	// The battle on hold (2026-11-11): the other player's line dropped. Count down the wait; when it's over,
+	// claim the match (the server checks the time itself).
+	let holdTimer = 0;
+	let claimed = null;
+	function showHold() {
+		clearTimeout(holdTimer);
+		const h = room && room.hold;
+		if (!h || h.i === (core && core.me)) return;
+		const opp = room.seats[h.i];
+		const left = Math.ceil((h.until - serverNow()) / 1000);
+		if (left <= 0) {
+			banner(`${opp ? opp.name : 'They'} didn't come back.`);
+			if (claimed !== h.until) {
+				claimed = h.until;
+				net.send({ t: 'claim' });
+			}
+			return;
+		}
+		banner(`${opp ? opp.name : 'The other player'}'s connection dropped. Waiting for them… ${left}s`);
+		holdTimer = setTimeout(showHold, 1000 - ((h.until - serverNow()) % 1000) + 10);
+	}
+
 	function banner(text) {
 		$('banner').hidden = !text;
 		$('banner').textContent = text || '';
@@ -450,7 +487,8 @@
 			}
 			show('game');
 			const opp = msg.seats[1 - msg.you];
-			banner(opp && !opp.connected ? `${opp.name} disconnected. Their board is frozen until they come back.` : null);
+			showHold();
+			if (!msg.hold) banner(opp && !opp.connected ? `${opp.name} disconnected. Their board is frozen until they come back.` : null);
 			$('vote').hidden = !msg.vote;
 			$('g-report').hidden = !msg.admin;
 			render();

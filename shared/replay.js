@@ -5,6 +5,7 @@
 //   header  { v, id, code, startedAt, seed, target, rules, names }
 //   round   { round, t0, startAt, score, frozen, msgs, hash, end?, partial? }
 //   msgs    ['m', seat, move, at, g] · ['t', seat, at, g] · ['f', seat, at] · ['h', seat, at, g] · ['v', seat, at, tile|null] (a hover)
+//           · ['H', seat, at] hold · ['G', null, at] resume · ['X', seat, at] forfeit (2026-11-11)
 // The messages are applied the same way a client applies them live (shared/client-core.js),
 // so the state after the last one hashes to `hash`: that's the proof the replay is faithful.
 import { VersusMatch } from '../engine/versus-match.js';
@@ -21,19 +22,23 @@ export function roundStart(header, rd) {
 }
 
 /** The time a message happened at. */
-export const msgAt = (x) => (x[0] === 'm' ? x[3] : x[2]);
+export const msgAt = (x) => (x[0] === 'm' ? x[3] ?? x[5] : x[2]);
 
 /** Apply one recorded message. Returns the engine events, for animation. */
 export function applyMsg(m, x) {
 	const [t, i] = x;
 	if (t === 'v') return []; // a hover: shown by the viewer, changes nothing
 	const at = msgAt(x);
+	// Resume (at is in the future: the 3-2-1) and forfeit pay no gravity first.
+	if (t === 'G') return m.resumeAll(at), [];
+	if (t === 'X') return m.forfeit(i, at);
 	const g = t === 'm' ? x[4] : t === 't' || t === 'h' ? x[3] : null;
-	const events = m.catchUp(g ?? at);
+	const events = t === 'm' && x[3] == null ? [] : m.catchUp(g ?? at);
 	if (i != null && g != null) events.push(...m.catchUp(at, i));
-	if (t === 'm') events.push(...m.act(i, decodeAction(x[2]), at).events);
+	if (t === 'm') events.push(...m.act(i, decodeAction(x[2]), x[3]).events); // x[3] null: applied outside time
 	else if (t === 'f') m.freezeSide(i, at);
 	else if (t === 'h') m.thawSide(i, at);
+	else if (t === 'H') m.holdAll(at);
 	return events;
 }
 

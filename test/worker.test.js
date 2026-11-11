@@ -73,7 +73,7 @@ test('worker: a signed-in hello is checked first; messages sent meanwhile wait, 
 	};
 	try {
 		const s = open();
-		const hello = JSON.stringify({ t: 'hello', id: 'aaaaaaaa1', name: 'typed', pv: 1, tok: 'T'.repeat(3000) });
+		const hello = JSON.stringify({ t: 'hello', pv: 2, id: 'aaaaaaaa1', name: 'typed', pv: 2, tok: 'T'.repeat(3000) });
 		assert.ok(hello.length > 2048, 'bigger than a normal message');
 		const h = room.webSocketMessage(s, hello);
 		await new Promise((r) => setTimeout(r, 5));
@@ -98,10 +98,10 @@ test('worker: a signed-in hello is checked first; messages sent meanwhile wait, 
 test('worker: without the Supabase settings, or without a token, players join as guests at once', async () => {
 	const { room, open } = fakeRoom({});
 	const s = open();
-	await room.webSocketMessage(s, JSON.stringify({ t: 'hello', id: 'aaaaaaaa1', name: 'Ana', pv: 1, tok: 'whatever' }));
+	await room.webSocketMessage(s, JSON.stringify({ t: 'hello', pv: 2, id: 'aaaaaaaa1', name: 'Ana', pv: 2, tok: 'whatever' }));
 	assert.deepEqual(s.sent[0].seats[0], { name: 'Ana', ready: false, connected: true });
 	const { room: r2, open: open2 } = fakeRoom({});
 	const s2 = open2();
-	await r2.webSocketMessage(s2, JSON.stringify({ t: 'hello', id: 'bbbbbbbb2', name: 'B', pad: 'x'.repeat(9000) }));
+	await r2.webSocketMessage(s2, JSON.stringify({ t: 'hello', pv: 2, id: 'bbbbbbbb2', name: 'B', pad: 'x'.repeat(9000) }));
 	assert.equal(s2.sent.length, 0, 'a first message over 8KB is dropped');
 });

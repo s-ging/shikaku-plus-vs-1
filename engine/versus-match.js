@@ -232,6 +232,33 @@ export class VersusMatch {
 		if (s.gAt != null) s.gAt += now - s.frozenAt; // the gap never counts as gravity
 		s.frozenAt = null;
 	}
+	/**
+	 * A battle on hold (2026-11-11, decision 0019): a player has been silent too long, so every
+	 * side not already frozen stops at `at`. Nothing ticks for anyone until resumeAll.
+	 */
+	holdAll(at) {
+		this.sides.forEach((s, i) => this.freezeSide(i, at));
+	}
+	/**
+	 * The hold is over: every frozen side starts again at `at`, a moment in the future (the 3-2-1),
+	 * and refuses moves until then. The time on hold never counts as gravity.
+	 */
+	resumeAll(at) {
+		this.sides.forEach((s, i) => {
+			if (s.frozenAt == null) return;
+			this.thawSide(i, at);
+			s.pausedUntil = Math.max(s.pausedUntil || 0, at);
+		});
+	}
+	/** A player who didn't come back forfeits the match: the other wins it; the score stays as it was. */
+	forfeit(loser, at) {
+		if (this.over) return [];
+		const winner = 1 - loser;
+		this.roundOver = { winner, by: 'forfeit' };
+		this.over = true;
+		this.clock = Math.max(this.clock ?? at, at);
+		return [{ side: 'match', kind: 'roundOver', winner, by: 'forfeit', score: [...this.score] }];
+	}
 
 	_apply(side, action) {
 		if (!action) return { moved: false, events: [] };

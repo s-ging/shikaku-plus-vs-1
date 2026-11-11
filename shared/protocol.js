@@ -18,6 +18,7 @@
 //   time   { t, c }                      clock check: c = the client's clock when sent
 //   hv     { t, r? }                     my drag as [x1, y1, x2, y2], or none (not sequenced)
 //   report { t }                         admin only: the match report so far
+//   claim  { t }                         the hold's wait is over: the missing player forfeits (v2)
 //
 // Server → client (sequenced ones carry n, the server's message number, and t, server time)
 //   room   { t, code, you, host, admin, phase, seats, o }       lobby / room state; a seat is { name, ready, connected,
@@ -30,6 +31,10 @@
 //   round  { t, n, st, remake? }                                a new round started
 //   vote   { t, open, yes? }                                    remake vote opened / result
 //   report { t, r }                                             admin: the report
+//   hold   { t, n, i, at, until }                              v2: seat i is silent; the battle is on hold from `at`
+//   go     { t, n, at }                                        v2: everyone back; play resumes at `at` (a 3-2-1)
+//   ff     { t, n, i, at }                                     v2: seat i didn't come back in time and forfeits
+//   (mv with at and g null, v2: a move made offline before the hold, applied outside time)
 //   time   { t, c, s }                                         clock check answer: s = server time
 //   hv     { t, i, r }                                         the other seat's drag (r null = none)
 //   err    { t, why, min? }                                    why 'full', or 'update' (pv below min)
@@ -42,8 +47,10 @@
  * Raise PROTOCOL_VERSION on any change an older client can't follow; raise the minimum
  * only when the server stops supporting the old behaviour.
  */
-export const PROTOCOL_VERSION = 1;
-export const MIN_PROTOCOL_VERSION = 1;
+// 2 (2026-11-11): dropouts hold the battle (hold / go / ff, offline moves applied outside time). A version-1
+// client would mis-apply those, so it's told to update.
+export const PROTOCOL_VERSION = 2;
+export const MIN_PROTOCOL_VERSION = 2;
 /** The version a hello claims: its pv, or 1 when it has none (or a nonsense one). */
 export const helloVersion = (msg) => (Number.isInteger(msg?.pv) && msg.pv > 0 ? msg.pv : 1);
 

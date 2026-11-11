@@ -18,7 +18,10 @@ function world({ latency = [40, 140], o = { firstTo: 2 } } = {}) {
 		send: (conn, obj) => later(latency[conn.seat], () => conn.client.inbox(JSON.parse(JSON.stringify(obj)))),
 		conns: () => [...conns.values()].filter((c) => c.open).map((c) => ({ conn: c, id: c.id })),
 		save: (obj) => saved.push(JSON.stringify(obj).length),
-		report: (r) => reports.push(r)
+		report: (r) => reports.push(r),
+		// The app's heartbeat (a ping every 2s, answered at the edge): an open, talking client was heard
+		// about a second ago; a muted or dropped one wasn't.
+		lastPing: (id) => ([...conns.values()].some((c) => c.id === id && c.open && !c.client?.mute) ? now - 1000 : 0)
 	};
 	const room = new RoomCore('QWER', io, 'sekrit', null);
 	function addClient(seat, id, k) {
@@ -49,7 +52,7 @@ function world({ latency = [40, 140], o = { firstTo: 2 } } = {}) {
 		conn.client = c;
 		conns.set(id, conn);
 		clients[seat] = c;
-		c.sendUp({ t: 'hello', id, name: 'P' + seat, k, dev: { ua: 'test' } });
+		c.sendUp({ t: 'hello', pv: 2, id, name: 'P' + seat, k, dev: { ua: 'test' } });
 		return c;
 	}
 	/** Same browser, same ClientCore, new socket: what a reconnect after a dropout looks like. */
@@ -58,12 +61,16 @@ function world({ latency = [40, 140], o = { firstTo: 2 } } = {}) {
 		const conn = { id: c.id, seat, open: true, client: c };
 		c.conn = conn;
 		conns.set(c.id + ':' + now, conn);
-		c.sendUp({ t: 'hello', id: c.id, name: 'P' + seat });
+		c.sendUp({ t: 'hello', pv: 2, id: c.id, name: 'P' + seat });
 	}
 	function drop(seat) {
 		const c = clients[seat];
 		c.conn.open = false;
 		room.closed(c.id, now);
+	}
+	/** The line dies without closing (Wi-Fi to mobile data): nothing gets through either way, and the server isn't told. */
+	function vanish(seat) {
+		clients[seat].conn.open = false;
 	}
 	function run(ms, onStep) {
 		const end = now + ms;
@@ -75,7 +82,7 @@ function world({ latency = [40, 140], o = { firstTo: 2 } } = {}) {
 			onStep?.(now);
 		}
 	}
-	return { room, addClient, drop, reconnect, run, clients, reports, saved, o, get now() { return now; } };
+	return { room, addClient, drop, vanish, reconnect, run, clients, reports, saved, o, get now() { return now; } };
 }
 
 function playLoop(w, pace = [900, 1300]) {
@@ -95,7 +102,9 @@ function playLoop(w, pace = [900, 1300]) {
 			if (now >= due[c.seat]) {
 				due[c.seat] = now + pace[c.seat];
 				const p = c.core.predicted;
-				if (!p.roundOver) c.core.move(c.bot.decide(p.sides[c.core.me]) || { type: 'erase', x: 0, y: 0 });
+				const mine = p.sides[c.core.me];
+				const held = mine.frozenAt != null || c.core.serverNow() < (mine.pausedUntil || 0); // the screen takes no moves then
+				if (!p.roundOver && !held) c.core.move(c.bot.decide(p.sides[c.core.me]) || { type: 'erase', x: 0, y: 0 });
 			}
 		}
 	};
@@ -413,7 +422,7 @@ test('clock check: the server answers a time ping at once, unsequenced and unsav
 	assert.equal(w.saved.length, saves);
 });
 
-test('protocol version: a hello below the minimum is told to update and gets no seat; no pv counts as version 1', async () => {
+test('protocol version: a hello below the minimum is told to update and gets no seat; no pv counts as version 1 (too old since 2)', async () => {
 	const { MIN_PROTOCOL_VERSION, PROTOCOL_VERSION, helloVersion } = await import('../shared/protocol.js');
 	assert.equal(helloVersion({}), 1, 'a web client from before pv is version 1');
 	assert.equal(helloVersion({ pv: 'x' }), 1);
@@ -423,16 +432,132 @@ test('protocol version: a hello below the minimum is told to update and gets no 
 	const conns = [{ conn: 'a', id: 'aaaaaaaa1' }, { conn: 'b', id: 'bbbbbbbb2' }, { conn: 'c', id: 'cccccccc3' }];
 	const io = { send: (conn, obj) => sent.push([conn, obj]), conns: () => conns, save: () => {}, report: () => {} };
 	const room = new RoomCore('QWER', io, null, null);
-	assert.equal(room.hello('aaaaaaaa1', { t: 'hello', id: 'aaaaaaaa1', name: 'Old web' }, 1000), true, 'no pv is still welcome');
-	assert.equal(room.hello('bbbbbbbb2', { t: 'hello', id: 'bbbbbbbb2', name: 'App', pv: PROTOCOL_VERSION }, 1000), true);
+	assert.equal(room.hello('xxxxxxxx9', { t: 'hello', id: 'xxxxxxxx9', name: 'Old web' }, 1000), 'update', 'no pv is version 1: too old since protocol 2');
+	assert.equal(room.hello('aaaaaaaa1', { t: 'hello', pv: 2, id: 'aaaaaaaa1', name: 'Web' }, 1000), true);
+	assert.equal(room.hello('bbbbbbbb2', { t: 'hello', pv: 2, id: 'bbbbbbbb2', name: 'App', pv: PROTOCOL_VERSION }, 1000), true);
 	assert.equal(room.seats.length, 2);
 	// The day the minimum goes up: a client below it is turned away before it takes a seat.
 	room.minVersion = PROTOCOL_VERSION + 1;
-	assert.equal(room.hello('cccccccc3', { t: 'hello', id: 'cccccccc3', name: 'Old app', pv: PROTOCOL_VERSION }, 1000), 'update');
+	assert.equal(room.hello('cccccccc3', { t: 'hello', pv: 2, id: 'cccccccc3', name: 'Old app', pv: PROTOCOL_VERSION }, 1000), 'update');
 	assert.deepEqual(sent.at(-1), ['c', { t: 'err', why: 'update', min: PROTOCOL_VERSION + 1 }]);
-	assert.equal(room.hello('aaaaaaaa1', { t: 'hello', id: 'aaaaaaaa1', name: 'Old web' }, 1000), 'update', 'even a seated player, on rejoin');
+	assert.equal(room.hello('aaaaaaaa1', { t: 'hello', pv: 2, id: 'aaaaaaaa1', name: 'Web' }, 1000), 'update', 'even a seated player, on rejoin');
 	assert.equal(room.seats.length, 2);
 	room.minVersion = undefined;
-	assert.equal(room.hello('cccccccc3', { t: 'hello', id: 'cccccccc3', name: 'Third', pv: PROTOCOL_VERSION }, 1000), 'full', 'a full room says why');
+	assert.equal(room.hello('cccccccc3', { t: 'hello', pv: 2, id: 'cccccccc3', name: 'Third', pv: PROTOCOL_VERSION }, 1000), 'full', 'a full room says why');
 	assert.equal(room.seats.length, 2);
+});
+
+
+// —— Dropouts (2026-11-11, decision 0019) ——
+function startMatch(w, o = { firstTo: 3 }) {
+	const a = w.addClient(0, 'aaaaaaaa1');
+	const b = w.addClient(1, 'bbbbbbbb2');
+	w.run(300);
+	a.sendUp({ t: 'set', o });
+	w.run(300);
+	a.sendUp({ t: 'ready', v: true });
+	b.sendUp({ t: 'ready', v: true });
+	w.run(300);
+	a.sendUp({ t: 'start' });
+	w.run(3600); // through the 3-2-1
+	return { a, b };
+}
+
+test('Krischan\'s dropout: the line dies, B plays on offline for 5s; the battle holds; back at 12s nothing snaps back', () => {
+	const w = world({ latency: [60, 90] });
+	const { a, b } = startMatch(w);
+	w.run(6000, playLoop(w));
+	const m = w.room.match;
+	const gone = w.now;
+	w.vanish(1);
+	// B keeps playing for 5 seconds (its phone stops taking moves after that); A plays on.
+	const offline = playLoop(w, [900, 700]);
+	let bMade = 0;
+	w.run(12000, (now) => {
+		// B's phone takes moves until it calls the line dead (5s), then shows "Reconnecting…".
+		const bOn = now - gone < 5000;
+		if (bOn && !b.core.predicted.roundOver && now % 700 < 60) {
+			const p = b.core.predicted;
+			const before = b.core.pending.length;
+			b.core.move(b.bot.decide(p.sides[1]) || { type: 'erase', x: 0, y: 0 });
+			if (b.core.pending.length > before) bMade++;
+		}
+		offline(now); // A plays on (B's connection is closed, so the loop leaves B alone)
+	});
+	assert.ok(bMade >= 3, 'B played on offline: ' + bMade);
+	const frozenAt = m.sides[1].frozenAt;
+	assert.ok(frozenAt != null && frozenAt <= gone + 3000 + 100, 'B\'s clock stopped about 3s after it was last heard, backdated: ' + (frozenAt - gone));
+	assert.ok(w.room.hold && w.room.hold.i === 1, 'the battle is on hold, waiting for B');
+	assert.ok(m.sides[0].frozenAt != null, 'A is held too: nothing ticks for anyone');
+	assert.ok(a.core.confirmed.sides[0].frozenAt != null, 'A\'s app knows');
+	// B's prediction before it reconnects: what it played offline.
+	const bRects = b.core.predicted.sides[1].rects.map((r) => `${r.x1}${r.y1}${r.x2}${r.y2}`).join('.');
+	const bBoard = b.core.predicted.sides[1].boardIndex;
+	w.reconnect(1);
+	w.run(800);
+	assert.equal(w.room.hold, null, 'B is back: hold over');
+	assert.equal(b.core.pending.length, 0, 'every offline move confirmed');
+	assert.equal(w.room.match.sides[1].boardIndex, bBoard, 'same board B was on');
+	assert.equal(w.room.match.sides[1].rects.map((r) => `${r.x1}${r.y1}${r.x2}${r.y2}`).join('.'), bRects, 'nothing snapped back: the server has exactly what B played');
+	assert.ok(w.room.vote, 'both are offered a remake');
+	assert.ok(w.room.match.sides[0].pausedUntil > w.now, 'a 3-2-1 before play resumes');
+	w.run(3500);
+	w.run(6000, playLoop(w));
+	for (const c of [a, b]) assert.equal(c.core.mismatches, 0, `seat ${c.seat} drifted`);
+	assert.equal(stateHash(a.core.confirmed), stateHash(w.room.match));
+	assert.equal(stateHash(b.core.confirmed), stateHash(w.room.match));
+});
+
+test('no gravity for the player who dropped: their ticks stop 3s after they were last heard', () => {
+	const w = world({ latency: [60, 60] });
+	startMatch(w, { firstTo: 3, gravitySecs: 1 });
+	const m = w.room.match;
+	const gone = w.now;
+	const ticks = m.sides[1].econ.ticks;
+	w.vanish(1);
+	w.run(15000, playLoop(w));
+	assert.ok(m.sides[1].econ.ticks - ticks <= 3, 'at most the ~3 ticks of the first 3s: ' + (m.sides[1].econ.ticks - ticks));
+	assert.ok(w.now - gone > 5000 && w.room.hold, 'and the battle holds');
+});
+
+test('not back within 30s: they forfeit the match, the waiting player wins', async () => {
+	const { verifyRound } = await import('../shared/replay.js');
+	const w = world({ latency: [50, 50] });
+	const replays = new Map();
+	w.room.io.replay = (id, part, data) => {
+		if (!replays.has(id)) replays.set(id, []);
+		replays.get(id)[part] = JSON.parse(JSON.stringify(data));
+	};
+	const { a } = startMatch(w);
+	w.run(3000, playLoop(w));
+	w.vanish(1);
+	w.run(8000, playLoop(w));
+	assert.ok(w.room.hold);
+	w.run(29000);
+	a.sendUp({ t: 'claim' });
+	w.run(300);
+	assert.ok(w.room.match.over, 'match over');
+	assert.equal(w.room.match.roundOver.winner, 0);
+	assert.equal(w.room.match.roundOver.by, 'forfeit');
+	assert.ok(a.core.confirmed.over, 'A\'s app sees it');
+	assert.equal(a.core.mismatches, 0);
+	assert.equal(w.reports.at(-1).result, 'finished');
+	assert.equal(w.reports.at(-1).forfeitBy, 1);
+	const [header, ...rounds] = [...replays.values()][0];
+	assert.ok(verifyRound(header, rounds.filter(Boolean).at(-1)), 'the replay rebuilds the hold and the forfeit');
+});
+
+test('a short blip only freezes and thaws: no hold, moves land', () => {
+	const w = world({ latency: [60, 60] });
+	const { a, b } = startMatch(w);
+	w.run(4000, playLoop(w));
+	w.vanish(1);
+	w.run(2500, playLoop(w)); // plus up to ~1.3s since B was last heard: under the 5s hold
+	assert.equal(w.room.hold, null, 'no hold for a blip');
+	w.reconnect(1);
+	w.run(1000, playLoop(w));
+	assert.equal(w.room.match.sides[1].frozenAt, null, 'thawed');
+	w.run(5000, playLoop(w));
+	for (const c of [a, b]) assert.equal(c.core.mismatches, 0);
+	assert.equal(stateHash(b.core.confirmed), stateHash(w.room.match));
 });
