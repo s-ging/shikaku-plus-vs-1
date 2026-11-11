@@ -360,8 +360,12 @@
 		lastPong: 0,
 		closedByUs: false,
 		outbox: [],
+		lastSent: 0,
 		send(obj) {
-			if (this.ws && this.ws.readyState === 1 && this.ready) this.ws.send(JSON.stringify(obj));
+			if (this.ws && this.ws.readyState === 1 && this.ready) {
+				this.ws.send(JSON.stringify(obj));
+				this.lastSent = Date.now();
+			}
 			else if (obj.t !== 'mv' && this.outbox.length < 50) this.outbox.push(obj); // moves are resent from pending instead
 		},
 		connect(code, key) {
@@ -397,6 +401,9 @@
 						return this.later();
 					}
 					ws.send('ping');
+					// Mid-match and quiet for 3s: say we're still here, so the room notices if the other player
+					// dropped even while we're idle (a ping alone never wakes it).
+					if (this.ready && mode === 'online' && room && room.phase === 'match' && Date.now() - this.lastSent >= 3000) this.send({ t: 'here' });
 				}, 2000);
 				banner(null);
 				ws.send(JSON.stringify({ t: 'hello', id: myId, name: myName(), k: key || undefined, dev: device(), pv: PROTOCOL_VERSION }));

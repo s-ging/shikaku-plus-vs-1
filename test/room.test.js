@@ -641,3 +641,30 @@ test('both drop, one comes back: the hold now waits for the other (banner, forfe
 	assert.equal(w.room.match.roundOver.winner, 0);
 	assert.equal(w.clients[0].core.mismatches, 0);
 });
+
+
+test('the other player idle: their "here" every 3s wakes the room, so the hold starts and they see it, no move needed', () => {
+	const w = world({ latency: [50, 50] });
+	const { a } = startMatch(w);
+	const saves = () => w.saved.length;
+	w.run(3000, playLoop(w));
+	// Both idle a while: "here" changes nothing, so nothing is saved or sent.
+	const before = saves();
+	const n = w.room.n;
+	a.sendUp({ t: 'here' });
+	w.run(300);
+	assert.equal(saves(), before, 'a quiet "here" writes nothing');
+	assert.equal(w.room.n, n, 'and sends nothing');
+	// B's line dies; A sits idle, only saying "here" every 3s.
+	const gone = w.now;
+	w.vanish(1);
+	for (let k = 0; k < 4; k++) {
+		w.run(3000);
+		a.sendUp({ t: 'here' });
+	}
+	w.run(300);
+	assert.ok(w.room.hold && w.room.hold.i === 1, 'the battle is on hold without A making a move');
+	assert.ok(w.room.hold.at <= gone + 5000 + 100, 'from when the 5s were up');
+	assert.ok(a.core.confirmed.sides[0].frozenAt != null, "A's app knows (and shows the wait)");
+	assert.ok(saves() > before, 'saved once something changed');
+});

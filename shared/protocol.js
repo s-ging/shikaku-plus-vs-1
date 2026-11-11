@@ -19,6 +19,8 @@
 //   hv     { t, r? }                     my drag as [x1, y1, x2, y2], or none (not sequenced)
 //   report { t }                         admin only: the match report so far
 //   claim  { t }                         the hold's wait is over: the missing player forfeits (v2)
+//   here   { t }                         mid-match, after 3s without sending anything: still here (wakes the room so
+//                                        it notices a dropout even when the other player is idle; changes nothing)
 //
 // Server → client (sequenced ones carry n, the server's message number, and t, server time)
 //   room   { t, code, you, host, admin, phase, seats, o }       lobby / room state; a seat is { name, ready, connected,

@@ -254,6 +254,11 @@ export class RoomCore {
 		if (seat.goneRound >= REMAKE_AFTER_MS && !this.match.roundOver && !this.vote) this.vote = { yes: [null, null], until: now + VOTE_MS };
 	}
 
+	/** What the dropout checks can change, to tell whether a 'here' needs saving. */
+	_liveness() {
+		return JSON.stringify([this.hold, this.vote, this.seats.map((s) => s.left ?? null), this.n]);
+	}
+
 	/** When a seat was last heard from: its last message, or its last ping (answered at the edge). */
 	_seen(s) {
 		return Math.max(s.lastSeen || 0, (this.io.lastPing && this.io.lastPing(s.id)) || 0);
@@ -358,6 +363,10 @@ export class RoomCore {
 		if (i < 0 || !msg || typeof msg.t !== 'string') return;
 		const seat = this.seats[i];
 		seat.lastSeen = now;
+		// 'here' (2026-11-11): a client that has sent nothing for 3s says it's still here, mid-match, so the room
+		// wakes and notices a dropout even when the other player is idle (pings alone are answered at the edge and
+		// never wake it). It changes nothing itself; the room is saved only if the checks below changed something.
+		const before = msg.t === 'here' ? this._liveness() : null;
 		this._expireHold(now);
 		if (seat.left != null) {
 			this._resume(i, now); // it was only quiet, not gone
@@ -366,6 +375,10 @@ export class RoomCore {
 		}
 		this._reap(now);
 		this._expireVote(now);
+		if (msg.t === 'here') {
+			if (this._liveness() !== before) this._save();
+			return;
+		}
 		switch (msg.t) {
 			case 'set':
 				if (i !== 0 || this.phase !== 'lobby') return;
