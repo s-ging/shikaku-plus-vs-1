@@ -20,8 +20,9 @@ import { rulesFor, sanitize } from '../shared/settings.js';
 //   HOLD_MS      silent this long: the battle is on hold for everyone (nothing ticks); both players could play
 //                until then. Their phone stops taking moves at the same point, and the moves it made before
 //                count when they're back (applied outside time, on the board they played on).
-//   HOLD_WAIT_MS back within this: a 3-2-1, play resumes, and both are offered a remake. Not back: they forfeit
-//                the match. Noticed lazily, at the next message (the waiting player's app sends 'claim').
+//   HOLD_WAIT_MS back within this: still on hold, both decide together whether to replay the round (both yes:
+//                replayed; either no or VOTE_MS without an answer: a 3-2-1 and the round goes on). Not back: they
+//                forfeit the match. Noticed lazily, at the next message (the waiting player's app sends 'claim').
 const QUIET_MS = 3000;
 const HOLD_MS = 5000;
 const HOLD_WAIT_MS = 30000;
@@ -112,8 +113,8 @@ export class RoomCore {
 			seats: this.seats.map((s) => ({ name: s.name, ready: s.ready, connected: s.connected, ...(s.badge ? { badge: s.badge } : {}), ...(s.v ? { v: true } : {}) })),
 			replay: this.report && this.match && this.match.over ? this.report.replayId : null,
 			o: this.o,
-			vote: this.vote ? { open: true, yes: this.vote.yes } : null,
-			hold: this.hold ? { i: this.hold.i, at: this.hold.at, until: this.hold.until } : null
+			vote: this.vote ? { open: true, yes: this.vote.yes, until: this.vote.until, ...(this.vote.afterHold ? { afterHold: true } : {}) } : null,
+			hold: this.hold ? { i: this.hold.i, at: this.hold.at, until: this.hold.until, ...(this.hold.back != null ? { back: true } : {}) } : null
 		};
 	}
 	_roomAll() {
@@ -235,13 +236,12 @@ export class RoomCore {
 		seat.goneFrom = null;
 		seat.connected = true;
 		if (this.hold) {
-			// Back from a hold. Once everyone is here, a 3-2-1 for both, then play on; both may ask for a remake.
+			// Back from a hold (Krischan, 2026-11-11): the battle stays on hold while both decide, together,
+			// whether to replay the round. Both yes: replayed. Either no, or the time runs out: a 3-2-1 and the
+			// round goes on (_resumeHold). Nobody plays while the other is still deciding.
 			if (this.seats.some((s) => s.left != null)) return;
-			const go = now + COUNTDOWN_MS;
-			this.match.resumeAll(go);
-			this.hold = null;
-			this._all(this._seq({ t: 'go', at: go }), seat.id);
-			if (!this.match.roundOver) this.vote = { yes: [null, null], until: go + VOTE_MS };
+			this.hold.back = now;
+			this.vote = { yes: [null, null], until: now + VOTE_MS, afterHold: true };
 			return;
 		}
 		this.match.thawSide(i, now);
@@ -266,10 +266,19 @@ export class RoomCore {
 		this._roomAll();
 	}
 
+	/** Everyone is back and has decided to play on: a 3-2-1 for both, then the round continues. */
+	_resumeHold(now) {
+		if (!this.hold || !this.match) return;
+		const go = now + COUNTDOWN_MS;
+		this.match.resumeAll(go);
+		this.hold = null;
+		this._all(this._seq({ t: 'go', at: go }));
+	}
+
 	/** The wait is over and they're still gone: they forfeit the match. */
 	_expireHold(now) {
 		const h = this.hold;
-		if (!h || !this.match || now < h.until || this.seats[h.i]?.left == null) return;
+		if (!h || h.back != null || !this.match || now < h.until || this.seats[h.i]?.left == null) return;
 		this.hold = null;
 		this.match.forfeit(h.i, now);
 		if (this.report) this.report.forfeitBy = h.i;
@@ -314,6 +323,11 @@ export class RoomCore {
 			this.seats.splice(i, 1);
 		} else if (this.match && this.phase === 'match') {
 			seat.left = now;
+			if (this.hold && this.hold.back != null) {
+				// Gone again while both were deciding: back to waiting for them.
+				this.hold = { i, at: this.hold.at, until: now + HOLD_WAIT_MS };
+				this.vote = null;
+			}
 			// Their clock stops QUIET_MS after they were last heard (or now, for a socket that closed): noticing
 			// later costs them nothing. Nothing was paid past that yet: this check runs before every message.
 			const at = Math.min(now, since + QUIET_MS);
@@ -581,13 +595,18 @@ export class RoomCore {
 		if (!this.vote) return;
 		this.vote.yes[i] = yes;
 		this.report.votes.push({ at: now, seat: i, yes });
-		if (this.vote.yes.some((v) => v === false)) this.vote = null;
-		else if (this.vote.yes.every((v) => v === true)) return this._newRound(now, true);
+		if (this.vote.yes.some((v) => v === false)) {
+			const afterHold = this.vote.afterHold;
+			this.vote = null;
+			if (afterHold) this._resumeHold(now); // one said keep playing: the round goes on
+		} else if (this.vote.yes.every((v) => v === true)) return this._newRound(now, true);
 		this._roomAll();
 	}
 	_expireVote(now) {
 		if (this.vote && now > this.vote.until) {
+			const afterHold = this.vote.afterHold;
 			this.vote = null;
+			if (afterHold) this._resumeHold(now); // nobody decided in time: play on
 			this._roomAll();
 		}
 	}

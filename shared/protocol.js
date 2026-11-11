@@ -32,7 +32,7 @@
 //   vote   { t, open, yes? }                                    remake vote opened / result
 //   report { t, r }                                             admin: the report
 //   hold   { t, n, i, at, until }                              v2: seat i is silent; the battle is on hold from `at`
-//   go     { t, n, at }                                        v2: everyone back; play resumes at `at` (a 3-2-1)
+//   go     { t, n, at }                                        v2: play resumes at `at` (a 3-2-1); v3: once both have decided
 //   ff     { t, n, i, at }                                     v2: seat i didn't come back in time and forfeits
 //   (mv with at and g null, v2: a move made offline before the hold, applied outside time)
 //   time   { t, c, s }                                         clock check answer: s = server time
@@ -49,8 +49,10 @@
  */
 // 2 (2026-11-11): dropouts hold the battle (hold / go / ff, offline moves applied outside time). A version-1
 // client would mis-apply those, so it's told to update.
-export const PROTOCOL_VERSION = 2;
-export const MIN_PROTOCOL_VERSION = 2;
+// 3 (2026-11-11): back from a hold, the battle stays on hold while both decide whether to replay the round;
+// the room's vote carries its deadline, and a client that hasn't answered by then says no.
+export const PROTOCOL_VERSION = 3;
+export const MIN_PROTOCOL_VERSION = 3;
 /** The version a hello claims: its pv, or 1 when it has none (or a nonsense one). */
 export const helloVersion = (msg) => (Number.isInteger(msg?.pv) && msg.pv > 0 ? msg.pv : 1);
 
