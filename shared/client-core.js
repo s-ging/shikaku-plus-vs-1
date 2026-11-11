@@ -70,7 +70,7 @@ export class ClientCore {
 		if (!outside && msg.i != null && msg.g != null) events.push(...c.catchUp(msg.at, msg.i));
 		if (msg.t === 'hold') c.holdAll(msg.at);
 		else if (msg.t === 'go') c.resumeAll(msg.at);
-		else if (msg.t === 'ff') events.push(...c.forfeit(msg.i, msg.at));
+		else if (msg.t === 'ff') events.push(...c.forfeit(msg.i, msg.at, msg.by || 'forfeit'));
 		else if (msg.t === 'mv') {
 			const r = c.act(msg.i, decodeAction(msg.a), msg.at);
 			events.push(...r.events);

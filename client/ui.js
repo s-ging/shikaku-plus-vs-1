@@ -269,7 +269,11 @@
 		sound.rest(); // let the result sound finish, then rest until the next 3-2-1 wakes it
 		const who = ro.winner == null ? null : mode === 'replay' ? $(ro.winner === 0 ? 'name-you' : 'name-them').textContent : ro.winner === me ? 'You' : $('name-them').textContent;
 		$('ov-title').textContent =
-			ro.by === 'forfeit'
+			ro.by === 'drops'
+				? ro.winner === me
+					? `${$('name-them').textContent} dropped out too often. You win.`
+					: 'You dropped out too often: the match is lost.'
+				: ro.by === 'forfeit'
 				? ro.winner === me
 					? `${$('name-them').textContent} didn't come back. You win.`
 					: 'You were gone too long: the match is lost.'

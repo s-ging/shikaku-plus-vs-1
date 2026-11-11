@@ -668,3 +668,36 @@ test('the other player idle: their "here" every 3s wakes the room, so the hold s
 	assert.ok(a.core.confirmed.sides[0].frozenAt != null, "A's app knows (and shows the wait)");
 	assert.ok(saves() > before, 'saved once something changed');
 });
+
+
+test('two reconnects a match; the third drop gives the match to the player who stayed', () => {
+	const w = world({ latency: [50, 50] });
+	const { a, b } = startMatch(w);
+	const dropAndReturn = () => {
+		w.run(2000, playLoop(w));
+		w.vanish(1);
+		w.run(7000, playLoop(w));
+		assert.ok(w.room.hold, 'held');
+		w.reconnect(1);
+		w.run(500);
+		a.sendUp({ t: 'vote', v: false });
+		w.run(3800);
+	};
+	dropAndReturn();
+	dropAndReturn();
+	assert.ok(!w.room.match.over, 'two reconnects are fine');
+	w.run(2000, playLoop(w));
+	w.vanish(1);
+	// A idles (its app says "here"); no playing on, or its bot would take the room back to the lobby at the end.
+	for (let k = 0; k < 3; k++) {
+		w.run(2500);
+		a.sendUp({ t: 'here' });
+	}
+	w.run(300);
+	assert.ok(w.room.match.over, 'the third drop ends the match');
+	assert.deepEqual(w.room.match.roundOver, { winner: 0, by: 'drops' });
+	assert.equal(w.room.hold, null);
+	assert.equal(a.core.confirmed.roundOver.by, 'drops', "A's app knows why");
+	assert.equal(a.core.mismatches, 0);
+	assert.equal(b.core.mismatches, 0);
+});

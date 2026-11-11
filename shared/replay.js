@@ -31,7 +31,7 @@ export function applyMsg(m, x) {
 	const at = msgAt(x);
 	// Resume (at is in the future: the 3-2-1) and forfeit pay no gravity first.
 	if (t === 'G') return m.resumeAll(at), [];
-	if (t === 'X') return m.forfeit(i, at);
+	if (t === 'X') return m.forfeit(i, at, x[3] || 'forfeit');
 	const g = t === 'm' ? x[4] : t === 't' || t === 'h' ? x[3] : null;
 	const events = t === 'm' && x[3] == null ? [] : m.catchUp(g ?? at);
 	if (i != null && g != null) events.push(...m.catchUp(at, i));

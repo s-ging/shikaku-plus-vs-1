@@ -250,14 +250,14 @@ export class VersusMatch {
 			s.pausedUntil = Math.max(s.pausedUntil || 0, at);
 		});
 	}
-	/** A player who didn't come back forfeits the match: the other wins it; the score stays as it was. */
-	forfeit(loser, at) {
+	/** A player who didn't come back (or dropped too often) forfeits the match: the other wins it; the score stays. */
+	forfeit(loser, at, by = 'forfeit') {
 		if (this.over) return [];
 		const winner = 1 - loser;
-		this.roundOver = { winner, by: 'forfeit' };
+		this.roundOver = { winner, by }; // 'forfeit' (didn't come back) or 'drops' (dropped too often)
 		this.over = true;
 		this.clock = Math.max(this.clock ?? at, at);
-		return [{ side: 'match', kind: 'roundOver', winner, by: 'forfeit', score: [...this.score] }];
+		return [{ side: 'match', kind: 'roundOver', winner, by, score: [...this.score] }];
 	}
 
 	_apply(side, action) {

@@ -26,6 +26,9 @@ import { rulesFor, sanitize } from '../shared/settings.js';
 const QUIET_MS = 3000;
 const HOLD_MS = 5000;
 const HOLD_WAIT_MS = 30000;
+// A player may drop (long enough to hold the battle) this often in a match; the next drop gives the match to the
+// player who stayed (Krischan, 2026-11-11: "it's your fault for queueing when your connection's spotty").
+const MAX_HOLDS = 2;
 // Names an account has before its player picks one (supabase migration 15): not worth showing over the typed one.
 const PLACEHOLDER_NAMES = new Set(['Player', 'Guest']);
 // Shorter hiccups never freeze anyone: the client keeps playing and its queued moves arrive when the line comes back.
@@ -151,7 +154,7 @@ export class RoomCore {
 		else if (obj.t === 'th') r.msgs.push(['h', obj.i, obj.at, obj.g ?? null]);
 		else if (obj.t === 'hold') r.msgs.push(['H', obj.i, obj.at]);
 		else if (obj.t === 'go') r.msgs.push(['G', null, obj.at]);
-		else if (obj.t === 'ff') r.msgs.push(['X', obj.i, obj.at]);
+		else if (obj.t === 'ff') r.msgs.push(obj.by ? ['X', obj.i, obj.at, obj.by] : ['X', obj.i, obj.at]);
 		else return;
 		r.hash = h;
 	}
@@ -289,13 +292,22 @@ export class RoomCore {
 	_expireHold(now) {
 		const h = this.hold;
 		if (!h || h.back != null || !this.match || now < h.until || this.seats[h.i]?.left == null) return;
-		this.hold = null;
-		this.match.forfeit(h.i, now);
-		if (this.report) this.report.forfeitBy = h.i;
-		this._all(this._seq({ t: 'ff', i: h.i, at: now }));
-		this._afterChange(now);
-		this._roomAll();
+		this._forfeit(h.i, now, 'forfeit');
 		this._save();
+	}
+
+	/** Seat i loses the match: didn't come back ('forfeit'), or dropped too often ('drops'). */
+	_forfeit(i, at, by) {
+		this.hold = null;
+		this.vote = null;
+		this.match.forfeit(i, at, by);
+		if (this.report) {
+			this.report.forfeitBy = i;
+			this.report.forfeitWhy = by;
+		}
+		this._all(this._seq({ t: 'ff', i, at, ...(by !== 'forfeit' ? { by } : {}) }));
+		this._afterChange(at);
+		this._roomAll();
 	}
 
 	/** Lazy dead-connection check, run whenever anything arrives. No timers. */
@@ -310,7 +322,13 @@ export class RoomCore {
 			const i = this.seats.findIndex((s) => s.left != null && now - (s.goneFrom ?? s.left) >= HOLD_MS);
 			// The hold starts when the HOLD_MS were up, not when we noticed (a player sitting idle sends nothing):
 			// nothing was paid past that yet, since this check runs before every message.
-			if (i >= 0) this._holdBattle(i, Math.min(now, (this.seats[i].goneFrom ?? this.seats[i].left) + HOLD_MS), now);
+			if (i >= 0) {
+				const at = Math.min(now, (this.seats[i].goneFrom ?? this.seats[i].left) + HOLD_MS);
+				const seat = this.seats[i];
+				seat.holds = (seat.holds || 0) + 1;
+				if (seat.holds > MAX_HOLDS) this._forfeit(i, at, 'drops');
+				else this._holdBattle(i, at, now);
+			}
 		}
 	}
 
@@ -442,6 +460,7 @@ export class RoomCore {
 		for (const s of this.seats) {
 			s.goneRound = 0;
 			s.timing = { n: 0, sum: 0, sumSq: 0, min: null, last: now, boardFirst: { n: 0, sum: 0 }, boardAt: now, board: 0 };
+			s.holds = 0; // drops that held the battle, this match (MAX_HOLDS)
 		}
 		const replayId = randomId();
 		this.report = { code: this.code, startedAt: now, o: this.o, mode: rules.mode === 'mines' ? 'mines' : 'vs', firstTo, rounds: [], votes: [], replayId };

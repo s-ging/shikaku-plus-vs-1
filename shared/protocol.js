@@ -35,7 +35,8 @@
 //   report { t, r }                                             admin: the report
 //   hold   { t, n, i, at, until }                              v2: seat i is silent; the battle is on hold from `at`
 //   go     { t, n, at }                                        v2: play resumes at `at` (a 3-2-1); v3: once both have decided
-//   ff     { t, n, i, at }                                     v2: seat i didn't come back in time and forfeits
+//   ff     { t, n, i, at, by? }                                v2: seat i forfeits: didn't come back in time, or (by
+//                                                                'drops') dropped more than twice this match
 //   (mv with at and g null, v2: a move made offline before the hold, applied outside time)
 //   time   { t, c, s }                                         clock check answer: s = server time
 //   hv     { t, i, r }                                         the other seat's drag (r null = none)
