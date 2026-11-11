@@ -707,7 +707,11 @@
 
 	$('ready').addEventListener('click', () => net.send({ t: 'ready', v: !(room.seats[room.you] || {}).ready }));
 	$('start').addEventListener('click', () => net.send({ t: 'start' }));
-	$('copy-link').addEventListener('click', () => copy(`${location.origin}/${room.code}`, 'Link copied'));
+	// Invites go to the main site (Krischan, 2026-11-11): shikaku.plus/vs/CODE opens the room in the
+	// browser or the app, so app and browser players meet in one place. Local testing keeps its own address.
+	$('copy-link').addEventListener('click', () =>
+		copy(/^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? `${location.origin}/${room.code}` : `https://shikaku.plus/vs/${room.code}`, 'Link copied')
+	);
 	$('copy-report').addEventListener('click', () => net.send({ t: 'report' }));
 	$('g-report').addEventListener('click', () => net.send({ t: 'report' }));
 	$('copy-reports').addEventListener('click', async () => {
