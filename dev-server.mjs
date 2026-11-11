@@ -131,7 +131,14 @@ server.on('upgrade', (req, sock) => {
 			if (msg.t === 'hello') {
 				if (typeof msg.id !== 'string' || !/^[a-z0-9]{8,32}$/.test(msg.id)) return close();
 				sock.id = msg.id;
-				if (!room.core.hello(msg.id, msg, now)) return close();
+				const ok = room.core.hello(msg.id, msg, now);
+				if (ok !== true) {
+					// 'full' or 'update': close with that reason, as the Worker does, so the client doesn't retry.
+					const why = Buffer.from(String(ok));
+					sock.write(Buffer.concat([Buffer.from([0x88, why.length + 2, 0x03, 0xe8]), why]));
+					sock.id = null;
+					return close();
+				}
 			} else if (sock.id) room.core.message(sock.id, msg, now);
 			if (process.env.DEBUG) console.log(code, sock.id, msg.t, JSON.stringify(room.core.seats.map((x) => [x.connected, x.left, x.goneFrom, x.goneRound])), JSON.stringify(room.core.vote));
 		}

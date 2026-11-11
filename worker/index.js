@@ -1,6 +1,6 @@
 // index.js — the Cloudflare Worker: static files, one Durable Object per room, one for reports.
 //
-//   /ws/QWER          WebSocket into room QWER (the Room object named "QWER")
+//   /ws/QWER          WebSocket into room QWER (the Room object named "QWER"); our own pages and the app only
 //   /api/reports?k=…  admin: the last 100 match reports (k must equal the ADMIN_KEY secret)
 //   /api/stats?k=…    admin: every match so far, added up
 //   /api/replay?id=…  a match's replay (public: the id is 16 random characters; it's in the stats and on the match-over card)
@@ -11,8 +11,16 @@
 import { RoomCore } from './room-core.js';
 import { isRoomCode } from '../shared/protocol.js';
 import { summarize } from './stats.js';
+import { originAllowed } from './origin.js';
+import { Identity } from './identity.js';
 
 const MAX_MSG = 2048; // bytes; every real message is far smaller
+const MAX_HELLO = 8192; // the first message may carry an account token, which can pass 2KB (Google, Discord)
+
+// Account checks (worker/identity.js): one per Worker instance, so its key and profile caches are shared.
+// Off when the Supabase vars aren't set (local dev): everyone joins as a guest.
+let identity = null;
+const identityFor = (env) => (env.SUPABASE_URL && env.SUPABASE_ANON_KEY ? (identity ||= new Identity({ url: env.SUPABASE_URL, anonKey: env.SUPABASE_ANON_KEY })) : null);
 const MAX_PER_SEC = 40; // per socket; a human makes at most a few moves a second
 
 export default {
@@ -23,6 +31,8 @@ export default {
 			const code = ws[1].toUpperCase();
 			if (!isRoomCode(code)) return new Response('bad room', { status: 400 });
 			if (req.headers.get('Upgrade') !== 'websocket') return new Response('expected websocket', { status: 426 });
+			// Only our own pages (and the app, which sends no Origin) may open a room: worker/origin.js.
+			if (!originAllowed(req.headers.get('Origin'))) return new Response('not allowed from this site', { status: 403 });
 			const stub = env.ROOMS.get(env.ROOMS.idFromName(code));
 			return stub.fetch(new Request(`https://room/${code}`, req));
 		}
@@ -48,6 +58,8 @@ export class Room {
 		this.core = null;
 		this.closing = null;
 		this.rate = new WeakMap();
+		// Sockets whose hello is being checked: what else they sent meanwhile, kept in order.
+		this.waiting = new WeakMap();
 		// Heartbeat answered by Cloudflare itself: a 'ping' gets 'pong' without waking this
 		// object, so idle heartbeats cost no Durable Object time. We read the time of each
 		// socket's last ping lazily, when something real arrives.
@@ -99,7 +111,15 @@ export class Room {
 	}
 
 	async webSocketMessage(sock, data) {
-		if (typeof data !== 'string' || data.length > MAX_MSG) return;
+		if (typeof data !== 'string') return;
+		const held = this.waiting.get(sock);
+		if (held) {
+			// Its hello is still being checked: keep this for after, in order (a phone sends clock checks right away).
+			if (held.length < 50 && data.length <= MAX_MSG) held.push(data);
+			return;
+		}
+		const first = !(sock.deserializeAttachment() || {}).id;
+		if (data.length > (first ? MAX_HELLO : MAX_MSG)) return;
 		// Cheap flood guard, per socket per second.
 		const sec = Math.floor(Date.now() / 1000);
 		const r = this.rate.get(sock);
@@ -117,8 +137,26 @@ export class Room {
 		const now = Date.now();
 		if (msg.t === 'hello') {
 			if (typeof msg.id !== 'string' || !/^[a-z0-9]{8,32}$/.test(msg.id)) return sock.close(1008, 'bad id');
+			// A signed-in player: check the account before seating them (about 50ms, cached after).
+			// The token is never stored or passed on.
+			const tok = typeof msg.tok === 'string' ? msg.tok : null;
+			delete msg.tok;
+			const ident = tok ? identityFor(this.env) : null;
+			const held = [];
+			let who = null;
+			if (ident) {
+				this.waiting.set(sock, held);
+				try {
+					who = await ident.who(tok);
+				} finally {
+					this.waiting.delete(sock);
+				}
+				if (sock.readyState !== 1) return; // gone while we checked: nothing to seat
+			}
 			sock.serializeAttachment({ ...att, id: msg.id });
-			if (!core.hello(msg.id, msg, now)) sock.close(1000, 'full');
+			const ok = core.hello(msg.id, msg, Date.now(), who);
+			if (ok !== true) return sock.close(1000, ok); // 'full' or 'update': the client shows why and doesn't retry
+			for (const d of held) await this.webSocketMessage(sock, d);
 			return;
 		}
 		if (att.id) core.message(att.id, msg, now);

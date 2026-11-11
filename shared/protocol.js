@@ -3,7 +3,9 @@
 // on reconnect, on a new round, and when a client reports that it drifted.
 //
 // Client → server
-//   hello  { t, id, name, k?, dev }      join or rejoin (id is a random per-browser id)
+//   hello  { t, id, name, k?, dev, pv?, tok? }  join or rejoin (id is a random per-browser id; pv = PROTOCOL_VERSION;
+//                                        tok = the player's Shikaku+ account token: the server checks it and shows the
+//                                        account's name and badge instead of the typed name: worker/identity.js)
 //   set    { t, o }                      host only, in the lobby: setting overrides
 //   ready  { t, v }                      lobby ready toggle
 //   start  { t }                         host only, both ready
@@ -13,10 +15,13 @@
 //   vote   { t, v }                      remake-round vote
 //   resync { t }                         ask for a full state
 //   tele   { t, d }                      telemetry summary (at round end)
+//   time   { t, c }                      clock check: c = the client's clock when sent
+//   hv     { t, r? }                     my drag as [x1, y1, x2, y2], or none (not sequenced)
 //   report { t }                         admin only: the match report so far
 //
 // Server → client (sequenced ones carry n, the server's message number, and t, server time)
-//   room   { t, code, you, host, admin, phase, seats, o }       lobby / room state
+//   room   { t, code, you, host, admin, phase, seats, o }       lobby / room state; a seat is { name, ready, connected,
+//                                                                badge?, v? } (v: the name is the account's, checked)
 //   full   { t, n, st, o, phase }                               whole match state
 //   mv     { t, n, i, a, at, h, s? }                            an accepted move (s echoed to its sender)
 //   no     { t, s, why }                                        a refused move (only to its sender)
@@ -25,7 +30,22 @@
 //   round  { t, n, st, remake? }                                a new round started
 //   vote   { t, open, yes? }                                    remake vote opened / result
 //   report { t, r }                                             admin: the report
-//   err    { t, why }
+//   time   { t, c, s }                                         clock check answer: s = server time
+//   hv     { t, i, r }                                         the other seat's drag (r null = none)
+//   err    { t, why, min? }                                    why 'full', or 'update' (pv below min)
+
+/**
+ * The wire protocol's version, sent in hello as pv (2026-11-11). The server refuses a hello
+ * below MIN_PROTOCOL_VERSION with err 'update' and closes with reason 'update', so an
+ * installed app that is too old says "Update Shikaku+ to play online" instead of breaking.
+ * A hello with no pv (a web client from before this) counts as version 1.
+ * Raise PROTOCOL_VERSION on any change an older client can't follow; raise the minimum
+ * only when the server stops supporting the old behaviour.
+ */
+export const PROTOCOL_VERSION = 1;
+export const MIN_PROTOCOL_VERSION = 1;
+/** The version a hello claims: its pv, or 1 when it has none (or a nonsense one). */
+export const helloVersion = (msg) => (Number.isInteger(msg?.pv) && msg.pv > 0 ? msg.pv : 1);
 
 /** Moves as tiny arrays: place ['p', ax, ay, bx, by], erase ['e', x, y]. */
 export function encodeAction(a) {

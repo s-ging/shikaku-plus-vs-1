@@ -10,7 +10,7 @@
 //               (the round's messages, ~25 B a move). The saved room also carries the current round's
 //               replay so far, so a sleeping room loses nothing: ~6 KB plus ~25 B a move.
 import { VersusMatch } from '../engine/versus-match.js';
-import { decodeAction, encodeAction, stateHash, testerCode, RESULT_MS, COUNTDOWN_MS } from '../shared/protocol.js';
+import { decodeAction, encodeAction, stateHash, testerCode, helloVersion, MIN_PROTOCOL_VERSION, RESULT_MS, COUNTDOWN_MS } from '../shared/protocol.js';
 import { rulesFor, sanitize } from '../shared/settings.js';
 
 const STALE_MS = 20000; // no ping or message this long = really gone (a phone that lost signal may never close its socket).
@@ -54,7 +54,7 @@ export class RoomCore {
 		this.adminKey = adminKey || null;
 		Object.assign(this, {
 			phase: 'lobby',
-			seats: [], // { id, name, ready, connected, admin, dev, tele, reconnects, gone, goneRound, timing }
+			seats: [], // { id, name, ready, connected, admin, dev, tele, reconnects, gone, goneRound, timing, uid?, badge?, v? }
 			o: {},
 			n: 0,
 			next: [false, false],
@@ -94,7 +94,8 @@ export class RoomCore {
 			host: i === 0,
 			admin: !!this.seats[i]?.admin,
 			phase: this.phase,
-			seats: this.seats.map((s) => ({ name: s.name, ready: s.ready, connected: s.connected })),
+			// badge and v (name checked against the account) only when there is one, so a guest's seat looks as before.
+			seats: this.seats.map((s) => ({ name: s.name, ready: s.ready, connected: s.connected, ...(s.badge ? { badge: s.badge } : {}), ...(s.v ? { v: true } : {}) })),
 			replay: this.report && this.match && this.match.over ? this.report.replayId : null,
 			o: this.o,
 			vote: this.vote ? { open: true, yes: this.vote.yes } : null
@@ -153,13 +154,23 @@ export class RoomCore {
 	}
 
 	// —— connection events ——
-	/** A socket said hello. Returns false if the room is full. */
-	hello(id, msg, now) {
+	/**
+	 * A socket said hello. Returns true, or why it was turned away: 'update' (client too old) or 'full'.
+	 * who: the player's checked account, { uid, name, badge } (worker/identity.js), or null for a guest.
+	 * A checked name wins over the typed one, and a seat keeps its checked name and badge if a later
+	 * rejoin's check fails (offline token refresh): only a new checked account replaces them.
+	 */
+	hello(id, msg, now, who = null) {
+		const min = this.minVersion ?? MIN_PROTOCOL_VERSION; // tests raise it
+		if (helloVersion(msg) < min) {
+			this._to(id, { t: 'err', why: 'update', min });
+			return 'update';
+		}
 		let i = this._seatOf(id);
 		if (i < 0) {
 			if (this.seats.length >= 2) {
 				this._to(id, { t: 'err', why: 'full' });
-				return false;
+				return 'full';
 			}
 			this.seats.push({ id, name: cleanName(msg.name), ready: false, connected: true, admin: false, dev: null, tele: [], reconnects: 0, gone: 0, goneRound: 0, timing: null });
 			i = this.seats.length - 1;
@@ -167,9 +178,17 @@ export class RoomCore {
 			const s = this.seats[i];
 			if (!s.connected) s.reconnects++;
 			s.connected = true;
-			if (msg.name) s.name = cleanName(msg.name);
+			if (msg.name && !s.v) s.name = cleanName(msg.name);
 		}
 		const seat = this.seats[i];
+		if (who && who.uid) {
+			seat.uid = who.uid;
+			seat.badge = who.badge || null;
+			if (who.name) {
+				seat.name = who.name;
+				seat.v = true; // the name is the account's, checked by the server
+			}
+		}
 		if (this.adminKey && msg.k && msg.k === this.adminKey) seat.admin = true;
 		if (msg.dev && typeof msg.dev === 'object') seat.dev = JSON.parse(JSON.stringify(msg.dev).slice(0, 600) || 'null');
 		seat.lastSeen = now;
@@ -477,6 +496,7 @@ export class RoomCore {
 				const mean = t && t.n ? t.sum / t.n : null;
 				return {
 					name: s.name,
+					...(s.uid ? { uid: s.uid } : {}), // the Shikaku+ account, when the player was signed in
 					tester: testerCode(s.id), // the playtester code shown on the player's home screen
 					dev: s.dev,
 					tele: s.tele,
