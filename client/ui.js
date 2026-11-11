@@ -457,7 +457,7 @@
 	function showHold() {
 		clearTimeout(holdTimer);
 		const h = room && room.hold;
-		if (!h || h.i === (core && core.me)) return;
+		if (!h || h.back || h.i === (core && core.me)) return; // back: both are deciding (showVote)
 		const opp = room.seats[h.i];
 		const left = Math.ceil((h.until - serverNow()) / 1000);
 		if (left <= 0) {
@@ -470,6 +470,33 @@
 		}
 		banner(`${opp ? opp.name : 'The other player'}'s connection dropped. Waiting for them… ${left}s`);
 		holdTimer = setTimeout(showHold, 1000 - ((h.until - serverNow()) % 1000) + 10);
+	}
+
+	// The remake vote (2026-11-11): after a hold, the battle stays on hold while both decide; each sees
+	// the other's answer and the time left. Unanswered when the time is up: keep playing.
+	let voteTimer = 0;
+	let voted = null; // the vote I answered (its deadline)
+	function showVote() {
+		clearTimeout(voteTimer);
+		const v = room && room.vote;
+		$('vote').hidden = !v;
+		if (!v) return;
+		const me = core ? core.me : 0;
+		const opp = room.seats[1 - me];
+		const say = (x) => (x === true ? 'replay' : x === false ? 'keep playing' : 'deciding…');
+		const left = v.until ? Math.max(0, Math.ceil((v.until - serverNow()) / 1000)) : null;
+		$('vote-text').textContent = v.afterHold
+			? `${opp ? opp.name : 'The other player'} ${me === (room.hold && room.hold.i) ? 'waited for you' : 'is back'}. Replay this round, or keep playing? Both have to agree to replay. No score changes.`
+			: 'A player was disconnected for a while this round. Replay the round? Both players have to agree. No score changes.';
+		$('vote-state').textContent = `You: ${say(v.yes[me])} · ${opp ? opp.name : 'Them'}: ${say(v.yes[1 - me])}${left != null ? ` · ${left}s` : ''}`;
+		const answered = v.yes[me] != null || voted === v.until;
+		$('vote-yes').disabled = answered;
+		$('vote-no').disabled = answered;
+		if (left === 0 && !answered && v.afterHold) {
+			voted = v.until;
+			net.send({ t: 'vote', v: false }); // time's up: keep playing
+		}
+		if (left) voteTimer = setTimeout(showVote, 1000 - ((v.until - serverNow()) % 1000) + 10);
 	}
 
 	function banner(text) {
@@ -489,7 +516,7 @@
 			const opp = msg.seats[1 - msg.you];
 			showHold();
 			if (!msg.hold) banner(opp && !opp.connected ? `${opp.name} disconnected. Their board is frozen until they come back.` : null);
-			$('vote').hidden = !msg.vote;
+			showVote();
 			$('g-report').hidden = !msg.admin;
 			render();
 			return;
@@ -762,11 +789,13 @@
 	});
 	$('vote-yes').addEventListener('click', () => {
 		net.send({ t: 'vote', v: true });
-		$('vote').hidden = true;
+		voted = room && room.vote ? room.vote.until : null;
+		showVote();
 	});
 	$('vote-no').addEventListener('click', () => {
 		net.send({ t: 'vote', v: false });
-		$('vote').hidden = true;
+		voted = room && room.vote ? room.vote.until : null;
+		showVote();
 	});
 	$('ov-next').addEventListener('click', () => {
 		$('ov-next').disabled = true;

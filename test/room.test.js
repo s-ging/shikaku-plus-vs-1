@@ -52,7 +52,7 @@ function world({ latency = [40, 140], o = { firstTo: 2 } } = {}) {
 		conn.client = c;
 		conns.set(id, conn);
 		clients[seat] = c;
-		c.sendUp({ t: 'hello', pv: 2, id, name: 'P' + seat, k, dev: { ua: 'test' } });
+		c.sendUp({ t: 'hello', pv: 3, id, name: 'P' + seat, k, dev: { ua: 'test' } });
 		return c;
 	}
 	/** Same browser, same ClientCore, new socket: what a reconnect after a dropout looks like. */
@@ -61,7 +61,7 @@ function world({ latency = [40, 140], o = { firstTo: 2 } } = {}) {
 		const conn = { id: c.id, seat, open: true, client: c };
 		c.conn = conn;
 		conns.set(c.id + ':' + now, conn);
-		c.sendUp({ t: 'hello', pv: 2, id: c.id, name: 'P' + seat });
+		c.sendUp({ t: 'hello', pv: 3, id: c.id, name: 'P' + seat });
 	}
 	function drop(seat) {
 		const c = clients[seat];
@@ -183,7 +183,7 @@ test('a third player is turned away; refused moves are answered only to the move
 	assert.ok(!c.core.confirmed);
 });
 
-test('a silent player (dead socket that never closed) is frozen after 20s, and resumes when heard from', () => {
+test('a silent player (dead socket that never closed) is frozen, the battle holds, and resumes once both have decided', () => {
 	const w = world();
 	const a = w.addClient(0, 'aaaaaaaa1');
 	const b = w.addClient(1, 'bbbbbbbb2');
@@ -208,8 +208,17 @@ test('a silent player (dead socket that never closed) is frozen after 20s, and r
 	assert.ok(w.room.match.sides[1].frozenAt != null);
 	b.sendUp({ t: 'sync' });
 	w.run(400);
-	assert.equal(w.room.seats[1].left, null, 'B resumed');
-	assert.equal(w.room.match.sides[1].frozenAt, null);
+	assert.equal(w.room.seats[1].left, null, 'B is back');
+	assert.ok(w.room.hold && w.room.hold.back, 'still on hold while both decide');
+	assert.ok(w.room.vote && w.room.vote.afterHold, 'both are asked');
+	assert.ok(w.room.match.sides[0].frozenAt != null, 'A can\'t play while B decides');
+	a.sendUp({ t: 'vote', v: true });
+	b.sendUp({ t: 'vote', v: false }); // B says keep playing: the round goes on
+	w.run(400);
+	assert.equal(w.room.hold, null);
+	assert.equal(w.room.vote, null);
+	w.run(3200);
+	assert.equal(w.room.match.sides[1].frozenAt, null, 'after the 3-2-1, everyone plays');
 	w.run(3000, playLoop(w));
 	assert.equal(b.core.mismatches, 0);
 });
@@ -433,17 +442,17 @@ test('protocol version: a hello below the minimum is told to update and gets no 
 	const io = { send: (conn, obj) => sent.push([conn, obj]), conns: () => conns, save: () => {}, report: () => {} };
 	const room = new RoomCore('QWER', io, null, null);
 	assert.equal(room.hello('xxxxxxxx9', { t: 'hello', id: 'xxxxxxxx9', name: 'Old web' }, 1000), 'update', 'no pv is version 1: too old since protocol 2');
-	assert.equal(room.hello('aaaaaaaa1', { t: 'hello', pv: 2, id: 'aaaaaaaa1', name: 'Web' }, 1000), true);
-	assert.equal(room.hello('bbbbbbbb2', { t: 'hello', pv: 2, id: 'bbbbbbbb2', name: 'App', pv: PROTOCOL_VERSION }, 1000), true);
+	assert.equal(room.hello('aaaaaaaa1', { t: 'hello', pv: 3, id: 'aaaaaaaa1', name: 'Web' }, 1000), true);
+	assert.equal(room.hello('bbbbbbbb2', { t: 'hello', pv: 3, id: 'bbbbbbbb2', name: 'App', pv: PROTOCOL_VERSION }, 1000), true);
 	assert.equal(room.seats.length, 2);
 	// The day the minimum goes up: a client below it is turned away before it takes a seat.
 	room.minVersion = PROTOCOL_VERSION + 1;
-	assert.equal(room.hello('cccccccc3', { t: 'hello', pv: 2, id: 'cccccccc3', name: 'Old app', pv: PROTOCOL_VERSION }, 1000), 'update');
+	assert.equal(room.hello('cccccccc3', { t: 'hello', pv: 3, id: 'cccccccc3', name: 'Old app', pv: PROTOCOL_VERSION }, 1000), 'update');
 	assert.deepEqual(sent.at(-1), ['c', { t: 'err', why: 'update', min: PROTOCOL_VERSION + 1 }]);
-	assert.equal(room.hello('aaaaaaaa1', { t: 'hello', pv: 2, id: 'aaaaaaaa1', name: 'Web' }, 1000), 'update', 'even a seated player, on rejoin');
+	assert.equal(room.hello('aaaaaaaa1', { t: 'hello', pv: 3, id: 'aaaaaaaa1', name: 'Web' }, 1000), 'update', 'even a seated player, on rejoin');
 	assert.equal(room.seats.length, 2);
 	room.minVersion = undefined;
-	assert.equal(room.hello('cccccccc3', { t: 'hello', pv: 2, id: 'cccccccc3', name: 'Third', pv: PROTOCOL_VERSION }, 1000), 'full', 'a full room says why');
+	assert.equal(room.hello('cccccccc3', { t: 'hello', pv: 3, id: 'cccccccc3', name: 'Third', pv: PROTOCOL_VERSION }, 1000), 'full', 'a full room says why');
 	assert.equal(room.seats.length, 2);
 });
 
@@ -495,11 +504,17 @@ test('Krischan\'s dropout: the line dies, B plays on offline for 5s; the battle 
 	const bBoard = b.core.predicted.sides[1].boardIndex;
 	w.reconnect(1);
 	w.run(800);
-	assert.equal(w.room.hold, null, 'B is back: hold over');
+	assert.ok(w.room.hold && w.room.hold.back, 'B is back; still on hold while both decide');
 	assert.equal(b.core.pending.length, 0, 'every offline move confirmed');
 	assert.equal(w.room.match.sides[1].boardIndex, bBoard, 'same board B was on');
 	assert.equal(w.room.match.sides[1].rects.map((r) => `${r.x1}${r.y1}${r.x2}${r.y2}`).join('.'), bRects, 'nothing snapped back: the server has exactly what B played');
-	assert.ok(w.room.vote, 'both are offered a remake');
+	assert.ok(w.room.vote && w.room.vote.afterHold, 'both decide whether to replay the round');
+	assert.ok(w.room.hold && w.room.match.sides[0].frozenAt != null, 'still on hold: nobody plays while deciding');
+	// Nobody answers: after the vote's time, the round goes on (a 3-2-1).
+	w.run(20500);
+	a.sendUp({ t: 'vote', v: false }); // A's app says no when its countdown runs out
+	w.run(300);
+	assert.equal(w.room.hold, null, 'decided: the hold is over');
 	assert.ok(w.room.match.sides[0].pausedUntil > w.now, 'a 3-2-1 before play resumes');
 	w.run(3500);
 	w.run(6000, playLoop(w));
@@ -560,4 +575,30 @@ test('a short blip only freezes and thaws: no hold, moves land', () => {
 	w.run(5000, playLoop(w));
 	for (const c of [a, b]) assert.equal(c.core.mismatches, 0);
 	assert.equal(stateHash(b.core.confirmed), stateHash(w.room.match));
+});
+
+
+test('back from a hold, both say replay: the round is replayed with the score unchanged', () => {
+	const w = world({ latency: [50, 50] });
+	const { a, b } = startMatch(w);
+	w.run(3000, playLoop(w));
+	const round = w.room.match.round;
+	const score = [...w.room.match.score];
+	w.vanish(1);
+	w.run(8000, playLoop(w));
+	assert.ok(w.room.hold);
+	w.reconnect(1);
+	w.run(500);
+	assert.ok(w.room.vote && w.room.vote.afterHold);
+	a.sendUp({ t: 'vote', v: true });
+	w.run(200);
+	assert.deepEqual(w.room.vote.yes, [true, null], 'each side sees the other\'s answer');
+	b.sendUp({ t: 'vote', v: true });
+	w.run(400);
+	assert.equal(w.room.match.round, round + 1, 'replayed');
+	assert.deepEqual(w.room.match.score, score, 'no score for a remake');
+	assert.equal(w.room.hold, null);
+	w.run(3500);
+	w.run(4000, playLoop(w));
+	for (const c of [a, b]) assert.equal(c.core.mismatches, 0);
 });

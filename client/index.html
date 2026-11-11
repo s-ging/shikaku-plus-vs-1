@@ -456,8 +456,9 @@ canvas.board { display: block; width: 100%; height: auto; aspect-ratio: 1; touch
 			<button id="g-report" hidden>Copy match report</button>
 		</div>
 		<div id="vote" class="panel" hidden style="text-align: center">
-			<p style="margin: 0 0 8px">A player was disconnected for a while this round. Replay the round? Both players have to agree. No score changes.</p>
+			<p style="margin: 0 0 8px" id="vote-text">A player was disconnected for a while this round. Replay the round? Both players have to agree. No score changes.</p>
 			<div class="row" style="justify-content: center"><button class="primary" id="vote-yes">Replay the round</button><button id="vote-no">Keep playing</button></div>
+			<p class="muted" style="margin: 8px 0 0" id="vote-state"></p>
 		</div>
 		</div>
 	</div>
