@@ -457,7 +457,8 @@
 	function showHold() {
 		clearTimeout(holdTimer);
 		const h = room && room.hold;
-		if (!h || h.back || h.i === (core && core.me)) return; // back: both are deciding (showVote)
+		if (h && (h.back || h.i === (core && core.me))) banner(null); // back: both are deciding (showVote)
+		if (!h || h.back || h.i === (core && core.me)) return;
 		const opp = room.seats[h.i];
 		const left = Math.ceil((h.until - serverNow()) / 1000);
 		if (left <= 0) {

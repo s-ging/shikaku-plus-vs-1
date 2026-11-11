@@ -239,7 +239,12 @@ export class RoomCore {
 			// Back from a hold (Krischan, 2026-11-11): the battle stays on hold while both decide, together,
 			// whether to replay the round. Both yes: replayed. Either no, or the time runs out: a 3-2-1 and the
 			// round goes on (_resumeHold). Nobody plays while the other is still deciding.
-			if (this.seats.some((s) => s.left != null)) return;
+			// Someone else is still gone (both dropped): now it's them we wait for, a fresh wait.
+			const missing = this.seats.findIndex((s) => s.left != null);
+			if (missing >= 0) {
+				this.hold = { i: missing, at: this.hold.at, until: now + HOLD_WAIT_MS };
+				return;
+			}
 			this.hold.back = now;
 			this.vote = { yes: [null, null], until: now + VOTE_MS, afterHold: true };
 			return;
@@ -254,15 +259,15 @@ export class RoomCore {
 		return Math.max(s.lastSeen || 0, (this.io.lastPing && this.io.lastPing(s.id)) || 0);
 	}
 
-	/** A seat has been silent HOLD_MS: hold the battle for everyone, and wait HOLD_WAIT_MS for them. */
-	_holdBattle(i, now) {
+	/** A seat has been silent HOLD_MS: hold the battle for everyone from `at`, and wait HOLD_WAIT_MS for them. */
+	_holdBattle(i, at, now = at) {
 		const m = this.match;
-		m.catchUp(now);
-		m.holdAll(now);
-		this.hold = { i, at: now, until: now + HOLD_WAIT_MS };
+		m.catchUp(at);
+		m.holdAll(at);
+		this.hold = { i, at, until: now + HOLD_WAIT_MS };
 		this.vote = null;
 		if (this.report) this.report.holds = (this.report.holds || 0) + 1;
-		this._all(this._seq({ t: 'hold', i, at: now, until: this.hold.until }));
+		this._all(this._seq({ t: 'hold', i, at, until: this.hold.until }));
 		this._roomAll();
 	}
 
@@ -298,7 +303,9 @@ export class RoomCore {
 		});
 		if (!this.hold && !this.match.roundOver) {
 			const i = this.seats.findIndex((s) => s.left != null && now - (s.goneFrom ?? s.left) >= HOLD_MS);
-			if (i >= 0) this._holdBattle(i, now);
+			// The hold starts when the HOLD_MS were up, not when we noticed (a player sitting idle sends nothing):
+			// nothing was paid past that yet, since this check runs before every message.
+			if (i >= 0) this._holdBattle(i, Math.min(now, (this.seats[i].goneFrom ?? this.seats[i].left) + HOLD_MS), now);
 		}
 	}
 

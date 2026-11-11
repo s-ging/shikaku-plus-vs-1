@@ -271,6 +271,8 @@ canvas.board { display: block; width: 100%; height: auto; aspect-ratio: 1; touch
 .replay-bar .seg button { min-height: 34px; }
 #rp-scrub { width: 100%; accent-color: var(--accent); }
 #ov-replay { text-decoration: none; color: var(--fg); display: inline-flex; align-items: center; }
+/* The remake vote is a modal over the game (Krischan, 2026-11-11: both decide together, nobody plays meanwhile). */
+#vote:not([hidden]) { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 50; width: calc(100% - 32px); max-width: 420px; box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.6); }
 .banner { background: var(--card); border-left: 2px solid var(--accent); color: var(--fg2); border-radius: 6px; padding: 8px 12px; font-size: 13px; }
 #game-controls { justify-content: center; }
 #game-controls .seg button { min-height: 34px; }

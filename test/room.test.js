@@ -602,3 +602,42 @@ test('back from a hold, both say replay: the round is replayed with the score un
 	w.run(4000, playLoop(w));
 	for (const c of [a, b]) assert.equal(c.core.mismatches, 0);
 });
+
+
+test('a hold noticed late starts when the 5s were up: the idle player isn\'t charged for the wait', () => {
+	const w = world({ latency: [50, 50] });
+	startMatch(w, { firstTo: 3, gravitySecs: 1 });
+	const m = w.room.match;
+	const gone = w.now;
+	const ticksA = m.sides[0].econ.ticks;
+	w.vanish(1);
+	w.run(20000); // A sits idle, sends nothing; B is gone
+	w.clients[0].sendUp({ t: 'sync' }); // A's first message after a long while
+	w.run(300);
+	assert.ok(w.room.hold, 'held');
+	assert.ok(w.room.hold.at <= gone + 5000 + 100, 'from when the 5s were up: ' + (w.room.hold.at - gone));
+	assert.ok(m.sides[0].econ.ticks - ticksA <= 6, 'A paid ~5s of gravity, not 20s: ' + (m.sides[0].econ.ticks - ticksA));
+	assert.equal(m.roundOver, null, 'nobody lost the round to the wait');
+});
+
+test('both drop, one comes back: the hold now waits for the other (banner, forfeit), not the one who is back', () => {
+	const w = world({ latency: [50, 50] });
+	startMatch(w);
+	w.run(3000, playLoop(w));
+	w.vanish(0); // A's line dies; B plays on until the hold
+	w.run(6000, playLoop(w));
+	assert.equal(w.room.hold.i, 0, 'waiting for A');
+	w.drop(1); // then B closes too
+	w.run(2000);
+	w.reconnect(0); // A comes back; B is still gone
+	w.run(500);
+	assert.equal(w.room.hold.i, 1, 'now waiting for B');
+	assert.ok(!w.room.hold.back, 'not deciding: B isn\'t here');
+	assert.ok(w.room.hold.until > w.now + 25000, 'a fresh wait for B');
+	w.run(30500);
+	w.clients[0].sendUp({ t: 'claim' });
+	w.run(300);
+	assert.ok(w.room.match.over, 'B forfeits: no dead end');
+	assert.equal(w.room.match.roundOver.winner, 0);
+	assert.equal(w.clients[0].core.mismatches, 0);
+});
