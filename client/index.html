@@ -245,9 +245,13 @@ canvas.board { display: block; width: 100%; height: auto; aspect-ratio: 1; touch
 .hint { text-align: center; color: var(--fg3); font-size: 12.5px; margin: -8px auto 0; max-width: 72ch; }
 
 /* —— Between rounds: the result, then a big 3-2-1 (replacement and opacity only) —— */
-.count { position: absolute; inset: 0; z-index: 5; display: grid; place-items: center; pointer-events: none; font-family: var(--font-brand); font-weight: 800; font-size: clamp(96px, 30vw, 220px); line-height: 1; color: #fff; background: rgba(18, 18, 22, 0.55); border-radius: 10px; }
-.count span { animation: count-in 0.25s ease-out; }
-@keyframes count-in { from { opacity: 0; } to { opacity: 1; } }
+.count { position: absolute; inset: 0; z-index: 5; display: grid; place-items: center; pointer-events: none; font-family: var(--font-call); font-weight: 400; letter-spacing: -0.01em; font-size: clamp(96px, 30vw, 220px); line-height: 1; color: #fff; background: rgba(18, 18, 22, 0.55); border-radius: 10px; }
+/* The 3-2-1 is Shippori Antique, as in every other mode (Krischan, 2026-11-15), and scales in from 1.4 as it fades in (the app's countdown). */
+.count span { animation: count-in 0.25s cubic-bezier(0.2, 1, 0.3, 1); }
+@keyframes count-in { from { opacity: 0; transform: scale(1.4); } to { opacity: 1; transform: scale(1); } }
+/* FINISH! / GAME!: the countdown's own look, over the whole screen with a lighter scrim (not inside
+   the board, which drops away or dims under it). */
+.count.slam { position: fixed; z-index: 29; border-radius: 0; font-size: clamp(52px, 13vw, 120px); background: rgba(18, 18, 22, 0.3); }
 .box.win { animation: flick 0.3s steps(1, end) 4; }
 #ov-sub { font-variant-numeric: tabular-nums; }
 /* —— Lobby settings: Match and Game tabs —— */
@@ -305,23 +309,20 @@ canvas.board { display: block; width: 100%; height: auto; aspect-ratio: 1; touch
    out of the board like every other callout. Behind them, a quiet pattern of Krischan's marks,
    upright, faint, drifting up-right after a win and down-left after a loss. Transforms and
    opacity only. —— */
-/* The losing board: two blinks, then it dissolves from the outside in, a ring of cells at a
-   time (a 6×6 board: two rings), and what's left freezes over. */
-.seat.ko canvas.board { animation: ko-blink 0.36s steps(1) 2, ko-dissolve 0.6s 0.72s steps(2, jump-end) forwards, ko-freeze 0.01s 1.32s steps(1, jump-start) forwards; } /* ice snaps */
-@keyframes ko-blink { 50% { opacity: 0.2; } }
-@keyframes ko-dissolve { from { clip-path: inset(0 round 6px); } to { clip-path: inset(33.4% round 6px); } }
-@keyframes ko-freeze { to { filter: grayscale(1) sepia(1) hue-rotate(175deg) saturate(2) brightness(1.15); } }
+/* The losing board drops away with a tilt; the winner's dims (Krischan, 2026-11-15: for now, until something of our own). */
+.seat.fall { transition: transform 0.9s cubic-bezier(0.55, 0, 0.9, 0.45), opacity 0.9s; transform: translateY(110vh) rotate(6deg); opacity: 0.5; }
+.seat.dim { transition: opacity 0.5s; opacity: 0.4; }
 .ko-pill { position: fixed; z-index: 31; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 74px); transform: translateX(-50%); background: #a090c0; color: #16131c;
 	font-weight: 700; font-size: 14px; padding: 5px 16px; border-radius: 999px; white-space: nowrap; animation: pill-in 0.25s ease-out both; }
 @keyframes pill-in { from { transform: translate(-50%, -8px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
 .flow { position: fixed; inset: 0; z-index: 30; display: flex; overflow: hidden; background: #111113; animation: flow-in 0.25s ease-out both; }
 @keyframes flow-in { from { opacity: 0; } to { opacity: 1; } }
-.flow::before { content: ''; position: absolute; inset: -80px; background-image: var(--pat); background-size: 80px 80px; opacity: 0.075; pointer-events: none; animation: drift-right 26s linear infinite; }
+.flow::before { content: ''; position: absolute; inset: -120px; background-image: var(--pat); background-size: 120px 120px; opacity: 0.28; pointer-events: none; animation: drift-right 7s linear infinite; }
 .flow.won::before { animation-name: drift-up-right; }
 .flow.lost::before { animation-name: drift-down-left; }
-@keyframes drift-right { to { transform: translate(80px, 0); } }
-@keyframes drift-up-right { to { transform: translate(80px, -80px); } }
-@keyframes drift-down-left { to { transform: translate(-80px, 80px); } }
+@keyframes drift-right { to { transform: translate(120px, 0); } }
+@keyframes drift-up-right { to { transform: translate(120px, -120px); } }
+@keyframes drift-down-left { to { transform: translate(-120px, 120px); } }
 .flow > * { position: relative; }
 .halves { flex: 1; display: flex; }
 .half { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; transition: flex-grow 0.45s cubic-bezier(0.2, 1, 0.3, 1); min-width: 0; padding: 16px; }
@@ -336,7 +337,10 @@ canvas.board { display: block; width: 100%; height: auto; aspect-ratio: 1; touch
 .is-faceoff .half.them { animation: in-from-right 0.5s cubic-bezier(0.2, 1, 0.3, 1) both; }
 @keyframes in-from-left { from { transform: translateX(-100%); } }
 @keyframes in-from-right { from { transform: translateX(100%); } }
-.is-faceoff .who { font-size: clamp(24px, 4vw, 40px); }
+.is-faceoff .who { font-size: clamp(24px, 4vw, 40px); display: flex; align-items: center; gap: 12px; }
+.is-faceoff .who i { flex: 0 0 auto; width: 0.75em; height: 0.75em; border: 2px solid currentColor; border-radius: 3px; opacity: 0.7; }
+.is-faceoff .rr { display: flex; align-items: center; gap: 10px; font-size: clamp(16px, 2.2vw, 22px); color: rgba(255, 255, 255, 0.75); font-variant-numeric: tabular-nums; }
+.is-faceoff .rr i { width: 1.6em; height: 0.85em; border: 2px solid currentColor; border-radius: 999px; }
 /* VICTORY / DEFEAT: a callout, risen out of the middle like one out of the board's lane. */
 .verdict { flex: 1; display: grid; place-items: center; font-family: var(--font-call); letter-spacing: 0.06em; font-size: clamp(56px, 12vw, 128px); line-height: 1; }
 .verdict span { animation: verdict-rise 0.22s ease-out both; }
@@ -367,7 +371,7 @@ canvas.board { display: block; width: 100%; height: auto; aspect-ratio: 1; touch
 	@keyframes in-from-below { from { transform: translateY(100%); } }
 	@keyframes in-from-above { from { transform: translateY(-100%); } }
 }
-@media (prefers-reduced-motion: reduce) { .flow, .flow::before, .half, .verdict span, .results, .ko-pill, .half .num.tick, .seat.ko canvas.board { animation: none !important; } .seat.ko canvas.board { clip-path: inset(33.4% round 6px); filter: grayscale(1) sepia(1) hue-rotate(175deg) saturate(2) brightness(1.15); } }
+@media (prefers-reduced-motion: reduce) { .flow, .flow::before, .half, .verdict span, .results, .ko-pill, .half .num.tick, .count span { animation: none !important; } .seat.fall, .seat.dim { transition: none; } }
 </style>
 </head>
 <body>
@@ -512,6 +516,7 @@ canvas.board { display: block; width: 100%; height: auto; aspect-ratio: 1; touch
 				<div class="count" id="count" hidden aria-live="assertive"></div>
 			</div>
 		</section>
+		<div class="count slam" id="slam" hidden aria-live="assertive"><span></span></div>
 		<div class="flow" id="flow" hidden></div>
 		<div class="ko-pill" id="ko-pill" hidden></div>
 		<section class="seat mini" id="seat-them" aria-label="Their board">

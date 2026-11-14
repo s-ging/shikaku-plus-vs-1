@@ -879,9 +879,9 @@
 	// TETR.IO's Tetra League). Each runs on this device's clock from the moment a round ends;
 	// the server's RESULT_MS (3 s) plus the 3-2-1 makes about 6 s between rounds. ——
 	const FACEOFF_MS = 2000; // practice's first round; a Quickplay room leads by MM_LEAD_MS (5 s)
-	const FLOW_SLAM = 1800; // FINISH! and the losing board's blink, dissolve and freeze, then the score
+	const FLOW_SLAM = 1400; // FINISH! and the losing board dropping away, then the score
 	const FLOW_TICK = 450; // the winner's number ticks this far into the score
-	const FLOW_VERDICT = 1800; // GAME! and the board, then VICTORY / DEFEAT…
+	const FLOW_VERDICT = 1500; // GAME! and the board, then VICTORY / DEFEAT…
 	const FLOW_RESULTS = 3600; // …then the results
 	let flowShowing = ''; // '' | 'faceoff' | 'score' | 'verdict' | 'results'
 	let flowEndKey = '';
@@ -896,19 +896,19 @@
 	 * The quiet pattern behind the moments (Krischan, 2026-11-14): upright rows of his marks,
 	 *   x y x y …   x the VS icon, y this mode's icon (Quickplay, Room, Practice)
 	 *   z z z z …   z the VERSUS logotype
-	 * one 80 px tile, white; the page draws it at 7.5% and drifts it.
+	 * one 120 px tile, dark marks; the page draws it at 28% and drifts it.
 	 */
 	const patterns = {};
 	function pattern() {
 		const key = mode === 'online' && room && room.mm ? 'quickplay' : mode === 'online' ? 'room' : 'practice';
 		if (patterns[key]) return patterns[key];
-		const mark = (m, x, y, w, h) => `<svg x="${x}" y="${y}" width="${w}" height="${h}" viewBox="${m.vb}">${m.body}</svg>`;
+		const mark = (m, x, y, w, h) => `<svg x="${x}" y="${y}" width="${w}" height="${h}" viewBox="${m.vb}">${m.body.replace(/#fff/g, '#000')}</svg>`;
 		const svg =
-			`<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80">` +
-			mark(VS_MARKS.vs, 9, 9, 22, 22) +
-			mark(VS_MARKS[key], 49, 9, 22, 22) +
-			mark(VS_MARKS.versus, 8, 53, 64, 12) +
-			`</svg>`;
+			`<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120"><g>` +
+			mark(VS_MARKS.vs, 16, 16, 26, 26) +
+			mark(VS_MARKS[key], 76, 16, 26, 26) +
+			mark(VS_MARKS.versus, 20, 80, 80, 15) +
+			`</g></svg>`;
 		return (patterns[key] = `url("data:image/svg+xml,${encodeURIComponent(svg)}")`);
 	}
 
@@ -931,7 +931,8 @@
 	function flowReset() {
 		flowHide();
 		$('ko-pill').hidden = true;
-		for (const id of ['seat-you', 'seat-them']) $(id).classList.remove('ko');
+		$('slam').hidden = true;
+		for (const id of ['seat-you', 'seat-them']) $(id).classList.remove('fall', 'dim');
 	}
 
 	function halves(you, them) {
@@ -941,7 +942,9 @@
 	/** Before the first round: who's playing whom. */
 	function faceOff(m) {
 		flowReset();
-		const who = (n) => `<div class="who">${esc(n)}</div>`;
+		// Badge, name; rank plate, rating. Placeholders until badges and ratings reach the web
+		// (Krischan, 2026-11-15: "a placeholder please").
+		const who = (n) => `<div class="who"><i></i>${esc(n)}</div><div class="rr"><i></i>1000 RR</div>`;
 		flowShow('faceoff', halves({ html: who(nameOf(0)) }, { html: who(nameOf(1)) }));
 	}
 
@@ -951,7 +954,8 @@
 			if (flowShowing && flowShowing !== 'faceoff') flowReset();
 			if (!flowShowing) {
 				$('ko-pill').hidden = true;
-				for (const id of ['seat-you', 'seat-them']) $(id).classList.remove('ko');
+				$('slam').hidden = true;
+				for (const id of ['seat-you', 'seat-them']) $(id).classList.remove('fall', 'dim');
 			}
 			return;
 		}
@@ -976,12 +980,13 @@
 			flowPlayed += Math.max(0, serverNow() - (m.roundStartAt ?? serverNow()));
 			if (mode === 'online') net.send({ t: 'tele', d: { ...core.telemetry(), reconnects: net.reconnects, round: m.round } });
 			if (mode === 'practice' && !m.over) practice.later();
-			// FINISH! / GAME! flies out of my board like any callout; the losing board blinks
-			// twice, dissolves from the outside in and freezes over; the pill says why.
-			hud.callout(0, { text: m.over ? 'GAME!' : 'FINISH!', tier: 3, blinks: 2, life: 1500, sticky: true, big: true });
+			// FINISH! / GAME! in the countdown's own look; the losing board drops away with a
+			// tilt and the winner's dims; the pill says why.
+			$('slam').firstChild.textContent = m.over ? 'GAME!' : 'FINISH!';
+			$('slam').hidden = false;
 			for (const sc of [0, 1]) {
 				const seat = sc === 0 ? me : 1 - me;
-				if (ro.winner == null || ro.winner !== seat) $(sc === 0 ? 'seat-you' : 'seat-them').classList.add('ko');
+				$(sc === 0 ? 'seat-you' : 'seat-them').classList.add(ro.winner == null || ro.winner !== seat ? 'fall' : 'dim');
 			}
 			const pill = $('ko-pill');
 			const them = nameOf(1);
@@ -1001,6 +1006,7 @@
 		const t = Date.now() - flowEndAt;
 		if (!m.over) {
 			if (t < FLOW_SLAM) return;
+			$('slam').hidden = true;
 			const ticked = t >= FLOW_SLAM + FLOW_TICK;
 			const half = (sc) => {
 				const seat = sc === 0 ? me : 1 - me;
@@ -1011,6 +1017,7 @@
 			return flowShow('score', halves(half(0), half(1)), ro.winner == null ? '' : ro.winner === me ? 'won' : 'lost');
 		}
 		if (t < FLOW_VERDICT) return;
+		$('slam').hidden = true;
 		const iWon = ro.winner === me;
 		const mood = iWon ? 'won' : 'lost';
 		if (t < FLOW_RESULTS) return flowShow('verdict', `<div class="verdict ${iWon ? 'victory' : 'defeat'}"><span>${iWon ? 'VICTORY' : 'DEFEAT'}</span></div>`, mood);
