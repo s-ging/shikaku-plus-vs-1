@@ -5,7 +5,7 @@
 (() => {
 	const $ = (id) => document.getElementById(id);
 	const show = (id) => {
-		['home', 'lobby', 'game', 'practice-page'].forEach((s) => ($(s).hidden = s !== id));
+		['home', 'lobby', 'game', 'practice-page', 'queue-page'].forEach((s) => ($(s).hidden = s !== id));
 		if (id !== 'game') {
 			try {
 				sound.rest(); // off the game screen: suspend once the last sound ends
@@ -278,6 +278,7 @@
 					: `${who} won the ${m.over ? 'match' : 'round'}`;
 		$('ov-sub').textContent = `${m.score[me]} – ${m.score[1 - me]}`;
 		$('ov-next').hidden = !m.over || mode === 'replay'; // rounds move on by themselves; only a finished match waits
+		$('ov-next').textContent = mode === 'online' && room && room.mm ? 'Find another match' : 'Back to the room';
 		const rid = mode === 'online' && room && room.replay;
 		$('ov-replay').hidden = !(m.over && rid);
 		if (rid) $('ov-replay').href = '/replay/' + rid;
@@ -399,7 +400,9 @@
 					ws.send('ping');
 				}, 2000);
 				banner(null);
-				ws.send(JSON.stringify({ t: 'hello', id: myId, name: myName(), k: key || undefined, dev: device(), pv: PROTOCOL_VERSION }));
+				// tk: the matchmaker's ticket for this room, when it sent us here (ignored once we're seated).
+				const tk = ticket && ticket.code === code ? ticket.tk : undefined;
+				ws.send(JSON.stringify({ t: 'hello', id: myId, name: myName(), k: key || undefined, dev: device(), pv: PROTOCOL_VERSION, tk }));
 				// Learn the server's clock now, not at the first move: a device clock a few seconds off
 				// showed a 10-second "3-2-1" and stamped early moves wrong. Three samples, the best one wins.
 				for (let k = 0; k < 3; k++) setTimeout(() => ws.readyState === 1 && ws.send(JSON.stringify({ t: 'time', c: Date.now() })), k * 400);
@@ -425,6 +428,7 @@
 				this.ready = false;
 				if (this.closedByUs) return;
 				if (ev.reason === 'full') return banner('This room is full: two players are already in it.');
+				if (ev.reason === 'gone') return backToQueue('That match is no longer open.');
 				if (ev.reason === 'update') return banner('Shikaku+ VS has been updated. Reload the page to play online.');
 				banner('Connection lost. Reconnecting…');
 				this.later();
@@ -539,6 +543,7 @@
 		}
 		if (msg.t === 'err') {
 			if (msg.why === 'update') return banner('Shikaku+ VS has been updated. Reload the page to play online.');
+			if (msg.why === 'gone') return; // the close that follows sends us back to the queue
 			banner(msg.why === 'full' ? 'This room is full.' : 'Something went wrong: ' + msg.why);
 			return;
 		}
@@ -579,6 +584,30 @@
 	function lobby() {
 		show('lobby');
 		$('room-code').textContent = room.code;
+		const matchmade = !!room.mm;
+		$('copy-link').hidden = matchmade;
+		$('ready').hidden = matchmade;
+		$('lobby-cfg-slot').hidden = matchmade;
+		if (matchmade) {
+			$('seats').innerHTML = '';
+			room.seats.forEach((s, i) => {
+				const d = document.createElement('div');
+				d.className = 'lobby-seat';
+				d.textContent = `${s.name}${i === room.you ? ' · you' : ''}`;
+				$('seats').appendChild(d);
+			});
+			$('start').hidden = true;
+			$('admin-tools').hidden = true;
+			$('lobby-hint').textContent = room.seats.length < 2 ? 'Match found. Waiting for your opponent to connect…' : 'Match found. Starting…';
+			// They never arrived (closed the tab, lost signal): back in line rather than waiting forever.
+			if (room.seats.length < 2 && !noShowTimer) {
+				noShowTimer = setTimeout(() => {
+					noShowTimer = 0;
+					if (mode === 'online' && room && room.mm && room.phase === 'lobby' && room.seats.length < 2) backToQueue('Your opponent didn\u2019t connect.');
+				}, NO_SHOW_MS);
+			}
+			return;
+		}
 		$('seats').innerHTML = '';
 		room.seats.forEach((s, i) => {
 			const d = document.createElement('div');
@@ -799,6 +828,7 @@
 	});
 	$('ov-next').addEventListener('click', () => {
 		$('ov-next').disabled = true;
+		if (mode === 'online' && room && room.mm) return backToQueue(null); // Casual: straight back in line
 		if (mode === 'online') net.send({ t: 'next' });
 		else practice.next();
 	});
@@ -1048,6 +1078,125 @@
 	});
 	$('rp-scrub').addEventListener('change', () => (rp.dragging = false));
 
+	// —— Casual matchmaking (2026-11-14, decision 0025) ——
+	// The queue decides who plays whom; this page only joins, shows what the queue says, and follows
+	// the match it sends into a normal room, with a one-time ticket. All the logic is server-side, so
+	// it can change without a new client.
+	let ticket = null; // { code, tk } from the matchmaker
+	let noShowTimer = 0;
+	const NO_SHOW_MS = 20000; // the room's own reservation lasts 30s
+	const DIVISION_NAMES = { standard: 'Standard', knockout: 'Knockout' };
+	const inputKind = () => (window.matchMedia && matchMedia('(pointer: coarse)').matches ? 'touch' : 'mouse');
+	const queue = {
+		ws: null,
+		division: 'standard',
+		startedAt: 0,
+		clock: 0,
+		beat: 0,
+		retry: 0,
+		timer: 0,
+		stopped: true,
+		start(division, note = null) {
+			this.stop();
+			$('q-note').hidden = !note;
+			$('q-note').textContent = note || '';
+			this.stopped = false;
+			this.division = DIVISION_NAMES[division] ? division : 'standard';
+			this.startedAt = Date.now();
+			this.retry = 0;
+			show('queue-page');
+			$('q-title').textContent = 'Casual · ' + DIVISION_NAMES[this.division];
+			$('q-say').textContent = 'Connecting…';
+			const tick = () => {
+				const s = Math.floor((Date.now() - this.startedAt) / 1000);
+				$('q-time').textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+			};
+			tick();
+			this.clock = setInterval(tick, 1000);
+			this.connect();
+		},
+		connect() {
+			const url = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/queue/${this.division}`;
+			let ws;
+			try {
+				ws = new WebSocket(url);
+			} catch {
+				return this.later();
+			}
+			this.ws = ws;
+			ws.onopen = () => {
+				this.retry = 0;
+				ws.send(JSON.stringify({ t: 'queue', id: myId, pv: PROTOCOL_VERSION, input: inputKind() }));
+				clearInterval(this.beat);
+				this.beat = setInterval(() => ws.readyState === 1 && ws.send('ping'), 15000); // keeps phone networks from dropping an idle line
+			};
+			ws.onmessage = (ev) => {
+				if (ev.data === 'pong') return;
+				let msg;
+				try {
+					msg = JSON.parse(ev.data);
+				} catch {
+					return;
+				}
+				if (msg.t === 'q' && typeof msg.say === 'string') $('q-say').textContent = msg.say;
+				if (msg.t === 'err' && msg.why === 'update') $('q-say').textContent = 'Shikaku+ VS has been updated. Reload the page to play online.';
+				if (msg.t === 'match' && typeof msg.code === 'string' && typeof msg.tk === 'string') {
+					ticket = { code: msg.code, tk: msg.tk };
+					this.stop();
+					go('/' + msg.code, true); // replace: Back from the match goes home, not into the queue again
+				}
+			};
+			ws.onclose = (ev) => {
+				clearInterval(this.beat);
+				if (this.stopped || ev.reason === 'matched') return;
+				if (ev.reason === 'update') return;
+				if (ev.reason === 'replaced') {
+					this.stop();
+					$('q-say').textContent = 'You are searching in another tab.';
+					return;
+				}
+				$('q-say').textContent = 'Connection lost. Reconnecting…';
+				this.later();
+			};
+		},
+		later() {
+			clearTimeout(this.timer);
+			this.timer = setTimeout(() => !this.stopped && this.connect(), Math.min(8000, 1000 * 2 ** this.retry++));
+		},
+		stop() {
+			this.stopped = true;
+			clearTimeout(this.timer);
+			clearInterval(this.clock);
+			clearInterval(this.beat);
+			if (this.ws) {
+				const ws = this.ws;
+				this.ws = null;
+				ws.onclose = null;
+				try {
+					ws.close();
+				} catch {}
+			}
+		}
+	};
+	let queueNote = null; // why we're back in line, shown on the searching screen
+	function backToQueue(text) {
+		net.close();
+		queueNote = text;
+		go('/queue', true);
+	}
+	for (const b of $('q-division').children) {
+		b.addEventListener('click', () => {
+			for (const o of $('q-division').children) o.setAttribute('aria-pressed', String(o === b));
+			store.set('vs.queue', b.dataset.d);
+		});
+	}
+	{
+		const d = store.get('vs.queue');
+		if (DIVISION_NAMES[d]) for (const o of $('q-division').children) o.setAttribute('aria-pressed', String(o.dataset.d === d));
+	}
+	$('q-find').addEventListener('click', () => go('/queue'));
+	$('q-cancel').addEventListener('click', () => go('/', true));
+
 	// —— Home and routing ——
 	for (const [k, p] of Object.entries(BOT_PRESETS)) $('bot-level').appendChild(Object.assign(document.createElement('option'), { value: k, textContent: p.label }));
 	$('bot-level').value = 'normal';
@@ -1092,15 +1241,28 @@
 		store.set('vs.name', $('name').value.slice(0, 16));
 		practice.start($('bot-level').value, $('practice-mode').value, practiceO);
 	});
-	function go(path) {
+	function go(path, replace = false) {
 		store.set('vs.name', $('name').value.slice(0, 16));
-		history.pushState(null, '', path);
+		if (replace) history.replaceState(null, '', path);
+		else history.pushState(null, '', path);
 		route();
 	}
 	window.addEventListener('popstate', route);
 
 	function route() {
 		$('replay-bar').hidden = true;
+		clearTimeout(noShowTimer);
+		noShowTimer = 0;
+		if (/^\/queue\/?$/.test(location.pathname)) {
+			practice.stop();
+			if (mode === 'online') net.close();
+			mode = null;
+			if (!store.get('vs.name')) store.set('vs.name', 'Player' + Math.floor(Math.random() * 90 + 10));
+			queue.start(store.get('vs.queue') || 'standard', queueNote);
+			queueNote = null;
+			return;
+		}
+		queue.stop();
 		const rpm = location.pathname.match(/^\/replay\/([a-z0-9]{12,24})\/?$/);
 		if (rpm) return replay.open(rpm[1]);
 		replay.stop();
