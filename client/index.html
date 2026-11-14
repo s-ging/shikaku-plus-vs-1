@@ -318,7 +318,7 @@ canvas.board { display: block; width: 100%; height: auto; aspect-ratio: 1; touch
 	<!-- Quickplay (2026-11-14, decision 0025): matched with a stranger, first to 3, never rated. -->
 	<div class="panel" id="quickplay-panel">
 		<h2>Quickplay</h2>
-		<p class="muted" style="margin: 0 0 8px">Matched with another player. First to 3. Never rated.</p>
+		<p class="muted" style="margin: 0 0 8px">Play against another player in a first-to-3 match.</p>
 		<div class="row">
 			<div class="seg" id="q-division" role="group" aria-label="Division"><button data-d="standard" aria-pressed="true">Standard</button><button data-d="knockout" aria-pressed="false">Knockout</button></div>
 			<button class="primary" id="q-find">Find a match</button>
@@ -346,7 +346,7 @@ canvas.board { display: block; width: 100%; height: auto; aspect-ratio: 1; touch
 			<h2 style="margin: 0">Practice against a bot</h2>
 			<button id="practice-back">Back</button>
 		</div>
-		<p class="muted" style="margin: 6px 0 10px">Runs on your device only. No connection needed. Never rated.</p>
+		<p class="muted" style="margin: 6px 0 10px">Play with a bot. Offline OK!</p>
 		<div class="row">
 			<select id="practice-mode" aria-label="Mode" hidden><!-- Mines soft-retired 2026-11-08 --><option value="vs">Shikaku+ VS</option><option value="mines">Shikaku+ Mines</option></select>
 			<select id="bot-level" aria-label="Bot difficulty"></select>
@@ -368,7 +368,7 @@ canvas.board { display: block; width: 100%; height: auto; aspect-ratio: 1; touch
 <section id="lobby" hidden style="display: flex; flex-direction: column; gap: 12px">
 	<div class="panel">
 		<div class="row" style="justify-content: space-between">
-			<div><span class="muted">Room</span> <span class="code" id="room-code"></span></div>
+			<div><span class="code" id="room-code"></span></div>
 			<button id="copy-link">Copy link</button>
 		</div>
 		<div class="seats" id="seats"></div>

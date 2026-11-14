@@ -52,8 +52,8 @@ export const defaultOf = (k) => (k in VERSUS_RULES ? VERSUS_RULES[k] : BY_KEY.ge
  * (first to 3, never rated) and Competitive (first to 5 in both; FT7 cut 2026-11-14).
  * New rooms start on Standard Quickplay. */
 export const DIVISIONS = [
-	{ id: 'standard', label: 'Standard', hearts: 3, competitiveTo: 5, blurb: 'VS as intended. 3 Stock a round: an explosion costs one.' },
-	{ id: 'knockout', label: 'Knockout', hearts: 1, competitiveTo: 5, blurb: '1 Stock a round. The first explosion ends it.' }
+	{ id: 'standard', label: 'Standard', hearts: 3, competitiveTo: 5, blurb: 'VS as designed. 3 Stocks per round. Standard Mines and Ice rulesets.' },
+	{ id: 'knockout', label: 'Knockout', hearts: 1, competitiveTo: 5, blurb: 'For extra spice. 1 Stock per round. Standard Mines and Ice rulesets.' }
 ];
 export const QUEUES = [
 	{ id: 'quickplay', label: 'Quickplay', rated: false },
