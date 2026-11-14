@@ -9,6 +9,7 @@ test('origin: our pages and the app may open a room; other sites may not', () =>
 		'https://shikaku.plus',
 		'https://www.shikaku.plus',
 		'https://vs.shikaku.plus',
+		'https://play.shikaku.plus',
 		'https://shikaku-plus.pages.dev',
 		'https://staging.shikaku-plus.pages.dev',
 		'https://3f2a1b.shikaku-plus.pages.dev',

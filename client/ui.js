@@ -1101,14 +1101,26 @@
 		if (!m.over) {
 			if (t < FLOW_SLAM) return;
 			$('slam').hidden = true;
-			const ticked = t >= FLOW_SLAM + FLOW_TICK;
+			// Between rounds: the results' cards (Krischan, 2026-11-15: the splash was "empty af").
+			// The round's winner keeps their colour, is wider and gets the wave; the loser's card
+			// goes black. The winner's number ticks up by itself (CSS), so the moment draws once.
+			const phone = phoneShape();
 			const half = (sc) => {
 				const seat = sc === 0 ? me : 1 - me;
 				const won = ro.winner === seat;
-				const n = m.score[seat] - (won && !ticked ? 1 : 0);
-				return { cls: won && ticked ? ' won' : '', html: `<div class="num${won && ticked ? ' tick' : ''}">${n}</div><div class="who">${esc(nameOf(sc))}</div>` };
+				const n = m.score[seat];
+				const cw = phone ? window.innerWidth : (window.innerWidth * 1.4) / 2.4;
+				const ch = phone ? (window.innerHeight * 1.4) / 2.4 : window.innerHeight;
+				return {
+					cls: ro.winner == null ? '' : won ? ' won' : ' lost',
+					html:
+						(sc === 1 ? '<div class="seam"></div>' : '') +
+						'<div class="pat"></div>' +
+						(won ? glimmer('won', { fill: '#000', top: peak(0.4, 0.2), w: cw, h: ch, delay: 0.2, sparks: false }) : '') +
+						`<div class="num">${won ? `<span class="was">${n - 1}</span><span class="now">${n}</span>` : n}</div>${whoHtml(sc)}`
+				};
 			};
-			return flowShow('score', halves(half(0), half(1)), ro.winner == null ? '' : ro.winner === me ? 'won' : 'lost');
+			return flowShow('score', halves(half(0), half(1)), ro.winner == null ? '' : ro.winner === me ? 'won' : 'lost', { bare: true });
 		}
 		if (t < FLOW_VERDICT) return;
 		$('slam').hidden = true;
@@ -1144,11 +1156,15 @@
 		const time = s > 0 ? `<div class="r-time">${esc($('mode-title').textContent)} · ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}</div>` : '';
 		flowShow(
 			'results',
-			`${halves(card(0), card(1))}${time}<div class="r-bar"><button class="primary" id="flow-next">${nextLabel}</button>${rid ? `<a class="btn" href="/replay/${rid}">Replay</a>` : ''}</div>`,
+			`${halves(card(0), card(1))}${time}<div class="r-bar"><button class="primary" id="flow-next">${nextLabel}</button><button class="btn" id="flow-menu">Back to menu</button>${rid ? `<a class="btn" href="/replay/${rid}">Replay</a>` : ''}</div>`,
 			mood,
 			{ bare: true }
 		);
 		$('flow-next').onclick = afterMatch;
+		$('flow-menu').onclick = () => {
+			flowHide();
+			$('leave').click();
+		};
 	}
 	// A local dev server only: put practice into a moment, to look at the flow without playing it out.
 	if (location.hostname === 'localhost') {
