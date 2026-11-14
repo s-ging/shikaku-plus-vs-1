@@ -133,7 +133,7 @@ export class RoomCore {
 	_full(id) {
 		const { rules } = rulesFor(this.o);
 		const seat = this.seats[this._seatOf(id)];
-		this._to(id, { t: 'full', n: this.n, st: this.match.toState(), rules, phase: this.phase, ls: seat ? seat.lastS || 0 : 0 });
+		this._to(id, { t: 'full', n: this.n, st: this.match.toState(true), rules, phase: this.phase, ls: seat ? seat.lastS || 0 : 0 });
 	}
 	_seq(obj) {
 		this.n++;
@@ -505,7 +505,7 @@ export class RoomCore {
 		this.io.replay?.(replayId, 0, { v: 1, id: replayId, code: this.code, startedAt: now, seed, target: firstTo, rules, names: this.seats.map((s) => s.name) });
 		this._openRound(now);
 		this.n++;
-		for (const s of this.seats) this._to(s.id, { t: 'round', n: this.n, st: this.match.toState(), rules, ls: s.lastS || 0, startAt: this.match.roundStartAt });
+		for (const s of this.seats) this._to(s.id, { t: 'round', n: this.n, st: this.match.toState(true), rules, ls: s.lastS || 0, startAt: this.match.roundStartAt });
 		this._roomAll();
 	}
 
@@ -664,7 +664,7 @@ export class RoomCore {
 		this._openRound(now);
 		this.n++;
 		const rules = rulesFor(this.o).rules;
-		for (const s of this.seats) this._to(s.id, { t: 'round', n: this.n, st: m.toState(), rules, remake, ls: s.lastS || 0, startAt: m.roundStartAt, prev });
+		for (const s of this.seats) this._to(s.id, { t: 'round', n: this.n, st: m.toState(true), rules, remake, ls: s.lastS || 0, startAt: m.roundStartAt, prev });
 		this._roomAll();
 	}
 
