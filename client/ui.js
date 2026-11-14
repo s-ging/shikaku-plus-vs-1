@@ -170,10 +170,12 @@
 		hud.render();
 		$('score-you').textContent = m.score[v.me];
 		$('score-them').textContent = m.score[1 - v.me];
-		$('mode-title').textContent = mines ? 'Mines' : 'Versus';
-		const rx = m.rushFactor;
-		const fo = mode === 'online' && room ? room.o : mode === 'practice' ? { ...practice.o, mode: practice.mode } : null;
-		$('mode-line').textContent = `${fo ? formatName(fo) : mines ? 'Mines · Unrated' : 'S+VS'} · FT${m.target}${rx > 1 ? ` · Rush ×${rx}` : ''}`;
+		// The app's top bar (Krischan, 2026-11-14: parity with the Dart VS screen): "FT3 · Practice",
+		// "FT3 · Knockout", and no second line; the scores and names around it are the detail.
+		const fo = mode === 'online' && room ? room.o : null;
+		const division = fo && formatOf(fo).division;
+		$('mode-title').textContent = `FT${m.target} · ${mode === 'practice' ? 'Practice' : mines ? 'Mines' : division ? division.label : fo ? 'Custom' : 'Versus'}`;
+		$('mode-line').hidden = true;
 		$('brand').hidden = true;
 		let you = 'You';
 		let them = 'Them';
