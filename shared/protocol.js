@@ -130,5 +130,6 @@ export function testerCode(id) {
 }
 
 // Between rounds (2026-11-05): the result shows for RESULT_MS, then a 3-2-1 countdown of COUNTDOWN_MS.
-export const RESULT_MS = 2000;
+// 2026-11-14 (Krischan, versus/match-flow.md): 3s, for FINISH! and the score splash; about 6s a gap in all.
+export const RESULT_MS = 3000;
 export const COUNTDOWN_MS = 3000;
