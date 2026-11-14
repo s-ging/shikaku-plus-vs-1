@@ -208,7 +208,7 @@ test('room: both players arrive, the match starts by itself, settings stay locke
 	assert.equal(room.phase, 'match');
 	assert.equal(room.match.target, 3, 'first to 3');
 	const round = sent.get('bbbbbbbb2').find((m) => m.t === 'round');
-	assert.equal(round.startAt, 2000 + 5000, 'a 5-second count: time for the second phone to learn the clock');
+	assert.equal(round.startAt, 2000 + 7500, 'a 7.5-second lead: MATCH FOUND!, the face-off, then the 3-2-1');
 	assert.equal(room.report.queue, 'quickplay');
 	assert.equal(room.report.division, 'standard');
 	// A seated player who drops and comes back needs no ticket.

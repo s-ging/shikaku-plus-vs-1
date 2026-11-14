@@ -878,7 +878,7 @@
 	// —— The moments around play (Krischan, 2026-11-14; info repo versus/match-flow.md, after
 	// TETR.IO's Tetra League). Each runs on this device's clock from the moment a round ends;
 	// the server's RESULT_MS (3 s) plus the 3-2-1 makes about 6 s between rounds. ——
-	const FACEOFF_MS = 2000; // practice's first round; a Quickplay room leads by MM_LEAD_MS (5 s)
+	const FACEOFF_MS = 2600; // practice's first round (the squares, the face-off); a Quickplay room leads by MM_LEAD_MS (7.5 s)
 	const FLOW_SLAM = 1400; // FINISH! and the losing board dropping away, then the score
 	const FLOW_TICK = 450; // the winner's number ticks this far into the score
 	const FLOW_VERDICT = 1500; // GAME! and the board, then VICTORY / DEFEAT…
@@ -900,6 +900,7 @@
 	 * copies of them up across it (Krischan, 2026-11-15: "the color moves from tile to tile").
 	 */
 	const VIOLET = '#a090c0';
+	const SIDE_COLOUR = ['#d08080', '#80b3e6']; // you, them (--you, --them)
 	const TILE = 160;
 	const TILE_MARKS = (key) => [
 		[VS_MARKS.vs, 22, 22, 34, 34],
@@ -907,51 +908,66 @@
 		[VS_MARKS.versus, 24, 108, 112, 21]
 	];
 	const patternKey = () => (mode === 'online' && room && room.mm ? 'quickplay' : mode === 'online' ? 'room' : 'practice');
-	const markSvg = (m, x, y, w, h) => `<svg x="${x}" y="${y}" width="${w}" height="${h}" viewBox="${m.vb}">${m.body.replace(/#fff/g, VIOLET)}</svg>`;
+	const markSvg = (m, x, y, w, h, fill = VIOLET) => `<svg x="${x}" y="${y}" width="${w}" height="${h}" viewBox="${m.vb}">${m.body.replace(/#fff/g, fill)}</svg>`;
+	// Reduce animations (the system setting) keeps the tiles glimmering, but faintly (Krischan,
+	// 2026-11-15): at most 9% on the face-off and 20% on the victory screens.
+	const calm = () => !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+	const peak = (full, capped) => (calm() ? capped : full);
 	/**
-	 * Violet copies of the pattern's marks that fade in one tile after another (a wave across the
-	 * screen: up-right after a win, down-left after a loss, left to right otherwise), plus a few
-	 * at random. One mark a tile, so a phone animates a couple of dozen opacities at most.
+	 * Copies of the pattern's marks that fade in one tile after another (a wave across the area:
+	 * up-right after a win, down-left after a loss, left to right otherwise), in `fill`, up to
+	 * `top` opacity. Plus a few at random on the full-screen moments. One mark a tile, so a phone
+	 * animates a couple of dozen opacities at most; nothing moves or repaints.
 	 */
-	function glimmer(mood) {
-		const cols = Math.ceil(window.innerWidth / TILE);
-		const rows = Math.ceil(window.innerHeight / TILE);
+	function glimmer(mood, o = {}) {
+		const { fill = VIOLET, top = peak(0.55, 0.2), w = window.innerWidth, h = window.innerHeight, delay = 0, sparks = true } = o;
+		const cols = Math.ceil(w / TILE);
+		const rows = Math.ceil(h / TILE);
 		const marks = TILE_MARKS(patternKey());
 		const step = 0.16;
 		let out = '';
 		for (let i = 0; i < cols; i++) {
 			for (let j = 0; j < rows; j++) {
 				const order = mood === 'won' ? i + (rows - 1 - j) : mood === 'lost' ? cols - 1 - i + j : i;
-				const [m, x, y, w, h] = marks[(i + j) % 2];
-				out += `<i style="left:${i * TILE + x}px;top:${j * TILE + y}px;width:${w}px;height:${h}px;--d:${(order * step).toFixed(2)}s">${markSvg(m, 0, 0, w, h)}</i>`;
+				const [m, x, y, mw, mh] = marks[(i + j) % 2];
+				out += `<i style="left:${i * TILE + x}px;top:${j * TILE + y}px;width:${mw}px;height:${mh}px;--d:${(delay + order * step).toFixed(2)}s">${markSvg(m, 0, 0, mw, mh, fill)}</i>`;
 			}
 		}
-		for (let k = 0; k < Math.max(3, Math.round((cols * rows) / 8)); k++) {
-			const [m, x, y, w, h] = marks[Math.floor(Math.random() * 3)];
-			const i = Math.floor(Math.random() * cols);
-			const j = Math.floor(Math.random() * rows);
-			out += `<i class="spark" style="left:${i * TILE + x}px;top:${j * TILE + y}px;width:${w}px;height:${h}px;--d:${(Math.random() * 6).toFixed(2)}s">${markSvg(m, 0, 0, w, h)}</i>`;
+		if (sparks) {
+			for (let k = 0; k < Math.max(3, Math.round((cols * rows) / 8)); k++) {
+				const [m, x, y, mw, mh] = marks[Math.floor(Math.random() * 3)];
+				const i = Math.floor(Math.random() * cols);
+				const j = Math.floor(Math.random() * rows);
+				out += `<i class="spark" style="left:${i * TILE + x}px;top:${j * TILE + y}px;width:${mw}px;height:${mh}px;--d:${(Math.random() * 6).toFixed(2)}s">${markSvg(m, 0, 0, mw, mh, fill)}</i>`;
+			}
 		}
-		return `<div class="glim">${out}</div>`;
+		return `<div class="glim" style="--peak:${top}">${out}</div>`;
 	}
 	const patterns = {};
-	function pattern() {
-		const key = patternKey();
+	function pattern(fill = VIOLET) {
+		const key = patternKey() + fill;
 		if (patterns[key]) return patterns[key];
 		const svg =
 			`<svg xmlns="http://www.w3.org/2000/svg" width="${TILE}" height="${TILE}" viewBox="0 0 ${TILE} ${TILE}">` +
-			TILE_MARKS(key).map((a) => markSvg(...a)).join('') +
+			TILE_MARKS(patternKey()).map((a) => markSvg(...a, fill)).join('') +
 			`</svg>`;
 		return (patterns[key] = `url("data:image/svg+xml,${encodeURIComponent(svg)}")`);
 	}
 
-	function flowShow(kind, html, mood = '') {
+	/**
+	 * Shows a moment. `o.fill` colours the full-screen pattern and its glimmer; `o.bare` leaves
+	 * both out (the face-off and the results draw their own, inside each player's half).
+	 */
+	function flowShow(kind, html, mood = '', o = {}) {
 		const f = $('flow');
-		f.style.setProperty('--pat', pattern());
+		f.style.setProperty('--pat', pattern(o.fill));
+		f.style.setProperty('--pat-dark', pattern('#000'));
+		f.style.setProperty('--pat-light', pattern('#fff'));
 		if (flowShowing !== kind || f.dataset.html !== html) {
-			f.className = 'flow is-' + kind + (mood ? ' ' + mood : '');
+			f.className = 'flow is-' + kind + (mood ? ' ' + mood : '') + (o.bare ? ' bare' : '');
 			// A new moment starts its glimmer over; a redraw of the same one (the score ticking) keeps it.
-			const glim = flowShowing === kind && f.firstElementChild && f.firstElementChild.classList.contains('glim') ? f.firstElementChild.outerHTML : glimmer(mood);
+			const keep = flowShowing === kind && f.firstElementChild && f.firstElementChild.classList.contains('glim');
+			const glim = o.bare ? '' : keep ? f.firstElementChild.outerHTML : glimmer(mood, { fill: o.fill, top: o.top });
 			f.innerHTML = glim + html;
 			f.dataset.html = html;
 		}
@@ -973,16 +989,57 @@
 	function halves(you, them) {
 		return `<div class="halves"><div class="half you${you.cls || ''}">${you.html}</div><div class="half them${them.cls || ''}">${them.html}</div></div>`;
 	}
+	const phoneShape = () => window.innerWidth <= 700; // the CSS's phone breakpoint: halves stand up
+	// Badge, name; rank plate, rating. Placeholders until badges and ratings reach the web
+	// (Krischan, 2026-11-15: "a placeholder please"). Quickplay is unrated: its rating never moves.
+	const plate = () => `<img alt="9 kyu" src="data:image/svg+xml,${encodeURIComponent(VS_PLATES['kyu-9'])}">`;
+	// The players' own names on the face-off and the cards: mine, not the header's "You".
+	const cardName = (screen) => (screen === 0 && mode !== 'replay' ? myName() : nameOf(screen));
+	const whoHtml = (screen) => `<div class="who"><i></i>${esc(cardName(screen))}</div><div class="rr">${plate()}1000 RR</div>`;
 
-	/** Before the first round: who's playing whom. */
+	/**
+	 * Before the first round: who's playing whom (Krischan, 2026-11-15; versus/match-flow.md).
+	 * A Quickplay match opens on MATCH FOUND!; two 2×2 squares, one each, are placed over it, and
+	 * the view zooms into them until each fills its player's half. A thin white seam forms
+	 * between the halves, with the mode's icon in a tile on it. Practice skips the words.
+	 */
 	function faceOff(m) {
+		if (flowShowing === 'faceoff') return; // already running: never restart the intro
 		flowReset();
-		// Badge, name; rank plate, rating. Placeholders until badges and ratings reach the web
-		// (Krischan, 2026-11-15: "a placeholder please").
-		const plate = `<img alt="9 kyu" src="data:image/svg+xml,${encodeURIComponent(VS_PLATES['kyu-9'])}">`;
-		const who = (n) => `<div class="who"><i></i>${esc(n)}</div><div class="rr">${plate}1000 RR</div>`;
-		const vs = `<div class="vs-icon">${markSvg(VS_MARKS.vs, 0, 0, 80, 80)}</div>`;
-		flowShow('faceoff', halves({ html: who(nameOf(0)) }, { html: who(nameOf(1)) }) + vs);
+		const W = window.innerWidth;
+		const H = window.innerHeight;
+		const phone = phoneShape();
+		const words = mode === 'online' && room && room.mm;
+		const still = calm();
+		const k = words ? 0 : -1.65; // without the words, everything happens 1.65 s sooner
+		const fo = still ? 0 : 2.75 + k;
+		let intro = '';
+		if (!still) {
+			const cols = phone ? 2 : 4;
+			const rows = phone ? 4 : 2;
+			const g = 6;
+			const c = Math.min((W * (phone ? 0.42 : 0.6)) / cols, (H * 0.5) / rows);
+			const at = (i) => i * (c + g);
+			const span = (n) => n * c + (n - 1) * g;
+			// [x, y, corner it opens from (x, y), side, when]: you left (below on a phone), them right (on top)
+			const R = phone
+				? [[0, 0, 0, 0, 'them', 1.95], [0, 2, 1, 3, 'you', 2.15]]
+				: [[0, 0, 0, 0, 'you', 1.95], [2, 0, 3, 1, 'them', 2.15]];
+			const rects = R.map(([x, y, gx, gy, side, t]) => {
+				const ox = at(gx - x) + c / 2;
+				const oy = at(gy - y) + c / 2;
+				return `<div class="mf-rect ${side}" style="left:${at(x)}px;top:${at(y)}px;width:${span(2)}px;height:${span(2)}px;--ox:${ox}px;--oy:${oy}px;--s:${c / span(2)};--t:${(t + k).toFixed(2)}s"></div>`;
+			}).join('');
+			const z = Math.max(W / span(cols), H / span(rows)) * 1.06;
+			intro =
+				`<div class="mf-board" style="--z:${z.toFixed(3)};--tz:${(2.5 + k).toFixed(2)}s"><div class="mf-grid" style="width:${span(cols)}px;height:${span(rows)}px">${rects}</div></div>` +
+				(words ? `<div class="mf-words"><span>MATCH<br>FOUND!</span></div>` : '');
+		}
+		const hw = phone ? W : W / 2;
+		const hh = phone ? H / 2 : H;
+		const half = (screen) => ({ html: `<div class="pat"></div>${glimmer('', { fill: '#000', top: peak(0.4, 0.09), w: hw, h: hh, delay: fo, sparks: false })}${whoHtml(screen)}` });
+		const tile = `<div class="mode-tile"><div>${markSvg(VS_MARKS[patternKey()], 0, 0, 40, 40)}</div></div>`;
+		flowShow('faceoff', intro + `<div class="face" style="--fo:${fo}s">${halves(half(0), half(1))}<div class="seam"></div>${tile}</div>`, '', { bare: true });
 	}
 
 	/** A round (or the match) just ended, or a round is on: what shows. */
@@ -1057,27 +1114,39 @@
 		$('slam').hidden = true;
 		const iWon = ro.winner === me;
 		const mood = iWon ? 'won' : 'lost';
-		if (t < FLOW_RESULTS) return flowShow('verdict', `<div class="verdict ${iWon ? 'victory' : 'defeat'}"><span>${iWon ? 'VICTORY' : 'DEFEAT'}</span></div>`, mood);
+		// VICTORY / DEFEAT on black, the pattern and its wave in the winner's colour (Krischan, 2026-11-15).
+		const winColour = ro.winner == null ? VIOLET : SIDE_COLOUR[iWon ? 0 : 1];
+		if (t < FLOW_RESULTS) return flowShow('verdict', `<div class="verdict ${iWon ? 'victory' : 'defeat'}"><span>${iWon ? 'VICTORY' : 'DEFEAT'}</span></div>`, mood, { fill: winColour });
 		$('ko-pill').hidden = true;
 		const s = Math.round(flowPlayed / 1000);
-		const row = (label, a, b) => `<tr><td>${label}</td><td>${a}</td><td>${b}</td></tr>`;
 		const rid = mode === 'online' && room && room.replay;
 		const nextLabel = mode === 'online' && room && room.mm ? 'Find another match' : mode === 'online' ? 'Back to the room' : 'Play again';
+		// The results: the face-off's halves come back as the players' cards. The winner's keeps
+		// its colour (and is wider), the loser's goes black (Krischan, 2026-11-15).
+		const phone = phoneShape();
+		const card = (sc) => {
+			const seat = sc === 0 ? me : 1 - me;
+			const won = ro.winner === seat;
+			const st = flowTotals[sc];
+			const cw = phone ? window.innerWidth : (window.innerWidth * 1.4) / 2.4;
+			const ch = phone ? (window.innerHeight * 1.4) / 2.4 : window.innerHeight;
+			const stat = (n, label) => `<div><b>${n || 0}</b>${label}</div>`;
+			return {
+				cls: won ? ' won' : ' lost',
+				html:
+					(sc === 1 ? '<div class="seam"></div>' : '') +
+					'<div class="pat"></div>' +
+					(won ? glimmer('won', { fill: '#000', top: peak(0.4, 0.2), w: cw, h: ch, delay: 0.3, sparks: false }) : '') +
+					`<div class="tag">${won ? 'VICTORY' : ''}</div><div class="score">${m.score[seat]}</div>${whoHtml(sc)}` +
+					`<div class="stats">${stat(st.clears, 'Boards cleared')}${stat(st.perfects, 'Perfect boards')}${stat(st.defused, 'Mines defused')}</div>`
+			};
+		};
+		const time = s > 0 ? `<div class="r-time">${esc($('mode-title').textContent)} · ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}</div>` : '';
 		flowShow(
 			'results',
-			`<div class="results">
-				<h2>${iWon ? 'Victory' : 'Defeat'}</h2>
-				<div class="bars"><div class="bar you"><span>${esc(nameOf(0))}</span><b>${m.score[me]}</b></div><div class="vs">vs</div><div class="bar them"><b>${m.score[1 - me]}</b><span>${esc(nameOf(1))}</span></div></div>
-				<table>
-					${row('', 'You', 'Them')}
-					${row('Boards cleared', flowTotals[0].clears || 0, flowTotals[1].clears || 0)}
-					${row('Perfect boards', flowTotals[0].perfects || 0, flowTotals[1].perfects || 0)}
-					${row('Mines defused', flowTotals[0].defused || 0, flowTotals[1].defused || 0)}
-					${s > 0 ? row('Match time', `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`, '') : ''}
-				</table>
-				<div class="actions"><button class="primary" id="flow-next">${nextLabel}</button>${rid ? `<a class="btn" href="/replay/${rid}">Replay</a>` : ''}</div>
-			</div>`,
-			mood
+			`${halves(card(0), card(1))}${time}<div class="r-bar"><button class="primary" id="flow-next">${nextLabel}</button>${rid ? `<a class="btn" href="/replay/${rid}">Replay</a>` : ''}</div>`,
+			mood,
+			{ bare: true }
 		);
 		$('flow-next').onclick = afterMatch;
 	}

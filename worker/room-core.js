@@ -34,9 +34,10 @@ const PLACEHOLDER_NAMES = new Set(['Player', 'Guest']);
 // Shorter hiccups never freeze anyone: the client keeps playing and its queued moves arrive when the line comes back.
 // A matchmade room (2026-11-14): how long its two players have to arrive, and the countdown
 // it starts with. Longer than a normal 3-2-1 so the second phone has learned the server's
-// clock before the count shows.
+// clock before the count shows, and long enough for MATCH FOUND! and the face-off before the
+// 3-2-1 (Krischan, 2026-11-15; info repo versus/match-flow.md).
 const RESERVE_MS = 30000;
-const MM_LEAD_MS = COUNTDOWN_MS + 2000;
+const MM_LEAD_MS = COUNTDOWN_MS + 4500;
 const REMAKE_AFTER_MS = 10000; // a seat gone this long in one round may call a remake vote
 const VOTE_MS = 20000;
 const NAME_MAX = 16;

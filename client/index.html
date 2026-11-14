@@ -325,8 +325,9 @@ canvas.board { display: block; width: 100%; height: auto; aspect-ratio: 1; touch
 .glim i { position: absolute; display: block; opacity: 0; animation: glim 4.2s ease-in-out infinite; animation-delay: var(--d); }
 .glim i.spark { animation-name: spark; animation-duration: 6.4s; }
 .glim i svg { display: block; width: 100%; height: 100%; }
-@keyframes glim { 0%, 34%, 100% { opacity: 0; } 14% { opacity: 0.55; } }
-@keyframes spark { 0%, 52%, 100% { opacity: 0; } 26% { opacity: 0.85; } }
+@keyframes glim { 0%, 34%, 100% { opacity: 0; } 14% { opacity: var(--peak, 0.55); } }
+@keyframes spark { 0%, 52%, 100% { opacity: 0; } 26% { opacity: min(0.85, calc(var(--peak, 0.55) * 1.55)); } }
+.flow.bare::before { display: none; }
 .flow > * { position: relative; }
 .halves { flex: 1; display: flex; }
 .half { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; transition: flex-grow 0.45s cubic-bezier(0.2, 1, 0.3, 1); min-width: 0; padding: 16px; }
@@ -337,48 +338,95 @@ canvas.board { display: block; width: 100%; height: auto; aspect-ratio: 1; touch
 .half .num.tick { animation: tick-up 0.4s cubic-bezier(0.2, 1.5, 0.4, 1) both; }
 @keyframes tick-up { from { transform: scale(1.35); } to { transform: scale(1); } }
 .half .who { font-size: clamp(18px, 2.6vw, 26px); color: #fff; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.is-faceoff .half.you { animation: in-from-left 0.5s cubic-bezier(0.2, 1, 0.3, 1) both; }
-.is-faceoff .half.them { animation: in-from-right 0.5s cubic-bezier(0.2, 1, 0.3, 1) both; }
 @keyframes in-from-left { from { transform: translateX(-100%); } }
 @keyframes in-from-right { from { transform: translateX(100%); } }
-.is-faceoff .who { font-size: clamp(24px, 4vw, 40px); display: flex; align-items: center; gap: 12px; }
-.is-faceoff .who i { flex: 0 0 auto; width: 0.75em; height: 0.75em; border: 2px solid currentColor; border-radius: 3px; opacity: 0.7; }
-.is-faceoff .rr { display: flex; align-items: center; gap: 10px; font-size: clamp(16px, 2.2vw, 22px); color: rgba(255, 255, 255, 0.75); font-variant-numeric: tabular-nums; }
-.is-faceoff .rr img { height: 1.3em; width: auto; image-rendering: pixelated; border-radius: 2px; }
-/* The VS mark on the seam between the two players. */
-.vs-icon { position: absolute; z-index: 2; inset: 0; display: grid; place-items: center; pointer-events: none; }
-.vs-icon svg { width: clamp(52px, 7vw, 80px); height: auto; animation: count-in 0.35s 0.25s cubic-bezier(0.2, 1, 0.3, 1) both; filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.5)); }
+/* The face-off and the results: each player's half in their colour, under a dark veil, with a
+   still pattern of black marks and a black wave moving through it (Krischan, 2026-11-15). */
+.face .half, .is-results .half { position: relative; overflow: hidden; }
+.face .half.you, .is-results .half.you { background: var(--you); }
+.face .half.them, .is-results .half.them { background: var(--them); }
+.face .half::before, .is-results .half::before { content: ''; position: absolute; inset: 0; background: rgba(28, 28, 28, 0.5); }
+.half .pat { position: absolute; inset: 0; background-image: var(--pat-dark); background-size: 160px 160px; opacity: 0.09; pointer-events: none; }
+.face .half > :not(.pat):not(.glim), .is-results .half > :not(.pat):not(.glim):not(.seam) { position: relative; }
+.half .who { display: flex; align-items: center; gap: 12px; }
+.face .who { font-size: clamp(24px, 4vw, 40px); }
+.half .who i { flex: 0 0 auto; width: 0.75em; height: 0.75em; border: 2px solid currentColor; border-radius: 3px; opacity: 0.7; }
+.half .rr { display: flex; align-items: center; gap: 10px; font-size: clamp(16px, 2.2vw, 22px); color: rgba(255, 255, 255, 0.85); font-variant-numeric: tabular-nums; }
+.half .rr img { height: 1.3em; width: auto; image-rendering: pixelated; border-radius: 2px; }
+/* MATCH FOUND!: two 2×2 squares placed over the words, then the view zooms into them. */
+.mf-board { position: absolute; z-index: 1; left: 50%; top: 50%; transform: translate(-50%, -50%); animation: mf-zoom 0.38s cubic-bezier(0.7, 0, 0.3, 1) var(--tz) forwards; }
+@keyframes mf-zoom { to { transform: translate(-50%, -50%) scale(var(--z)); } }
+.mf-grid { position: relative; }
+.mf-rect { position: absolute; border-radius: 8px; transform-origin: var(--ox) var(--oy); transform: scale(var(--s)); opacity: 0; animation: mf-place 0.13s cubic-bezier(0.2, 1, 0.3, 1) var(--t) forwards; }
+@keyframes mf-place { 0% { opacity: 1; } to { opacity: 1; transform: scale(1); } }
+.mf-rect.you { background: var(--you); }
+.mf-rect.them { background: var(--them); }
+.mf-words { position: absolute; inset: 0; z-index: 0; display: grid; place-items: center; background: rgba(18, 18, 22, 0.3); animation: mf-out 0.15s linear 2.3s forwards; }
+.mf-words span { font-family: var(--font-call); color: #fff; text-align: center; font-size: clamp(64px, 17vw, 132px); line-height: 0.98; letter-spacing: -0.01em; animation: count-in 0.25s cubic-bezier(0.2, 1, 0.3, 1) both; }
+@keyframes mf-out { to { opacity: 0; visibility: hidden; } }
+.face { position: absolute; inset: 0; z-index: 2; display: flex; opacity: 0; animation: flow-in 0.2s ease-out var(--fo) forwards; }
+/* The seam: a thin white line between the players, and the mode's icon in a tile on it. */
+.seam { position: absolute; z-index: 3; left: 50%; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: #fff; transform: scaleY(0); animation: seam 0.28s cubic-bezier(0.2, 1, 0.3, 1) var(--fo, 0s) forwards; }
+@keyframes seam { to { transform: scaleY(1); } }
+.mode-tile { position: absolute; z-index: 4; inset: 0; display: grid; place-items: center; pointer-events: none; }
+.mode-tile div { width: clamp(52px, 6vw, 68px); aspect-ratio: 1; border-radius: 10px; background: #2b2b2b; display: grid; place-items: center; opacity: 0; transform: scale(0.6); animation: tile-in 0.22s cubic-bezier(0.2, 1.4, 0.3, 1) calc(var(--fo) + 0.3s) forwards; }
+.mode-tile svg { width: 56%; height: auto; }
+@keyframes tile-in { to { opacity: 1; transform: none; } }
+/* The results: the halves slide back in as cards; the winner's is wider and keeps its colour,
+   the loser's is black. The seam rides the edge between them. */
+.is-results .halves { padding-bottom: 0; }
+.is-results .half { gap: 10px; padding: 24px 16px 96px; }
+.is-results .half.you { animation: in-from-left 0.5s cubic-bezier(0.2, 1, 0.3, 1) both; }
+.is-results .half.them { animation: in-from-right 0.5s cubic-bezier(0.2, 1, 0.3, 1) both; }
+.is-results .half.won { flex-grow: 1.4; }
+.is-results .half.lost { background: #141414; }
+.is-results .half.lost::before { display: none; }
+.is-results .half.lost .pat { background-image: var(--pat-light); opacity: 0.05; }
+.is-results .seam { left: 0; margin-left: 0; animation-delay: 0.3s; }
+.is-results .tag { font-family: var(--font-call); font-size: clamp(18px, 2.4vw, 24px); letter-spacing: 0.06em; color: var(--hot); min-height: 1em; }
+.is-results .score { font-family: var(--font-call); font-size: clamp(84px, 16vw, 180px); line-height: 0.9; color: #fff; font-variant-numeric: tabular-nums; }
+.is-results .half.won .score { animation: tick-up 0.4s cubic-bezier(0.2, 1.5, 0.4, 1) 0.5s both; }
+.is-results .who { font-size: clamp(22px, 3vw, 32px); }
+.is-results .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; width: min(340px, 100%); }
+.is-results .stats div { background: rgba(0, 0, 0, 0.28); border-radius: 8px; padding: 8px 6px; text-align: center; font-size: 12px; color: rgba(255, 255, 255, 0.75); line-height: 1.3; }
+.is-results .stats b { display: block; font-size: 24px; font-weight: 600; color: #fff; font-variant-numeric: tabular-nums; }
+.r-time { position: absolute !important; z-index: 6; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 18px); transform: translateX(-50%); background: #2b2b2b; border-radius: 8px; padding: 6px 12px; font-size: 14px; color: rgba(255, 255, 255, 0.8); font-variant-numeric: tabular-nums; white-space: nowrap; animation: flow-in 0.25s ease-out 0.6s both; }
+.r-bar { position: absolute !important; z-index: 6; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 24px); transform: translateX(-50%); display: flex; gap: 10px; animation: flow-in 0.25s ease-out 0.9s both; }
+.r-bar > * { white-space: nowrap; text-align: center; }
+.r-bar .primary { background: #a090c0; color: #16131c; } /* VS violet */
 /* VICTORY / DEFEAT: a callout, risen out of the middle like one out of the board's lane. */
 .verdict { flex: 1; display: grid; place-items: center; font-family: var(--font-call); letter-spacing: 0.06em; font-size: clamp(56px, 12vw, 128px); line-height: 1; }
 .verdict span { animation: verdict-rise 0.22s ease-out both; }
 .verdict.victory span { color: var(--hot); }
-.verdict.defeat span { color: var(--frost); }
+.verdict.defeat span { color: var(--hot); }
 @keyframes verdict-rise { from { transform: translateY(40%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-.results { margin: auto; width: min(520px, calc(100% - 32px)); display: flex; flex-direction: column; gap: 18px; animation: flow-in 0.3s ease-out both; }
-.results h2 { margin: 0; text-align: center; font-weight: 700; font-size: clamp(34px, 7vw, 52px); }
-.results .bars { display: grid; grid-template-columns: 1fr auto 1fr; align-items: stretch; }
-.results .bar { padding: 12px 16px; display: flex; align-items: center; gap: 12px; min-width: 0; font-size: 16px; }
-.results .bar.you { background: rgba(208, 128, 128, 0.22); justify-content: flex-end; border-radius: 6px 0 0 6px; }
-.results .bar.them { background: rgba(128, 179, 230, 0.22); border-radius: 0 6px 6px 0; }
-.results .bar b { font-size: 30px; font-weight: 700; }
-.results .bar span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.results .vs { align-self: center; padding: 0 10px; color: rgba(255, 255, 255, 0.6); }
-.results table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-.results td { padding: 6px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.07); }
-.results td:not(:first-child) { text-align: right; width: 72px; font-size: 17px; }
-.results td:first-child { color: rgba(255, 255, 255, 0.62); }
-.results .actions { display: flex; gap: 10px; flex-wrap: wrap; }
-.results .actions > * { flex: 1 1 180px; text-align: center; }
 @media (max-width: 700px) {
 	/* A phone stands up: them on top, you below (Krischan, 2026-11-14). */
 	.ko-pill { top: calc(env(safe-area-inset-top, 0px) + 124px); }
 	.halves { flex-direction: column-reverse; }
-	.is-faceoff .half.you { animation-name: in-from-below; }
-	.is-faceoff .half.them { animation-name: in-from-above; }
+	.is-results .half.you { animation-name: in-from-below; }
+	.is-results .half.them { animation-name: in-from-above; }
+	.seam { left: 0; right: 0; top: 50%; bottom: auto; width: auto; height: 2px; margin: -1px 0 0; transform: scaleX(0); animation-name: seam-x; }
+	@keyframes seam-x { to { transform: scaleX(1); } }
+	.is-results .seam { top: auto; bottom: 0; margin: 0; }
+	.is-results { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 76px); }
+	.is-results .half { padding: 12px 16px; gap: 6px; }
+	.is-results .score { font-size: 84px; }
+	.is-results .stats { margin-top: 2px; }
+	.is-results .stats b { font-size: 20px; }
+	.r-time { display: none; }
+	.r-bar { bottom: calc(env(safe-area-inset-bottom, 0px) + 14px); width: calc(100% - 32px); }
+	.r-bar > * { flex: 1; }
 	@keyframes in-from-below { from { transform: translateY(100%); } }
 	@keyframes in-from-above { from { transform: translateY(-100%); } }
 }
-@media (prefers-reduced-motion: reduce) { .glim { display: none; } .flow, .flow::before, .half, .verdict span, .results, .ko-pill, .vs-icon svg, .half .num.tick, .count span { animation: none !important; } .seat.fall, .seat.dim { transition: none; } }
+/* Reduce animations: no intro, nothing slides or scales. The tiles keep glimmering, capped (in ui.js: 9% on the face-off, 20% on the victory screens). */
+@media (prefers-reduced-motion: reduce) {
+	.flow, .flow::before, .half, .verdict span, .ko-pill, .half .num.tick, .count span, .is-results .score, .r-time, .r-bar { animation: none !important; }
+	.face, .mode-tile div { animation: none !important; opacity: 1; transform: none; }
+	.seam { animation: none !important; transform: none; }
+	.seat.fall, .seat.dim { transition: none; }
+}
 </style>
 </head>
 <body>
