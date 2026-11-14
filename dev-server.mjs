@@ -105,12 +105,15 @@ server.on('upgrade', (req, sock) => {
 	};
 	room.socks.add(sock);
 	let buf = Buffer.alloc(0);
-	const close = () => {
+	const close = (graceful = false) => {
 		if (sock.closing) return;
 		sock.closing = true;
 		if (sock.id) room.core.closed(sock.id, Date.now());
 		room.socks.delete(sock);
-		sock.destroy();
+		// After a close frame, end() lets it reach the browser; destroy() could drop it, and the page
+		// then saw no reason ('gone', 'full') and reconnected in a loop (2026-11-14).
+		if (graceful) sock.end();
+		else sock.destroy();
 	};
 	sock.on('data', (chunk) => {
 		buf = Buffer.concat([buf, chunk]);
@@ -161,7 +164,7 @@ server.on('upgrade', (req, sock) => {
 					const why = Buffer.from(String(ok));
 					sock.write(Buffer.concat([Buffer.from([0x88, why.length + 2, 0x03, 0xe8]), why]));
 					sock.id = null;
-					return close();
+					return close(true);
 				}
 			} else if (sock.id) room.core.message(sock.id, msg, now);
 			if (process.env.DEBUG) console.log(code, sock.id, msg.t, JSON.stringify(room.core.seats.map((x) => [x.connected, x.left, x.goneFrom, x.goneRound])), JSON.stringify(room.core.vote));
