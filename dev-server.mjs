@@ -9,6 +9,28 @@ import { RoomCore } from './worker/room-core.js';
 import { isRoomCode } from './shared/protocol.js';
 import { summarize } from './worker/stats.js';
 
+// The Casual queues (2026-11-14): the matchmaker's own Queue class, with a fake Cloudflare around it.
+globalThis.WebSocketRequestResponsePair ??= class {};
+const { Queue } = await import('./matchmaker/index.js');
+const { QUEUE_DIVISIONS } = await import('./matchmaker/pairing.js');
+const queues = new Map(); // division → { q, socks: Set }
+function queueFor(division) {
+	if (queues.has(division)) return queues.get(division);
+	const socks = new Set();
+	const ctx = { getWebSockets: () => [...socks], setWebSocketAutoResponse: () => {}, acceptWebSocket: (s) => socks.add(s) };
+	const env = {
+		ROOMS: {
+			idFromName: (c) => c,
+			get: (code) => ({
+				fetch: async (url, init) => (roomFor(code).core.reserve(JSON.parse(init.body), Date.now()) ? new Response('ok') : new Response('taken', { status: 409 }))
+			})
+		}
+	};
+	const entry = { q: new Queue(ctx, env), socks };
+	queues.set(division, entry);
+	return entry;
+}
+
 const PORT = Number(process.env.PORT || 8787);
 const ADMIN_KEY = process.env.ADMIN_KEY || 'dev';
 const rooms = new Map(); // code → { core, socks: Set }
@@ -65,6 +87,8 @@ const server = createServer((req, res) => {
 
 // A minimal WebSocket server (RFC 6455): text frames, ping/pong, close. Enough for this.
 server.on('upgrade', (req, sock) => {
+	const qm = new URL(req.url, 'http://x').pathname.match(/^\/ws\/queue\/([a-z]+)$/);
+	if (qm) return queueSocket(req, sock, qm[1]);
 	const m = new URL(req.url, 'http://x').pathname.match(/^\/ws\/([A-Za-z]{4})$/);
 	const code = m && m[1].toUpperCase();
 	if (!code || !isRoomCode(code)) return sock.destroy();
@@ -146,5 +170,67 @@ server.on('upgrade', (req, sock) => {
 	sock.on('close', () => { if (process.env.DEBUG) console.log(code, sock.id, 'CLOSE'); close(); });
 	sock.on('error', close);
 });
+
+/** A queue's WebSocket: handshake, then text frames to the Queue object. Same framing as the rooms'. */
+function queueSocket(req, sock, division) {
+	if (!QUEUE_DIVISIONS.includes(division)) return sock.destroy();
+	const accept = createHash('sha1').update(req.headers['sec-websocket-key'] + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest('base64');
+	sock.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`);
+	const { q, socks } = queueFor(division);
+	let att = null;
+	const ws = {
+		readyState: 1,
+		send(text) {
+			if (sock.destroyed) return;
+			const body = Buffer.from(text);
+			sock.write(Buffer.concat([Buffer.from(body.length < 126 ? [0x81, body.length] : [0x81, 126, body.length >> 8, body.length & 255]), body]));
+		},
+		close(code = 1000, reason = '') {
+			if (this.readyState !== 1) return;
+			this.readyState = 3;
+			const why = Buffer.from(String(reason));
+			sock.write(Buffer.concat([Buffer.from([0x88, why.length + 2, (code >> 8) & 255, code & 255]), why]));
+			socks.delete(ws);
+			sock.end();
+		},
+		serializeAttachment: (a) => (att = JSON.parse(JSON.stringify(a))),
+		deserializeAttachment: () => att
+	};
+	socks.add(ws);
+	ws.serializeAttachment({ division });
+	let buf = Buffer.alloc(0);
+	const gone = () => {
+		ws.readyState = 3;
+		socks.delete(ws);
+		sock.destroy();
+	};
+	sock.on('data', (chunk) => {
+		buf = Buffer.concat([buf, chunk]);
+		while (buf.length >= 2) {
+			const op = buf[0] & 15;
+			let len = buf[1] & 127;
+			let off = 2;
+			if (len === 126) {
+				if (buf.length < 4) return;
+				len = buf.readUInt16BE(2);
+				off = 4;
+			} else if (len === 127) return gone(); // nothing in the queue is that big
+			const masked = buf[1] & 128;
+			if (buf.length < off + (masked ? 4 : 0) + len) return;
+			const mask = masked ? buf.subarray(off, off + 4) : null;
+			off += masked ? 4 : 0;
+			const data = Buffer.from(buf.subarray(off, off + len));
+			if (mask) for (let i = 0; i < data.length; i++) data[i] ^= mask[i & 3];
+			buf = buf.subarray(off + len);
+			if (op === 8) return gone();
+			if (op !== 1) continue;
+			const text = data.toString();
+			if (text === 'ping') ws.send('pong');
+			else q.webSocketMessage(ws, text);
+		}
+	});
+	sock.on('close', gone);
+	sock.on('error', gone);
+}
 
 server.listen(PORT, () => console.log(`Shikaku+ VS playtest on http://localhost:${PORT}  (admin key: ${ADMIN_KEY})`));

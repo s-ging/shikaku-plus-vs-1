@@ -91,3 +91,22 @@ If you connected this repo in the dashboard (Workers & Pages → Create → Impo
 - **"wrangler: command not found"**: use `npx wrangler …`, not `wrangler …`.
 - **The deploy complains about `run_worker_first`**: your wrangler is old. Run `npx wrangler@latest deploy`.
 - **A page loads but rooms never connect**: open the browser console (F12). If you see a WebSocket error, run `npx wrangler tail` and try again; send me what it prints.
+
+## Matchmaking (Casual queues, 2026-11-14)
+
+The queues run in their own Worker, `shikaku-plus-mm` (folder `matchmaker/`), so changing them never restarts the rooms or drops a live match. It has no public address: players reach it through this Worker at `/ws/queue/standard` and `/ws/queue/knockout`, after the same Origin check as rooms.
+
+**The first time, in this order:**
+
+1. Deploy the rooms first, so `Room` can take reservations. Workers Builds does this when the branch is merged; by hand it's `npm run deploy`. Until step 2 is done, `/ws/queue/*` answers 503 "matchmaking is off" and nothing else changes.
+
+   If Cloudflare refuses the deploy because `shikaku-plus-mm` doesn't exist yet, do step 2 first, then this one.
+2. Deploy the matchmaker:
+
+```
+npm run deploy:mm
+```
+
+**After that:** a queue change is `npm run deploy:mm` only. It never touches a room. A room change is the normal deploy, as before.
+
+**Locally:** `node dev-server.mjs` runs the queues too (same Queue code, in memory). Open two browsers, press Find a match in both.

@@ -1,0 +1,18 @@
+// The matchmaker, its own Worker so queue changes deploy without touching live rooms.
+// Deploy: npx wrangler deploy -c matchmaker/wrangler.jsonc   (DEPLOY.md, "Matchmaking")
+{
+	"name": "shikaku-plus-mm",
+	"main": "index.js",
+	"compatibility_date": "2025-09-01",
+	// No public address: only shikaku-plus-vs-1 reaches it, through its MM service binding.
+	"workers_dev": false,
+	"preview_urls": false,
+	"durable_objects": {
+		"bindings": [
+			{ "name": "QUEUE", "class_name": "Queue" },
+			// The rooms live in shikaku-plus-vs-1; the queue only reserves seats in them.
+			{ "name": "ROOMS", "class_name": "Room", "script_name": "shikaku-plus-vs-1" }
+		]
+	},
+	"migrations": [{ "tag": "v1", "new_sqlite_classes": ["Queue"] }]
+}

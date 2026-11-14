@@ -11,7 +11,7 @@
 //               replay so far, so a sleeping room loses nothing: ~6 KB plus ~25 B a move.
 import { VersusMatch } from '../engine/versus-match.js';
 import { decodeAction, encodeAction, stateHash, testerCode, helloVersion, MIN_PROTOCOL_VERSION, RESULT_MS, COUNTDOWN_MS } from '../shared/protocol.js';
-import { rulesFor, sanitize } from '../shared/settings.js';
+import { rulesFor, sanitize, formatSet, DIVISIONS } from '../shared/settings.js';
 
 // Dropouts (2026-11-11, decision 0019). A connected client is heard at least every 2s (a ping, answered at
 // Cloudflare's edge; read lazily from its timestamp). A player who loses signal may never close their socket.
@@ -32,6 +32,11 @@ const MAX_HOLDS = 2;
 // Names an account has before its player picks one (supabase migration 15): not worth showing over the typed one.
 const PLACEHOLDER_NAMES = new Set(['Player', 'Guest']);
 // Shorter hiccups never freeze anyone: the client keeps playing and its queued moves arrive when the line comes back.
+// A matchmade room (2026-11-14): how long its two players have to arrive, and the countdown
+// it starts with. Longer than a normal 3-2-1 so the second phone has learned the server's
+// clock before the count shows.
+const RESERVE_MS = 30000;
+const MM_LEAD_MS = COUNTDOWN_MS + 2000;
 const REMAKE_AFTER_MS = 10000; // a seat gone this long in one round may call a remake vote
 const VOTE_MS = 20000;
 const NAME_MAX = 16;
@@ -80,7 +85,8 @@ export class RoomCore {
 			report: null,
 			matchState: null,
 			_roundLogged: false,
-			rlog: null // this round's replay so far: what the server applied, in order (see _record)
+			rlog: null, // this round's replay so far: what the server applied, in order (see _record)
+			mm: null // matchmade (2026-11-14): { division, seats: [{ id, tk }], until }; settings locked
 		});
 		if (saved) Object.assign(this, saved);
 		this.match = this.matchState ? VersusMatch.fromState(this.matchState, rulesFor(this.o).rules) : null;
@@ -89,8 +95,8 @@ export class RoomCore {
 	// —— persistence ——
 	_save() {
 		this.matchState = this.match ? this.match.toState() : null;
-		const { code, phase, seats, o, n, next, vote, hold, report, matchState, _roundLogged, rlog } = this;
-		this.io.save({ code, phase, seats, o, n, next, vote, hold, report, matchState, _roundLogged, rlog });
+		const { code, phase, seats, o, n, next, vote, hold, report, matchState, _roundLogged, rlog, mm } = this;
+		this.io.save({ code, phase, seats, o, n, next, vote, hold, report, matchState, _roundLogged, rlog, mm });
 	}
 
 	// —— helpers ——
@@ -112,6 +118,7 @@ export class RoomCore {
 			host: i === 0,
 			admin: !!this.seats[i]?.admin,
 			phase: this.phase,
+			...(this.mm ? { mm: this.mm.division } : {}), // matchmade: the client shows no settings and no lobby buttons
 			// badge and v (name checked against the account) only when there is one, so a guest's seat looks as before.
 			seats: this.seats.map((s) => ({ name: s.name, ready: s.ready, connected: s.connected, ...(s.badge ? { badge: s.badge } : {}), ...(s.v ? { v: true } : {}) })),
 			replay: this.report && this.match && this.match.over ? this.report.replayId : null,
@@ -195,6 +202,14 @@ export class RoomCore {
 		}
 		let i = this._seatOf(id);
 		if (i < 0) {
+			// A matchmade room seats only the two players the queue sent, each with their ticket, in time.
+			if (this.mm) {
+				const r = this.mm.seats.find((s) => s.id === id);
+				if (!r || msg.tk !== r.tk || now > this.mm.until) {
+					this._to(id, { t: 'err', why: 'gone' });
+					return 'gone';
+				}
+			}
 			if (this.seats.length >= 2) {
 				this._to(id, { t: 'err', why: 'full' });
 				return 'full';
@@ -223,7 +238,30 @@ export class RoomCore {
 		this._resume(i, now);
 		this._reap(now);
 		this._roomAll();
+		// Matchmade: both players are here, so the match starts by itself (no ready, no host).
+		if (this.mm && this.phase === 'lobby' && !this.match && this.seats.length === 2) {
+			this._startMatch(now, MM_LEAD_MS);
+			this._save();
+			return true;
+		}
 		if (this.match) this._full(id);
+		this._save();
+		return true;
+	}
+
+	/**
+	 * The matchmaker reserves this room for two players (2026-11-14). Only a room nobody has used
+	 * yet can be reserved; otherwise false, and the matchmaker tries another code.
+	 * body: { division, seats: [{ id, tk }, { id, tk }] }
+	 */
+	reserve(body, now) {
+		const division = DIVISIONS.find((d) => d.id === body?.division);
+		const seats = Array.isArray(body?.seats) ? body.seats : [];
+		const good = (s) => s && typeof s.id === 'string' && /^[a-z0-9]{8,32}$/.test(s.id) && typeof s.tk === 'string' && /^[a-z0-9]{16,40}$/.test(s.tk);
+		if (!division || seats.length !== 2 || !seats.every(good) || seats[0].id === seats[1].id) return false;
+		if (this.mm || this.seats.length || this.match || this.report) return false;
+		this.mm = { division: division.id, seats: seats.map((s) => ({ id: s.id, tk: s.tk })), until: now + RESERVE_MS };
+		this.o = formatSet({}, division.id, 'quickplay');
 		this._save();
 		return true;
 	}
@@ -399,18 +437,18 @@ export class RoomCore {
 		}
 		switch (msg.t) {
 			case 'set':
-				if (i !== 0 || this.phase !== 'lobby') return;
+				if (i !== 0 || this.phase !== 'lobby' || this.mm) return;
 				this.o = sanitize(msg.o);
 				for (const s of this.seats) s.ready = false;
 				this._roomAll();
 				break;
 			case 'ready':
-				if (this.phase !== 'lobby') return;
+				if (this.phase !== 'lobby' || this.mm) return;
 				seat.ready = !!msg.v;
 				this._roomAll();
 				break;
 			case 'start':
-				if (i !== 0 || this.phase !== 'lobby' || this.seats.length < 2 || !this.seats.every((s) => s.ready)) return;
+				if (i !== 0 || this.phase !== 'lobby' || this.mm || this.seats.length < 2 || !this.seats.every((s) => s.ready)) return;
 				this._startMatch(now);
 				break;
 			case 'mv':
@@ -450,11 +488,11 @@ export class RoomCore {
 	}
 
 	// —— match ——
-	_startMatch(now) {
+	_startMatch(now, lead = COUNTDOWN_MS) {
 		const { rules, firstTo } = rulesFor(this.o);
 		const seed = (Math.floor(now / 1000) % 1000000) + 1;
 		this.match = new VersusMatch({ rules, seed, target: firstTo });
-		this.match.startClock(now, COUNTDOWN_MS);
+		this.match.startClock(now, lead);
 		this.phase = 'match';
 		this.next = [false, false];
 		for (const s of this.seats) {
@@ -463,7 +501,7 @@ export class RoomCore {
 			s.holds = 0; // drops that held the battle, this match (MAX_HOLDS)
 		}
 		const replayId = randomId();
-		this.report = { code: this.code, startedAt: now, o: this.o, mode: rules.mode === 'mines' ? 'mines' : 'vs', firstTo, rounds: [], votes: [], replayId };
+		this.report = { code: this.code, startedAt: now, o: this.o, mode: rules.mode === 'mines' ? 'mines' : 'vs', firstTo, rounds: [], votes: [], replayId, ...(this.mm ? { queue: 'casual', division: this.mm.division } : {}) };
 		this.io.replay?.(replayId, 0, { v: 1, id: replayId, code: this.code, startedAt: now, seed, target: firstTo, rules, names: this.seats.map((s) => s.name) });
 		this._openRound(now);
 		this.n++;
@@ -600,6 +638,7 @@ export class RoomCore {
 		if (!m || !m.roundOver) return;
 		this.next[i] = true;
 		if (m.over) {
+			if (this.mm) return; // matchmade: the players go back to the queue, not to a lobby
 			this.phase = 'lobby';
 			this.match = null;
 			for (const s of this.seats) s.ready = false;

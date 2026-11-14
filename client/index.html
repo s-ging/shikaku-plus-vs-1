@@ -315,6 +315,15 @@ canvas.board { display: block; width: 100%; height: auto; aspect-ratio: 1; touch
 		<p class="muted" style="margin: 0 0 8px">Four short lessons: Fundamentals, Mines, Frozen Cells, Advanced.</p>
 		<div class="row"><a class="btn" id="learn" href="/learn" style="display: inline-flex; align-items: center; color: inherit; text-decoration: none">Start the tutorial</a></div>
 	</div>
+	<!-- Casual (2026-11-14, decision 0025): matched with a stranger, first to 3, never rated. -->
+	<div class="panel">
+		<h2>Casual</h2>
+		<p class="muted" style="margin: 0 0 8px">Matched with another player. First to 3. Never rated.</p>
+		<div class="row">
+			<div class="seg" id="q-division" role="group" aria-label="Division"><button data-d="standard" aria-pressed="true">Standard</button><button data-d="knockout" aria-pressed="false">Knockout</button></div>
+			<button class="primary" id="q-find">Find a match</button>
+		</div>
+	</div>
 	<!-- Three ways in (Krischan, 2026-11-09): create, join, practice. -->
 	<div class="panel">
 		<div class="home-actions">
@@ -345,6 +354,16 @@ canvas.board { display: block; width: 100%; height: auto; aspect-ratio: 1; touch
 		</div>
 	</div>
 	<div id="practice-cfg-slot"></div>
+</section>
+<!-- Searching for a Casual match. The words come from the matchmaker. -->
+<section id="queue-page" hidden style="display: flex; flex-direction: column; gap: 12px">
+	<div class="panel">
+		<h2 id="q-title" style="margin: 0 0 6px">Casual</h2>
+		<p id="q-note" hidden style="margin: 0 0 6px"></p>
+		<p class="muted" id="q-say" style="margin: 0 0 6px">Connecting…</p>
+		<p class="num" id="q-time" style="margin: 0 0 10px; font-size: 22px">0:00</p>
+		<div class="row"><button id="q-cancel">Cancel</button></div>
+	</div>
 </section>
 <section id="lobby" hidden style="display: flex; flex-direction: column; gap: 12px">
 	<div class="panel">

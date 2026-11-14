@@ -1,6 +1,9 @@
 // index.js — the Cloudflare Worker: static files, one Durable Object per room, one for reports.
 //
 //   /ws/QWER          WebSocket into room QWER (the Room object named "QWER"); our own pages and the app only
+//   /ws/queue/standard, /ws/queue/knockout
+//                     the Casual queues (2026-11-14): passed to the matchmaker Worker (shikaku-plus-mm,
+//                     matchmaker/) through the MM service binding, after the same Origin check
 //   /api/reports?k=…  admin: the last 100 match reports (k must equal the ADMIN_KEY secret)
 //   /api/stats?k=…    admin: every match so far, added up
 //   /api/replay?id=…  a match's replay (public: the id is 16 random characters; it's in the stats and on the match-over card)
@@ -26,6 +29,12 @@ const MAX_PER_SEC = 40; // per socket; a human makes at most a few moves a secon
 export default {
 	async fetch(req, env) {
 		const url = new URL(req.url);
+		if (url.pathname.startsWith('/ws/queue/')) {
+			if (req.headers.get('Upgrade') !== 'websocket') return new Response('expected websocket', { status: 426 });
+			if (!originAllowed(req.headers.get('Origin'))) return new Response('not allowed from this site', { status: 403 });
+			if (!env.MM) return new Response('matchmaking is off', { status: 503 });
+			return env.MM.fetch(req);
+		}
 		const ws = url.pathname.match(/^\/ws\/([A-Za-z]{4})$/);
 		if (ws) {
 			const code = ws[1].toUpperCase();
@@ -102,7 +111,17 @@ export class Room {
 	}
 
 	async fetch(req) {
-		const code = new URL(req.url).pathname.slice(1);
+		const [code, action] = new URL(req.url).pathname.slice(1).split('/');
+		// The matchmaker reserving this room (2026-11-14). Only a Durable Object stub can send this:
+		// the Worker above only ever passes /ws/CODE upgrades in, always as https://room/CODE.
+		if (action === 'reserve' && req.method === 'POST') {
+			const core = await this._load(code);
+			let body = null;
+			try {
+				body = await req.json();
+			} catch {}
+			return core.reserve(body, Date.now()) ? new Response('ok') : new Response('taken', { status: 409 });
+		}
 		const [client, server] = Object.values(new WebSocketPair());
 		this.ctx.acceptWebSocket(server);
 		server.serializeAttachment({ id: null, code });
