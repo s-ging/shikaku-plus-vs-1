@@ -298,6 +298,70 @@ canvas.board { display: block; width: 100%; height: auto; aspect-ratio: 1; touch
 	.mid p { font-size: 11.5px; }
 	.lane { font-size: 14px; }
 }
+
+/* —— The moments around play (Krischan, 2026-11-14; info repo versus/match-flow.md, after
+   TETR.IO's Tetra League): the face-off, FINISH!, the falling board and the "KO'd by" pill,
+   the score splash, GAME!, VICTORY / DEFEAT, the results. Transforms and opacity only. —— */
+.slam { position: absolute; inset: 0; z-index: 6; display: grid; place-items: center; pointer-events: none; }
+.slam span { font-family: var(--font-ui); font-weight: 800; font-style: italic; font-size: clamp(54px, 13vw, 116px); line-height: 1; color: #f2d36b;
+	text-shadow: 0 0 28px rgba(242, 211, 107, 0.5), 0 5px 0 #6e5520; animation: slam-in 0.32s cubic-bezier(0.2, 1.5, 0.4, 1) both; }
+@keyframes slam-in { from { transform: scale(2.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.seat.fall { transition: transform 0.9s cubic-bezier(0.55, 0, 0.9, 0.45), opacity 0.9s; transform: translateY(110vh) rotate(6deg); opacity: 0.5; }
+.seat.dim { transition: opacity 0.5s; opacity: 0.4; }
+.ko-pill { position: fixed; z-index: 31; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 74px); transform: translateX(-50%); background: #a090c0; color: #16131c;
+	font-weight: 800; font-size: 14px; letter-spacing: 0.09em; text-transform: uppercase; padding: 6px 20px; border-radius: 999px; white-space: nowrap; animation: pill-in 0.25s ease-out both; }
+@keyframes pill-in { from { transform: translate(-50%, -8px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
+.flow { position: fixed; inset: 0; z-index: 30; display: flex; background: #0e0e10; animation: flow-in 0.25s ease-out both; }
+@keyframes flow-in { from { opacity: 0; } to { opacity: 1; } }
+.flow .label { position: absolute; z-index: 2; top: calc(env(safe-area-inset-top, 0px) + 18px); left: 0; right: 0; text-align: center; font-size: 14px; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255, 255, 255, 0.7); }
+.halves { flex: 1; display: flex; }
+.half { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; transition: flex-grow 0.45s cubic-bezier(0.2, 1, 0.3, 1); min-width: 0; padding: 16px; }
+.half.you { background: radial-gradient(120% 90% at 100% 50%, rgba(208, 128, 128, 0.55), rgba(208, 128, 128, 0.12) 70%), #121012; }
+.half.them { background: radial-gradient(120% 90% at 0% 50%, rgba(128, 179, 230, 0.55), rgba(128, 179, 230, 0.12) 70%), #101214; }
+.half.won { flex-grow: 1.45; }
+.half .num { font-weight: 800; font-size: clamp(110px, 22vw, 250px); line-height: 0.9; color: #fff; text-shadow: 0 0 30px rgba(255, 255, 255, 0.35); font-variant-numeric: tabular-nums; }
+.half .num.tick { animation: tick-up 0.45s cubic-bezier(0.2, 1.6, 0.4, 1) both; }
+@keyframes tick-up { from { transform: scale(1.5); } to { transform: scale(1); } }
+.half .who { font-weight: 800; font-size: clamp(16px, 2.6vw, 24px); letter-spacing: 0.08em; text-transform: uppercase; color: #fff; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.is-faceoff .half.you { animation: in-from-left 0.5s cubic-bezier(0.2, 1, 0.3, 1) both; }
+.is-faceoff .half.them { animation: in-from-right 0.5s cubic-bezier(0.2, 1, 0.3, 1) both; }
+@keyframes in-from-left { from { transform: translateX(-100%); } }
+@keyframes in-from-right { from { transform: translateX(100%); } }
+.is-faceoff .who { font-size: clamp(22px, 4vw, 40px); }
+.vs-mark { position: absolute; z-index: 2; inset: 0; display: grid; place-items: center; pointer-events: none; }
+.vs-mark span { background: #0e0e10; padding: 14px 22px; border-radius: 6px; animation: slam-in 0.4s 0.3s cubic-bezier(0.2, 1.5, 0.4, 1) both; }
+.vs-mark svg { display: block; height: clamp(22px, 4vw, 34px); width: auto; }
+.verdict { flex: 1; display: grid; place-items: center; font-weight: 800; font-size: clamp(64px, 14vw, 150px); letter-spacing: 0.04em; animation: slam-in 0.5s cubic-bezier(0.2, 1.3, 0.4, 1) both; }
+.verdict.victory { color: #f2d36b; text-shadow: 0 0 40px rgba(242, 211, 107, 0.45); }
+.verdict.defeat { color: #8f86c4; text-shadow: 0 0 40px rgba(143, 134, 196, 0.35); }
+.results { margin: auto; width: min(560px, calc(100% - 32px)); display: flex; flex-direction: column; gap: 18px; animation: flow-in 0.3s ease-out both; }
+.results h2 { margin: 0; text-align: center; font-weight: 800; font-size: clamp(40px, 8vw, 64px); letter-spacing: 0.04em; }
+.results h2.victory { color: #f2d36b; }
+.results h2.defeat { color: #8f86c4; }
+.results .bars { display: grid; grid-template-columns: 1fr auto 1fr; align-items: stretch; }
+.results .bar { padding: 12px 16px; display: flex; align-items: center; gap: 12px; min-width: 0; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; }
+.results .bar.you { background: linear-gradient(90deg, rgba(208, 128, 128, 0.15), rgba(208, 128, 128, 0.5)); justify-content: flex-end; }
+.results .bar.them { background: linear-gradient(270deg, rgba(128, 179, 230, 0.15), rgba(128, 179, 230, 0.5)); }
+.results .bar b { font-size: 32px; }
+.results .bar span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.results .vs { align-self: center; padding: 0 10px; color: rgba(255, 255, 255, 0.6); font-weight: 800; }
+.results table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.results td { padding: 6px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.07); }
+.results td:not(:first-child) { text-align: right; width: 72px; font-size: 17px; }
+.results td:first-child { color: rgba(255, 255, 255, 0.62); }
+.results .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.results .actions > * { flex: 1 1 180px; text-align: center; }
+@media (max-width: 700px) {
+	/* A phone stands up: them on top, you below (Krischan, 2026-11-14). */
+	.halves { flex-direction: column-reverse; }
+	.half.you { background: radial-gradient(130% 120% at 50% 0%, rgba(208, 128, 128, 0.55), rgba(208, 128, 128, 0.12) 70%), #121012; }
+	.half.them { background: radial-gradient(130% 120% at 50% 100%, rgba(128, 179, 230, 0.55), rgba(128, 179, 230, 0.12) 70%), #101214; }
+	.is-faceoff .half.you { animation-name: in-from-below; }
+	.is-faceoff .half.them { animation-name: in-from-above; }
+	@keyframes in-from-below { from { transform: translateY(100%); } }
+	@keyframes in-from-above { from { transform: translateY(-100%); } }
+}
+@media (prefers-reduced-motion: reduce) { .slam span, .flow, .half, .vs-mark, .verdict, .results, .ko-pill, .half .num.tick { animation: none !important; } .seat.fall { transition: none; } }
 </style>
 </head>
 <body>
@@ -440,8 +504,11 @@ canvas.board { display: block; width: 100%; height: auto; aspect-ratio: 1; touch
 					<a class="btn" id="ov-replay" hidden>Watch the replay</a>
 				</div>
 				<div class="count" id="count" hidden aria-live="assertive"></div>
+				<div class="slam" id="slam" hidden aria-live="assertive"><span></span></div>
 			</div>
 		</section>
+		<div class="flow" id="flow" hidden></div>
+		<div class="ko-pill" id="ko-pill" hidden></div>
 		<section class="seat mini" id="seat-them" aria-label="Their board">
 			<div class="lane"><div class="calls" id="them-calls"></div><div class="combo" id="them-combo" hidden><span></span></div></div>
 			<div class="card" id="them-card">
