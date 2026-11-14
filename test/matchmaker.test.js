@@ -1,4 +1,4 @@
-// The Casual queues (2026-11-14): pairing, the Queue object with a fake Cloudflare around it,
+// The Quickplay queues (2026-11-14): pairing, the Queue object with a fake Cloudflare around it,
 // vs-1 passing /ws/queue/* on, and the room side (reserve, tickets, the match starting by itself).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -175,7 +175,7 @@ test('room: reserved for two; strangers, wrong tickets and late arrivals are tur
 	const { room, hello } = roomWorld();
 	assert.equal(room.reserve({ division: 'knockout', seats: SEATS }, 0), true);
 	assert.equal(room.reserve({ division: 'knockout', seats: SEATS }, 0), false, 'only once');
-	assert.deepEqual(room.o, { hearts: 1 }, 'Knockout Casual: 1 Stock, first to 3');
+	assert.deepEqual(room.o, { hearts: 1 }, 'Knockout Quickplay: 1 Stock, first to 3');
 	assert.equal(hello('cccccccc3', { tk: SEATS[0].tk }), 'gone', 'not one of the two');
 	assert.equal(hello('aaaaaaaa1', { tk: SEATS[1].tk }), 'gone', "someone else's ticket");
 	assert.equal(hello('aaaaaaaa1', {}), 'gone', 'no ticket');
@@ -209,7 +209,7 @@ test('room: both players arrive, the match starts by itself, settings stay locke
 	assert.equal(room.match.target, 3, 'first to 3');
 	const round = sent.get('bbbbbbbb2').find((m) => m.t === 'round');
 	assert.equal(round.startAt, 2000 + 5000, 'a 5-second count: time for the second phone to learn the clock');
-	assert.equal(room.report.queue, 'casual');
+	assert.equal(room.report.queue, 'quickplay');
 	assert.equal(room.report.division, 'standard');
 	// A seated player who drops and comes back needs no ticket.
 	room.closed('aaaaaaaa1', 3000);

@@ -28,6 +28,7 @@ import { RoomCore } from '../worker/room-core.js';
 import { ClientCore } from '../shared/client-core.js';
 import { VersusMatch, TiltBot, BOT_PRESETS } from '../engine/versus-match.js';
 import { VERSUS_RULES, MINES_RULES } from '../engine/versus.js';
+import { curvedBoard, encodeBoard } from '../engine/match.js';
 import { SETTINGS, DIVISIONS, QUEUES, PRESETS, defaultOf, formatSet, formatOf, formatName, sanitize, rulesFor } from '../shared/settings.js';
 import { encodeAction, decodeAction, stateHash, isRoomCode, parseRoomPath, testerCode, newRoomCode, PROTOCOL_VERSION, MIN_PROTOCOL_VERSION } from '../shared/protocol.js';
 
@@ -493,6 +494,16 @@ export function makeFixtures() {
 		actions: actions(),
 		codes: codes(),
 		settings: settings(),
+		// The dealer (decision 0026): the app's practice deals on the same curve, so the same
+		// (seed, index, givens) must give the same Board, character for character.
+		curve: {
+			givens: VERSUS_RULES.givens,
+			boards: Array.from({ length: 60 }, (_, k) => {
+				const seed = 1001 + k * 37;
+				const index = k % 13;
+				return { seed, index, code: encodeBoard(curvedBoard(seed, index, VERSUS_RULES.givens)) };
+			})
+		},
 		hashes: [
 			{ id: 'vs-moves', variant: 'vs', timed: false, seed: 14, a: 'normal', b: 'impossible', target: 3, every: 50 },
 			{ id: 'vs-timed', variant: 'vs', timed: true, seed: 21, a: 'hard', b: 'normal', target: 2, every: 50 },

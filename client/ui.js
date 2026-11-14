@@ -842,7 +842,7 @@
 	});
 	$('ov-next').addEventListener('click', () => {
 		$('ov-next').disabled = true;
-		if (mode === 'online' && room && room.mm) return backToQueue(null); // Casual: straight back in line
+		if (mode === 'online' && room && room.mm) return backToQueue(null); // Quickplay: straight back in line
 		if (mode === 'online') net.send({ t: 'next' });
 		else practice.next();
 	});
@@ -1092,7 +1092,7 @@
 	});
 	$('rp-scrub').addEventListener('change', () => (rp.dragging = false));
 
-	// —— Casual matchmaking (2026-11-14, decision 0025) ——
+	// —— Quickplay matchmaking (2026-11-14, decision 0025) ——
 	// The queue decides who plays whom; this page only joins, shows what the queue says, and follows
 	// the match it sends into a normal room, with a one-time ticket. All the logic is server-side, so
 	// it can change without a new client.
@@ -1119,7 +1119,7 @@
 			this.startedAt = Date.now();
 			this.retry = 0;
 			show('queue-page');
-			$('q-title').textContent = 'Casual · ' + DIVISION_NAMES[this.division];
+			$('q-title').textContent = 'Quickplay · ' + DIVISION_NAMES[this.division];
 			$('q-say').textContent = 'Connecting…';
 			const tick = () => {
 				const s = Math.floor((Date.now() - this.startedAt) / 1000);

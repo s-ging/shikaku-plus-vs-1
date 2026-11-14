@@ -9,7 +9,7 @@ import { RoomCore } from './worker/room-core.js';
 import { isRoomCode } from './shared/protocol.js';
 import { summarize } from './worker/stats.js';
 
-// The Casual queues (2026-11-14): the matchmaker's own Queue class, with a fake Cloudflare around it.
+// The Quickplay queues (2026-11-14): the matchmaker's own Queue class, with a fake Cloudflare around it.
 globalThis.WebSocketRequestResponsePair ??= class {};
 const { Queue } = await import('./matchmaker/index.js');
 const { QUEUE_DIVISIONS } = await import('./matchmaker/pairing.js');

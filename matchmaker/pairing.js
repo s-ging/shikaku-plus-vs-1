@@ -1,10 +1,10 @@
-// pairing.js — who plays whom in a Casual queue. Pure, so test/matchmaker.test.js runs it in Node.
+// pairing.js — who plays whom in a Quickplay queue. Pure, so test/matchmaker.test.js runs it in Node.
 //
 // Step 1 (2026-11-14): first come, first served. The two players waiting longest are paired,
 // never the same browser twice. Later steps change only this file and the Queue object's
 // knobs: the quiet Glicko rating, preferring the same input, the labeled bot after ~2 minutes.
 
-/** The two Casual queues (wiki decision 0025): one per division, both first to 3, never rated. */
+/** The two Quickplay queues (wiki decision 0025): one per division, both first to 3, never rated. */
 export const QUEUE_DIVISIONS = ['standard', 'knockout'];
 
 /** What a player says they play with. Recorded now so pairing by input can be switched on later

@@ -92,7 +92,7 @@ If you connected this repo in the dashboard (Workers & Pages → Create → Impo
 - **The deploy complains about `run_worker_first`**: your wrangler is old. Run `npx wrangler@latest deploy`.
 - **A page loads but rooms never connect**: open the browser console (F12). If you see a WebSocket error, run `npx wrangler tail` and try again; send me what it prints.
 
-## Matchmaking (Casual queues, 2026-11-14)
+## Matchmaking (Quickplay queues, 2026-11-14; called Casual until the same day)
 
 The queues run in their own Worker, `shikaku-plus-mm` (folder `matchmaker/`), so changing them never restarts the rooms or drops a live match. It has no public address: players reach it through this Worker at `/ws/queue/standard` and `/ws/queue/knockout`, after the same Origin check as rooms.
 

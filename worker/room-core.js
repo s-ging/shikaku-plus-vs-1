@@ -501,7 +501,7 @@ export class RoomCore {
 			s.holds = 0; // drops that held the battle, this match (MAX_HOLDS)
 		}
 		const replayId = randomId();
-		this.report = { code: this.code, startedAt: now, o: this.o, mode: rules.mode === 'mines' ? 'mines' : 'vs', firstTo, rounds: [], votes: [], replayId, ...(this.mm ? { queue: 'casual', division: this.mm.division } : {}) };
+		this.report = { code: this.code, startedAt: now, o: this.o, mode: rules.mode === 'mines' ? 'mines' : 'vs', firstTo, rounds: [], votes: [], replayId, ...(this.mm ? { queue: 'quickplay', division: this.mm.division } : {}) };
 		this.io.replay?.(replayId, 0, { v: 1, id: replayId, code: this.code, startedAt: now, seed, target: firstTo, rules, names: this.seats.map((s) => s.name) });
 		this._openRound(now);
 		this.n++;

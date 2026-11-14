@@ -2,7 +2,7 @@
 //
 //   /ws/QWER          WebSocket into room QWER (the Room object named "QWER"); our own pages and the app only
 //   /ws/queue/standard, /ws/queue/knockout
-//                     the Casual queues (2026-11-14): passed to the matchmaker Worker (shikaku-plus-mm,
+//                     the Quickplay queues (2026-11-14): passed to the matchmaker Worker (shikaku-plus-mm,
 //                     matchmaker/) through the MM service binding, after the same Origin check
 //   /api/reports?k=…  admin: the last 100 match reports (k must equal the ADMIN_KEY secret)
 //   /api/stats?k=…    admin: every match so far, added up
