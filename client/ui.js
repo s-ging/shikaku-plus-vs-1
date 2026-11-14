@@ -1199,15 +1199,19 @@
 		queueNote = text;
 		go('/queue', true);
 	}
+	// Knockout Quickplay is locked at launch, like Competitive (Krischan, 2026-11-14): if players
+	// ask for it, it opens with Knockout Competitive. The matchmaker still has the queue.
+	const QUICKPLAY_OPEN = ['standard'];
 	for (const b of $('q-division').children) {
 		b.addEventListener('click', () => {
+			if (!QUICKPLAY_OPEN.includes(b.dataset.d)) return;
 			for (const o of $('q-division').children) o.setAttribute('aria-pressed', String(o === b));
 			store.set('vs.queue', b.dataset.d);
 		});
 	}
 	{
 		const d = store.get('vs.queue');
-		if (DIVISION_NAMES[d]) for (const o of $('q-division').children) o.setAttribute('aria-pressed', String(o.dataset.d === d));
+		if (DIVISION_NAMES[d] && QUICKPLAY_OPEN.includes(d)) for (const o of $('q-division').children) o.setAttribute('aria-pressed', String(o.dataset.d === d));
 	}
 	$('q-find').addEventListener('click', () => go('/queue'));
 	$('q-cancel').addEventListener('click', () => go('/', true));
@@ -1273,7 +1277,8 @@
 			if (mode === 'online') net.close();
 			mode = null;
 			if (!store.get('vs.name')) store.set('vs.name', 'Player' + Math.floor(Math.random() * 90 + 10));
-			queue.start(store.get('vs.queue') || 'standard', queueNote);
+			const qd = store.get('vs.queue');
+			queue.start(QUICKPLAY_OPEN.includes(qd) ? qd : 'standard', queueNote);
 			queueNote = null;
 			return;
 		}
