@@ -879,11 +879,10 @@
 	// TETR.IO's Tetra League). Each runs on this device's clock from the moment a round ends;
 	// the server's RESULT_MS (3 s) plus the 3-2-1 makes about 6 s between rounds. ——
 	const FACEOFF_MS = 2000; // practice's first round; a Quickplay room leads by MM_LEAD_MS (5 s)
-	const FLOW_SLAM = 1000; // FINISH! on the board, then the score
-	const FLOW_TICK = 500; // the winner's number ticks this far into the score
-	const FLOW_VERDICT = 1200; // GAME!, then VICTORY / DEFEAT…
-	const FLOW_RESULTS = 2800; // …then the results
-	const VERSUS_MARK = `<svg viewBox="0 0 111 21" aria-label="VERSUS"><path fill="#fff" d="M64.4375 0C66.1792 2.86275e-05 67.6336 0.23336 68.8008 0.700195C69.968 1.16709 71.0999 1.95694 72.1953 3.07031L69.4805 4.87109V4.88672H67.1338V4.87109L67.1279 4.875C66.2441 3.73048 65.0326 3.04818 63.4941 2.82715C62.9681 2.90493 62.5283 3.03963 62.1748 3.23242C61.6003 3.55557 61.2142 3.91464 61.0166 4.30957C60.837 4.70464 60.7471 5.05507 60.7471 5.36035C60.7471 6.00682 60.9982 6.52779 61.501 6.92285C62.0038 7.31791 62.7496 7.67677 63.7373 8C63.8286 8.03633 64.5195 8.24357 65.8105 8.62012C66.6186 8.83561 67.4544 9.07732 68.3164 9.34668C70.2017 9.97514 71.4584 10.7746 72.0869 11.7441C72.7334 12.7138 73.0566 13.648 73.0566 14.5459C73.0566 15.5155 72.8233 16.4405 72.3564 17.3203C71.9075 18.2001 71.1082 18.9367 69.959 19.5293C68.8277 20.1038 67.2918 20.3906 65.3525 20.3906C65.1457 20.3906 64.9426 20.386 64.7432 20.3799V20.3848H63.3105C63.2104 20.3864 63.1092 20.3906 63.0068 20.3906C62.8465 20.3906 62.6881 20.3884 62.5322 20.3848H62.3965V20.3799C60.2764 20.3149 58.576 19.9063 57.2959 19.1514C55.9136 18.3075 54.9172 17.2933 54.3066 16.1084L56.752 14.2529V14.249H59.0977V14.2529L59.1035 14.249C60.0776 16.228 61.7843 17.3528 64.2227 17.6279C64.9925 17.5314 65.6736 17.3317 66.2656 17.0234C67.1455 16.5745 67.5859 15.8567 67.5859 14.8691C67.5859 14.1329 67.3348 13.5576 66.832 13.1445C66.3473 12.7316 65.5927 12.3642 64.5693 12.041C63.6357 11.7538 63.0519 11.5822 62.8184 11.5283C61.274 11.0794 60.1599 10.7299 59.4775 10.4785C57.7538 9.83207 56.6133 9.08614 56.0566 8.24219C55.7409 7.76345 55.5175 7.27236 55.3809 6.77051C55.2705 8.13453 54.8325 9.20875 54.0635 9.99316C53.1657 10.891 51.9717 11.4569 50.4814 11.6904L56.1377 20.0674H50.2891L44.875 11.8252H42.0498V20.0674H36.7676V0.323242H49.1611C50.9926 0.323247 52.492 0.790017 53.6592 1.72363C54.5545 2.4261 55.1049 3.44081 55.3135 4.7666C55.4211 4.25931 55.6242 3.73009 55.9229 3.17871C56.4077 2.29885 57.1611 1.55291 58.1846 0.942383C59.2261 0.313868 60.5285 1.02311e-06 62.0908 0C62.1494 0 62.2077 0.00240132 62.2656 0.00292969H64.2197C64.2916 0.00155523 64.3644 0 64.4375 0ZM78.3984 0.323242V12.6875C78.3985 14.1059 78.748 15.3 79.4482 16.2695C80.008 17.0253 80.9283 17.4846 82.208 17.6514C83.4877 17.4846 84.408 17.0253 84.9678 16.2695C85.6859 15.3 86.0448 14.1059 86.0449 12.6875V0.323242H91.4355V12.9297C91.4355 14.3842 91.1385 15.6773 90.5459 16.8086C89.9713 17.9218 89.0735 18.8018 87.8525 19.4482C86.6494 20.0767 85.1586 20.3906 83.3809 20.3906C82.9749 20.3906 82.584 20.3726 82.208 20.3398C81.832 20.3726 81.4411 20.3906 81.0352 20.3906C79.2574 20.3906 77.7666 20.0767 76.5635 19.4482C75.3605 18.8018 74.4627 17.9218 73.8701 16.8086C73.2955 15.6773 73.0078 14.3842 73.0078 12.9297V0.323242H78.3984ZM101.596 0C103.337 3.40795e-06 104.792 0.2334 105.959 0.700195C107.126 1.16707 108.258 1.95701 109.354 3.07031L106.633 4.875C106.629 4.86969 106.624 4.86467 106.62 4.85938V4.88672H104.274V4.86035C103.392 3.72501 102.185 3.04732 100.653 2.82715C100.127 2.90492 99.6867 3.03949 99.333 3.23242C98.7585 3.55559 98.3724 3.9146 98.1748 4.30957C97.9952 4.70464 97.9053 5.05507 97.9053 5.36035C97.9053 6.00675 98.1565 6.5278 98.6592 6.92285C99.162 7.31792 99.9078 7.67676 100.896 8C100.986 8.03606 101.677 8.24319 102.97 8.62012C103.778 8.83558 104.613 9.07736 105.475 9.34668C107.36 9.97513 108.617 10.7746 109.245 11.7441C109.892 12.7138 110.215 13.648 110.215 14.5459C110.215 15.5155 109.981 16.4405 109.515 17.3203C109.066 18.2001 108.266 18.9368 107.117 19.5293C105.986 20.1037 104.451 20.3906 102.512 20.3906C102.298 20.3906 102.088 20.3854 101.883 20.3789V20.3848H100.469C100.369 20.3864 100.267 20.3906 100.165 20.3906C100.005 20.3906 99.8464 20.3884 99.6904 20.3848H99.5371V20.3789C97.4255 20.3122 95.7316 19.9041 94.4551 19.1514C93.0725 18.3075 92.0754 17.2934 91.4648 16.1084L93.8926 14.2666V14.249H96.2383V14.2666L96.2627 14.249C97.2368 16.2282 98.9431 17.3529 101.382 17.6279C102.151 17.5313 102.833 17.3317 103.425 17.0234C104.304 16.5745 104.744 15.8565 104.744 14.8691C104.744 14.1329 104.493 13.5576 103.99 13.1445C103.505 12.7316 102.751 12.3642 101.728 12.041C100.794 11.7537 100.21 11.5822 99.9766 11.5283C98.4325 11.0795 97.3191 10.7299 96.6367 10.4785C94.9128 9.83204 93.7725 9.08619 93.2158 8.24219C92.6592 7.39822 92.3809 6.51833 92.3809 5.60254C92.3809 4.84841 92.6142 4.04055 93.0811 3.17871C93.5659 2.29879 94.3202 1.55294 95.3438 0.942383C96.3852 0.314039 97.687 3.88717e-05 99.249 0C99.3075 0 99.366 0.00240303 99.4238 0.00292969H101.378C101.45 0.00155163 101.523 0 101.596 0ZM10.0615 12.7441L14.6533 0.323242H36.6133V2.90918H24.1152V8.53906H31.9805V11.125H24.1152V17.4814H36.6133V20.0674H18.833V3.78906L12.7705 20.0674H7.35352L0 0.323242H5.4707L10.0615 12.7441ZM42.0498 9.21191H45.1445C46.15 9.21191 46.985 9.15849 47.6494 9.05078C48.3318 8.94304 48.9071 8.65537 49.374 8.18848C49.8587 7.72158 50.1006 7.01213 50.1006 6.06055C50.1006 5.10894 49.8588 4.39949 49.374 3.93262C48.9071 3.46572 48.3318 3.17806 47.6494 3.07031C47.1512 2.98955 46.5571 2.93915 45.8672 2.91895L45.1445 2.90918H42.0498V9.21191Z"/></svg>`; // Krischan's VERSUS mark
+	const FLOW_SLAM = 1800; // FINISH! and the losing board's blink, dissolve and freeze, then the score
+	const FLOW_TICK = 450; // the winner's number ticks this far into the score
+	const FLOW_VERDICT = 1800; // GAME! and the board, then VICTORY / DEFEAT…
+	const FLOW_RESULTS = 3600; // …then the results
 	let flowShowing = ''; // '' | 'faceoff' | 'score' | 'verdict' | 'results'
 	let flowEndKey = '';
 	let flowEndAt = 0;
@@ -893,10 +892,31 @@
 	const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 	const nameOf = (screen) => $(screen === 0 ? 'name-you' : 'name-them').textContent;
 
-	function flowShow(kind, html) {
+	/**
+	 * The quiet pattern behind the moments (Krischan, 2026-11-14): upright rows of his marks,
+	 *   x y x y …   x the VS icon, y this mode's icon (Quickplay, Room, Practice)
+	 *   z z z z …   z the VERSUS logotype
+	 * one 80 px tile, white; the page draws it at 7.5% and drifts it.
+	 */
+	const patterns = {};
+	function pattern() {
+		const key = mode === 'online' && room && room.mm ? 'quickplay' : mode === 'online' ? 'room' : 'practice';
+		if (patterns[key]) return patterns[key];
+		const mark = (m, x, y, w, h) => `<svg x="${x}" y="${y}" width="${w}" height="${h}" viewBox="${m.vb}">${m.body}</svg>`;
+		const svg =
+			`<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80">` +
+			mark(VS_MARKS.vs, 9, 9, 22, 22) +
+			mark(VS_MARKS[key], 49, 9, 22, 22) +
+			mark(VS_MARKS.versus, 8, 53, 64, 12) +
+			`</svg>`;
+		return (patterns[key] = `url("data:image/svg+xml,${encodeURIComponent(svg)}")`);
+	}
+
+	function flowShow(kind, html, mood = '') {
 		const f = $('flow');
+		f.style.setProperty('--pat', pattern());
 		if (flowShowing !== kind || f.dataset.html !== html) {
-			f.className = 'flow is-' + kind;
+			f.className = 'flow is-' + kind + (mood ? ' ' + mood : '');
 			f.innerHTML = html;
 			f.dataset.html = html;
 		}
@@ -910,20 +930,19 @@
 	}
 	function flowReset() {
 		flowHide();
-		$('slam').hidden = true;
 		$('ko-pill').hidden = true;
-		for (const id of ['seat-you', 'seat-them']) $(id).classList.remove('fall', 'dim');
+		for (const id of ['seat-you', 'seat-them']) $(id).classList.remove('ko');
 	}
 
-	function halves(you, them, extra = '') {
-		return `<div class="label">${esc($('mode-title').textContent)}</div>${extra}<div class="halves"><div class="half you${you.cls || ''}">${you.html}</div><div class="half them${them.cls || ''}">${them.html}</div></div>`;
+	function halves(you, them) {
+		return `<div class="halves"><div class="half you${you.cls || ''}">${you.html}</div><div class="half them${them.cls || ''}">${them.html}</div></div>`;
 	}
 
 	/** Before the first round: who's playing whom. */
 	function faceOff(m) {
 		flowReset();
 		const who = (n) => `<div class="who">${esc(n)}</div>`;
-		flowShow('faceoff', halves({ html: who(nameOf(0)) }, { html: who(nameOf(1)) }, `<div class="vs-mark"><span>${VERSUS_MARK}</span></div>`));
+		flowShow('faceoff', halves({ html: who(nameOf(0)) }, { html: who(nameOf(1)) }));
 	}
 
 	/** A round (or the match) just ended, or a round is on: what shows. */
@@ -931,9 +950,8 @@
 		if (!m.roundOver) {
 			if (flowShowing && flowShowing !== 'faceoff') flowReset();
 			if (!flowShowing) {
-				$('slam').hidden = true;
 				$('ko-pill').hidden = true;
-				for (const id of ['seat-you', 'seat-them']) $(id).classList.remove('fall', 'dim');
+				for (const id of ['seat-you', 'seat-them']) $(id).classList.remove('ko');
 			}
 			return;
 		}
@@ -958,13 +976,12 @@
 			flowPlayed += Math.max(0, serverNow() - (m.roundStartAt ?? serverNow()));
 			if (mode === 'online') net.send({ t: 'tele', d: { ...core.telemetry(), reconnects: net.reconnects, round: m.round } });
 			if (mode === 'practice' && !m.over) practice.later();
-			// FINISH! / GAME!; the loser's board falls, the winner's dims; the pill says why.
-			$('slam').firstChild.textContent = m.over ? 'GAME!' : 'FINISH!';
-			$('slam').hidden = false;
-			if (ro.winner != null) {
-				const loserScreen = ro.winner === me ? 1 : 0;
-				$(loserScreen === 0 ? 'seat-you' : 'seat-them').classList.add('fall');
-				$(loserScreen === 0 ? 'seat-them' : 'seat-you').classList.add('dim');
+			// FINISH! / GAME! flies out of my board like any callout; the losing board blinks
+			// twice, dissolves from the outside in and freezes over; the pill says why.
+			hud.callout(0, { text: m.over ? 'GAME!' : 'FINISH!', tier: 3, blinks: 2, life: 1500, sticky: true, big: true });
+			for (const sc of [0, 1]) {
+				const seat = sc === 0 ? me : 1 - me;
+				if (ro.winner == null || ro.winner !== seat) $(sc === 0 ? 'seat-you' : 'seat-them').classList.add('ko');
 			}
 			const pill = $('ko-pill');
 			const them = nameOf(1);
@@ -984,7 +1001,6 @@
 		const t = Date.now() - flowEndAt;
 		if (!m.over) {
 			if (t < FLOW_SLAM) return;
-			$('slam').hidden = true;
 			const ticked = t >= FLOW_SLAM + FLOW_TICK;
 			const half = (sc) => {
 				const seat = sc === 0 ? me : 1 - me;
@@ -992,12 +1008,12 @@
 				const n = m.score[seat] - (won && !ticked ? 1 : 0);
 				return { cls: won && ticked ? ' won' : '', html: `<div class="num${won && ticked ? ' tick' : ''}">${n}</div><div class="who">${esc(nameOf(sc))}</div>` };
 			};
-			return flowShow('score', halves(half(0), half(1)));
+			return flowShow('score', halves(half(0), half(1)), ro.winner == null ? '' : ro.winner === me ? 'won' : 'lost');
 		}
 		if (t < FLOW_VERDICT) return;
-		$('slam').hidden = true;
 		const iWon = ro.winner === me;
-		if (t < FLOW_RESULTS) return flowShow('verdict', `<div class="verdict ${iWon ? 'victory' : 'defeat'}">${iWon ? 'VICTORY' : 'DEFEAT'}</div>`);
+		const mood = iWon ? 'won' : 'lost';
+		if (t < FLOW_RESULTS) return flowShow('verdict', `<div class="verdict ${iWon ? 'victory' : 'defeat'}"><span>${iWon ? 'VICTORY' : 'DEFEAT'}</span></div>`, mood);
 		$('ko-pill').hidden = true;
 		const s = Math.round(flowPlayed / 1000);
 		const row = (label, a, b) => `<tr><td>${label}</td><td>${a}</td><td>${b}</td></tr>`;
@@ -1006,7 +1022,7 @@
 		flowShow(
 			'results',
 			`<div class="results">
-				<h2 class="${iWon ? 'victory' : 'defeat'}">${iWon ? 'VICTORY' : 'DEFEAT'}</h2>
+				<h2>${iWon ? 'Victory' : 'Defeat'}</h2>
 				<div class="bars"><div class="bar you"><span>${esc(nameOf(0))}</span><b>${m.score[me]}</b></div><div class="vs">vs</div><div class="bar them"><b>${m.score[1 - me]}</b><span>${esc(nameOf(1))}</span></div></div>
 				<table>
 					${row('', 'You', 'Them')}
@@ -1016,7 +1032,8 @@
 					${s > 0 ? row('Match time', `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`, '') : ''}
 				</table>
 				<div class="actions"><button class="primary" id="flow-next">${nextLabel}</button>${rid ? `<a class="btn" href="/replay/${rid}">Replay</a>` : ''}</div>
-			</div>`
+			</div>`,
+			mood
 		);
 		$('flow-next').onclick = afterMatch;
 	}

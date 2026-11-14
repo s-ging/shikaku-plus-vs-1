@@ -412,7 +412,7 @@ export function createHud(opts) {
 	function showCall(L, c) {
 		if (L.cur) knock(L.cur);
 		const el = document.createElement('div');
-		el.className = 'call t' + c.tier;
+		el.className = 'call t' + c.tier + (c.big ? ' big' : '');
 		el.style.setProperty('--life', `${c.life}ms`);
 		const span = document.createElement('span');
 		span.textContent = c.text;
@@ -763,5 +763,5 @@ export function createHud(opts) {
 	readColors();
 	// Canvas text uses Shippori; redraw once the font has arrived.
 	if (document.fonts && document.fonts.ready) document.fonts.ready.then(kick);
-	return { views, kick, animate, render, setView, get view() { return view; }, deny, reset, setGhost };
+	return { views, kick, animate, render, setView, get view() { return view; }, deny, reset, setGhost, callout };
 }

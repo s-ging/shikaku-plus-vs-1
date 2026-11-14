@@ -26,6 +26,7 @@ const files = [
 	'shared/sound/pack.js',
 	'client/sound.js',
 	'client/hud.js',
+	'client/marks.js',
 	'client/ui.js'
 ];
 mkdirSync('public', { recursive: true });
