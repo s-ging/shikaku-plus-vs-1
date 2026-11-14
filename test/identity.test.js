@@ -118,15 +118,15 @@ test('room: a checked account shows its name and badge; a failed check on rejoin
 	const conns = [{ conn: 'a', id: 'aaaaaaaa1' }, { conn: 'b', id: 'bbbbbbbb2' }];
 	const io = { send: (c, o) => sent.push([c, o]), conns: () => conns, save: () => {}, report: () => {} };
 	const room = new RoomCore('QWER', io, null, null);
-	room.hello('aaaaaaaa1', { t: 'hello', pv: 3, id: 'aaaaaaaa1', name: 'Typed' }, 1000, { uid: UID, name: 'Krischan', badge: 'prevs' });
-	room.hello('bbbbbbbb2', { t: 'hello', pv: 3, id: 'bbbbbbbb2', name: 'Guest!!' }, 1000, null);
+	room.hello('aaaaaaaa1', { t: 'hello', pv: 4, id: 'aaaaaaaa1', name: 'Typed' }, 1000, { uid: UID, name: 'Krischan', badge: 'prevs' });
+	room.hello('bbbbbbbb2', { t: 'hello', pv: 4, id: 'bbbbbbbb2', name: 'Guest!!' }, 1000, null);
 	const last = sent.filter(([c, o]) => c === 'b' && o.t === 'room').at(-1)[1];
 	assert.deepEqual(last.seats, [
 		{ name: 'Krischan', ready: false, connected: true, badge: 'prevs', v: true },
 		{ name: 'Guest', ready: false, connected: true }
 	]);
 	room.closed('aaaaaaaa1', 2000);
-	room.hello('aaaaaaaa1', { t: 'hello', pv: 3, id: 'aaaaaaaa1', name: 'Impostor' }, 3000, null);
+	room.hello('aaaaaaaa1', { t: 'hello', pv: 4, id: 'aaaaaaaa1', name: 'Impostor' }, 3000, null);
 	assert.equal(room.seats[0].name, 'Krischan', 'a checked name stays when the rejoin had no good token');
 	assert.equal(room.seats[0].badge, 'prevs');
 	assert.equal(room.seats[0].uid, UID);

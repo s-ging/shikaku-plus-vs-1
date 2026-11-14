@@ -52,7 +52,7 @@ function world({ latency = [40, 140], o = { firstTo: 2 } } = {}) {
 		conn.client = c;
 		conns.set(id, conn);
 		clients[seat] = c;
-		c.sendUp({ t: 'hello', pv: 3, id, name: 'P' + seat, k, dev: { ua: 'test' } });
+		c.sendUp({ t: 'hello', pv: 4, id, name: 'P' + seat, k, dev: { ua: 'test' } });
 		return c;
 	}
 	/** Same browser, same ClientCore, new socket: what a reconnect after a dropout looks like. */
@@ -61,7 +61,7 @@ function world({ latency = [40, 140], o = { firstTo: 2 } } = {}) {
 		const conn = { id: c.id, seat, open: true, client: c };
 		c.conn = conn;
 		conns.set(c.id + ':' + now, conn);
-		c.sendUp({ t: 'hello', pv: 3, id: c.id, name: 'P' + seat });
+		c.sendUp({ t: 'hello', pv: 4, id: c.id, name: 'P' + seat });
 	}
 	function drop(seat) {
 		const c = clients[seat];
@@ -442,17 +442,17 @@ test('protocol version: a hello below the minimum is told to update and gets no 
 	const io = { send: (conn, obj) => sent.push([conn, obj]), conns: () => conns, save: () => {}, report: () => {} };
 	const room = new RoomCore('QWER', io, null, null);
 	assert.equal(room.hello('xxxxxxxx9', { t: 'hello', id: 'xxxxxxxx9', name: 'Old web' }, 1000), 'update', 'no pv is version 1: too old since protocol 2');
-	assert.equal(room.hello('aaaaaaaa1', { t: 'hello', pv: 3, id: 'aaaaaaaa1', name: 'Web' }, 1000), true);
-	assert.equal(room.hello('bbbbbbbb2', { t: 'hello', pv: 3, id: 'bbbbbbbb2', name: 'App', pv: PROTOCOL_VERSION }, 1000), true);
+	assert.equal(room.hello('aaaaaaaa1', { t: 'hello', pv: 4, id: 'aaaaaaaa1', name: 'Web' }, 1000), true);
+	assert.equal(room.hello('bbbbbbbb2', { t: 'hello', pv: 4, id: 'bbbbbbbb2', name: 'App', pv: PROTOCOL_VERSION }, 1000), true);
 	assert.equal(room.seats.length, 2);
 	// The day the minimum goes up: a client below it is turned away before it takes a seat.
 	room.minVersion = PROTOCOL_VERSION + 1;
-	assert.equal(room.hello('cccccccc3', { t: 'hello', pv: 3, id: 'cccccccc3', name: 'Old app', pv: PROTOCOL_VERSION }, 1000), 'update');
+	assert.equal(room.hello('cccccccc3', { t: 'hello', pv: 4, id: 'cccccccc3', name: 'Old app', pv: PROTOCOL_VERSION }, 1000), 'update');
 	assert.deepEqual(sent.at(-1), ['c', { t: 'err', why: 'update', min: PROTOCOL_VERSION + 1 }]);
-	assert.equal(room.hello('aaaaaaaa1', { t: 'hello', pv: 3, id: 'aaaaaaaa1', name: 'Web' }, 1000), 'update', 'even a seated player, on rejoin');
+	assert.equal(room.hello('aaaaaaaa1', { t: 'hello', pv: 4, id: 'aaaaaaaa1', name: 'Web' }, 1000), 'update', 'even a seated player, on rejoin');
 	assert.equal(room.seats.length, 2);
 	room.minVersion = undefined;
-	assert.equal(room.hello('cccccccc3', { t: 'hello', pv: 3, id: 'cccccccc3', name: 'Third', pv: PROTOCOL_VERSION }, 1000), 'full', 'a full room says why');
+	assert.equal(room.hello('cccccccc3', { t: 'hello', pv: 4, id: 'cccccccc3', name: 'Third', pv: PROTOCOL_VERSION }, 1000), 'full', 'a full room says why');
 	assert.equal(room.seats.length, 2);
 });
 

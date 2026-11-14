@@ -54,8 +54,10 @@
 // client would mis-apply those, so it's told to update.
 // 3 (2026-11-11): back from a hold, the battle stays on hold while both decide whether to replay the round;
 // the room's vote carries its deadline, and a client that hasn't answered by then says no.
-export const PROTOCOL_VERSION = 3;
-export const MIN_PROTOCOL_VERSION = 3;
+// 4 (2026-11-14, decision 0026): the server deals the boards. round and full carry st.deck, the round's
+// Boards as text, and a client deals from it; a version-3 app would generate different boards and desync.
+export const PROTOCOL_VERSION = 4;
+export const MIN_PROTOCOL_VERSION = 4;
 /** The version a hello claims: its pv, or 1 when it has none (or a nonsense one). */
 export const helloVersion = (msg) => (Number.isInteger(msg?.pv) && msg.pv > 0 ? msg.pv : 1);
 

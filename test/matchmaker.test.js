@@ -55,7 +55,7 @@ function fakeQueue(rooms) {
 		const s = fakeSocket();
 		ctx.acceptWebSocket(s);
 		s.serializeAttachment({ division: 'standard' });
-		await q.webSocketMessage(s, JSON.stringify({ t: 'queue', id, pv: 3, ...extra }));
+		await q.webSocketMessage(s, JSON.stringify({ t: 'queue', id, pv: 4, ...extra }));
 		return s;
 	};
 	return { q, join, reserves };
@@ -162,7 +162,7 @@ function roomWorld() {
 			sent.set(id, []);
 			conns.push({ conn: { id }, id });
 		}
-		return room.hello(id, { t: 'hello', pv: 3, id, name: id, ...extra }, now);
+		return room.hello(id, { t: 'hello', pv: 4, id, name: id, ...extra }, now);
 	};
 	return { room, hello, sent, reports };
 }
@@ -254,12 +254,12 @@ test('end to end: the Queue reserves a real Room object, and the tickets it hand
 		return s;
 	};
 	const sa = open();
-	await obj.webSocketMessage(sa, JSON.stringify({ t: 'hello', pv: 3, id: 'aaaaaaaa1', name: 'A', tk: m.tk }));
+	await obj.webSocketMessage(sa, JSON.stringify({ t: 'hello', pv: 4, id: 'aaaaaaaa1', name: 'A', tk: m.tk }));
 	const stranger = open();
-	await obj.webSocketMessage(stranger, JSON.stringify({ t: 'hello', pv: 3, id: 'cccccccc3', name: 'C' }));
+	await obj.webSocketMessage(stranger, JSON.stringify({ t: 'hello', pv: 4, id: 'cccccccc3', name: 'C' }));
 	assert.deepEqual(stranger.closed, [1000, 'gone']);
 	const sb = open();
-	await obj.webSocketMessage(sb, JSON.stringify({ t: 'hello', pv: 3, id: 'bbbbbbbb2', name: 'B', tk: b.sent.at(-1).tk }));
+	await obj.webSocketMessage(sb, JSON.stringify({ t: 'hello', pv: 4, id: 'bbbbbbbb2', name: 'B', tk: b.sent.at(-1).tk }));
 	assert.ok(sb.sent.some((x) => x.t === 'round'), 'the match started');
 	assert.ok(sa.sent.some((x) => x.t === 'round'));
 });

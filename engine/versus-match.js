@@ -4,7 +4,7 @@
 import { Rect } from './puzzle.js';
 import { commit, isSolved } from './game.js';
 import { rectCellsOf, edgeCellsOf, coveredSet, unplacedGivens } from './economy.js';
-import { vsBoard, ReplayBot } from './match.js';
+import { vsBoard, curvedBoard, encodeBoard, decodeBoard, ReplayBot } from './match.js';
 import { VERSUS_RULES, VersusPlayer } from './versus.js';
 
 export class VersusSide {
@@ -64,6 +64,26 @@ function cachedBoard(roundSeed, index) {
 	}
 	return b;
 }
+/**
+ * The round's deck (decision 0026): DECK_SIZE Boards dealt on the rules' `givens` curve, the same
+ * for both players (Board N is deck[N mod DECK_SIZE]). A pure function of (roundSeed, givens), so the
+ * server, the web and replays rebuild it; the app can't, so `round` and `full` carry it as text.
+ * Rules without `givens` (older rooms and replays) deal as before.
+ */
+export const DECK_SIZE = 64;
+const DECK_CACHE = new Map();
+export function vsDeck(roundSeed, givens) {
+	const k = roundSeed + ':' + JSON.stringify(givens);
+	let d = DECK_CACHE.get(k);
+	if (!d) {
+		const boards = [];
+		for (let i = 0; i < DECK_SIZE; i++) boards.push(curvedBoard(roundSeed, i, givens));
+		d = { boards, codes: boards.map(encodeBoard) };
+		DECK_CACHE.set(k, d);
+		if (DECK_CACHE.size > 8) DECK_CACHE.delete(DECK_CACHE.keys().next().value);
+	}
+	return d;
+}
 const ECON_SKIP = new Set(['rules', 'rng', 'seed']);
 
 export class VersusMatch {
@@ -71,8 +91,9 @@ export class VersusMatch {
 	 * Compact, JSON-safe snapshot of the whole match: what the server sends so clients
 	 * can snap to the truth. Boards aren't sent; they're regenerated from their seed.
 	 */
-	toState() {
+	toState(withDeck = false) {
 		return {
+			...(withDeck && this.deck ? { deck: this.deck.codes } : {}),
 			v: 1,
 			seed: this.seed,
 			target: this.target,
@@ -116,6 +137,7 @@ export class VersusMatch {
 		m._lead = st.lead;
 		m.clock = st.clock ?? undefined;
 		m.roundStartAt = st.roundStartAt ?? undefined;
+		m.deck = Array.isArray(st.deck) ? { codes: st.deck, boards: st.deck.map(decodeBoard) } : rules.givens ? vsDeck(st.roundSeed, rules.givens) : null;
 		m.sides = st.sides.map((ss, i) => {
 			const s = new VersusSide(ss.name, rules, 1);
 			Object.assign(s.econ, JSON.parse(JSON.stringify(ss.econ)));
@@ -126,7 +148,7 @@ export class VersusMatch {
 			if (typeof s.econ.armed !== 'number') s.econ.armed = 0;
 			s.boardIndex = ss.boardIndex;
 			s.cleared = ss.cleared;
-			s.deal(cachedBoard(st.roundSeed, ss.boardIndex));
+			s.deal(m._board(ss.boardIndex));
 			s.rects = ss.rects.map(([a, b, c, d]) => Object.assign(new Rect(a, b, c, d), { valid: true }));
 			s.gAt = ss.gAt ?? undefined;
 			s.frozenAt = ss.frozenAt;
@@ -153,10 +175,16 @@ export class VersusMatch {
 			new VersusSide('you', this.rules, this.roundSeed * 3 + 1),
 			new VersusSide('them', this.rules, this.roundSeed * 3 + 2)
 		];
-		for (const s of this.sides) s.deal(cachedBoard(this.roundSeed, 0));
+		this.deck = this.rules.givens ? vsDeck(this.roundSeed, this.rules.givens) : null;
+		for (const s of this.sides) s.deal(this._board(0));
 		this.roundOver = null;
 		this.leadChanges = 0;
 		this._lead = 0;
+	}
+
+	/** Board `index` of this round: from the deck when there is one (decision 0026), else generated. */
+	_board(index) {
+		return this.deck ? this.deck.boards[index % this.deck.boards.length] : cachedBoard(this.roundSeed, index);
 	}
 
 	/** Average moves made by both players this round. */
@@ -302,7 +330,7 @@ export class VersusMatch {
 			tag(s, s.econ.onBoardCleared());
 			s.cleared++;
 			s.boardIndex++;
-			s.deal(cachedBoard(this.roundSeed, s.boardIndex));
+			s.deal(this._board(s.boardIndex));
 			s.econ.retargetIce(s.landable());
 			if (s.econ.spill) {
 				tag(s, s.econ.receiveIce(s.econ.spill, s.landable()));
@@ -342,7 +370,7 @@ export class VersusMatch {
 		if (this.rules.freezeOver === 'loseBoard' && s.econ.ice.length >= this.rules.freezeOverAt && !s.econ.isKO) {
 			tag(s, s.econ.loseBoard());
 			s.boardIndex++;
-			s.deal(cachedBoard(this.roundSeed, s.boardIndex));
+			s.deal(this._board(s.boardIndex));
 			s.econ.retargetIce(s.landable());
 			s.pausedUntil = (this.clock ?? 0) + this.rules.frozenPauseMs;
 			out.push({ side: s.name, kind: 'newBoard', index: s.boardIndex, frozen: true });

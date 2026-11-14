@@ -156,6 +156,11 @@ function hashScenario({ id, variant, timed, seed, a, b, target, every }) {
 	if (timed) m.startClock(now);
 	let chain = 0x811c9dc5;
 	const checkpoints = [];
+	// Each round's deck (decision 0026): what the server's round message carries. The app's engine
+	// doesn't make decks, so its test hands it these, as the room would.
+	const decks = {};
+	const deck = () => m.deck && (decks[m.roundSeed] = m.deck.codes);
+	deck();
 	let step = 0;
 	const mark = () => {
 		const h = stateHash(m);
@@ -172,6 +177,7 @@ function hashScenario({ id, variant, timed, seed, a, b, target, every }) {
 		if (m.roundOver) {
 			if (m.over) break;
 			m.newRound();
+			deck();
 			if (timed) m.startClock(now);
 			mark();
 			continue;
@@ -180,7 +186,7 @@ function hashScenario({ id, variant, timed, seed, a, b, target, every }) {
 		m.act(i, bots[i].decide(m.sides[i]), now);
 		mark();
 	}
-	return { id, variant, timed, seed, a, b, target, steps: step, chain, checkpoints };
+	return { id, variant, timed, seed, a, b, target, steps: step, chain, checkpoints, decks };
 }
 
 // —— sessions: real room, real clients ——

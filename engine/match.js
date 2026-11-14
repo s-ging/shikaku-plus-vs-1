@@ -24,6 +24,63 @@ export function vsBoard(seed, index) {
 	}
 }
 
+/**
+ * Board `index` of a round dealt on a curve of Givens (Krischan, 2026-11-14, decision 0026): the
+ * target count is drawn from `givens` ({ "5": 5, "6": 13, ... }, weights), then the same seed walk as
+ * vsBoard re-rolls until a Board has exactly that many. The generator itself is untouched (Classic
+ * shares it). Its natural curve peaks at 9; this one peaks where the weights say. Both players get the
+ * same Board at the same index: the curve changes which boards, never who gets them.
+ */
+export function curvedBoard(seed, index, givens) {
+	const w = Object.entries(givens || {})
+		.map(([g, n]) => [Number(g), Number(n)])
+		.filter(([g, n]) => g >= 1 && n > 0)
+		.sort((a, b) => a[0] - b[0]);
+	if (!w.length) return vsBoard(seed, index);
+	let roll = new Rng(seed * 7919 + index * 104729 + 1).nextDouble() * w.reduce((t, [, n]) => t + n, 0);
+	let target = w[w.length - 1][0];
+	for (const [g, n] of w) {
+		if (roll < n) {
+			target = g;
+			break;
+		}
+		roll -= n;
+	}
+	let best = null;
+	for (let k = 0; k < 400; k++) {
+		const s = (seed * 7919 + index * 104729 + k * 15485863) % 2147483646;
+		const p = generatePuzzle(VS_GEN.size, VS_GEN.maxAreaFrac, s);
+		if (p.layout.length === target) return { ...p, seed: s };
+		if (!best || Math.abs(p.layout.length - target) < Math.abs(best.layout.length - target)) best = { ...p, seed: s };
+	}
+	return best; // never seen in 400 tries for 5..10; the nearest count rather than nothing
+}
+
+/**
+ * A Board as text, so the server can deal it (decision 0026): per region x1 y1 x2 y2 gx gy, one digit
+ * each, in layout order (the order decides where Mines land). The app never generates online boards.
+ */
+export function encodeBoard(p) {
+	return p.layout
+		.map((r) => {
+			for (let y = r.y1; y <= r.y2; y++) for (let x = r.x1; x <= r.x2; x++) if (p.nums[y][x]) return `${r.x1}${r.y1}${r.x2}${r.y2}${x}${y}`;
+			throw new Error('region without a Given');
+		})
+		.join('');
+}
+export function decodeBoard(code) {
+	const layout = [];
+	let n = 0;
+	for (let i = 0; i + 6 <= code.length; i += 6) {
+		const d = [...code.slice(i, i + 6)].map(Number);
+		layout.push(new Rect(d[0], d[1], d[2], d[3]));
+		n = Math.max(n, d[2] + 1, d[3] + 1);
+	}
+	const nums = Array.from({ length: n }, () => new Array(n).fill(0));
+	for (let i = 0; i < layout.length; i++) nums[Number(code[i * 6 + 5])][Number(code[i * 6 + 4])] = layout[i].area;
+	return { nums, layout };
+}
+
 const key = (r) => `${r.x1},${r.y1},${r.x2},${r.y2}`;
 
 export class Side {

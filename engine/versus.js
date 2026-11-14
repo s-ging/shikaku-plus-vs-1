@@ -115,6 +115,10 @@ export const VERSUS_RULES = {
 	rushEarlySecs: 120,
 	rushEarlyMultiplier: 3,
 
+	// How many Givens a Board has, as weights (Krischan, 2026-11-14, decision 0026): a bell on 7 and 8,
+	// mean 7.7, 10 still turns up. The generator's own curve peaks at 9. Absent = the old dealing (at most 10).
+	givens: { 5: 5, 6: 13, 7: 27, 8: 27, 9: 18, 10: 10 },
+
 	// Heal: +1 heart after healPerfectBoards perfect clears in a row (0 = off).
 	// A non-perfect clear resets the run; explosions don't count against perfect.
 	healPerfectBoards: 4, // was 3
