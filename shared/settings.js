@@ -8,7 +8,7 @@ import { VERSUS_RULES, MINES_RULES } from '../engine/versus.js';
 export const SETTINGS = [
 	// Match
 	{ k: 'mode', group: 'Mode', label: 'Mode', type: 'enum', options: [['vs', 'Shikaku+ VS'], ['mines', 'Shikaku+ Mines (no ice, unrated)']], def: 'vs' },
-	{ k: 'firstTo', group: 'Match', label: 'First to', type: 'enum', options: [[1, '1'], [3, '3'], [5, '5'], [7, '7']], def: 3 },
+	{ k: 'firstTo', group: 'Match', label: 'First to', type: 'enum', options: [[1, '1'], [3, '3'], [5, '5']], def: 3 },
 	// The rule key stays `hearts` (it's in saved rooms and replays); players call it Stock (Krischan, 2026-11-08).
 	{ k: 'hearts', group: 'Match', label: 'Stock', type: 'int', min: 1, max: 5 },
 	{ k: 'gravitySecs', group: 'Match', label: 'Gravity: a tick every', type: 'num', min: 0, max: 10, step: 0.5, unit: 's', off: 0 },
@@ -49,11 +49,11 @@ export const defaultOf = (k) => (k in VERSUS_RULES ? VERSUS_RULES[k] : BY_KEY.ge
 
 /** The match formats (Krischan, 2026-11-08; wiki decision 0010). Two divisions, same rules
  * otherwise: Standard (3 Stock, the original game) and Knockout (1 Stock). Each has Quickplay
- * (first to 3, never rated) and Competitive (Standard first to 5, Knockout first to 7).
+ * (first to 3, never rated) and Competitive (first to 5 in both; FT7 cut 2026-11-14).
  * New rooms start on Standard Quickplay. */
 export const DIVISIONS = [
 	{ id: 'standard', label: 'Standard', hearts: 3, competitiveTo: 5, blurb: 'VS as intended. 3 Stock a round: an explosion costs one.' },
-	{ id: 'knockout', label: 'Knockout', hearts: 1, competitiveTo: 7, blurb: '1 Stock a round. The first explosion ends it.' }
+	{ id: 'knockout', label: 'Knockout', hearts: 1, competitiveTo: 5, blurb: '1 Stock a round. The first explosion ends it.' }
 ];
 export const QUEUES = [
 	{ id: 'quickplay', label: 'Quickplay', rated: false },
