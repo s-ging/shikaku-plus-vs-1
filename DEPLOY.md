@@ -96,6 +96,8 @@ If you connected this repo in the dashboard (Workers & Pages → Create → Impo
 
 The queues run in their own Worker, `shikaku-plus-mm` (folder `matchmaker/`), so changing them never restarts the rooms or drops a live match. It has no public address: players reach it through this Worker at `/ws/queue/standard` and `/ws/queue/knockout`, after the same Origin check as rooms.
 
+**Right now (2026-11-14) it's off:** the `services` line in `wrangler.jsonc` is commented out and the Casual panel is `hidden` in `client/index.html`, because Cloudflare refuses a deploy that binds a Worker that doesn't exist yet. To switch it on: deploy the matchmaker (step 2 below), then undo those two lines and push to `main`.
+
 **The first time, in this order:**
 
 1. Deploy the rooms first, so `Room` can take reservations. Workers Builds does this when the branch is merged; by hand it's `npm run deploy`. Until step 2 is done, `/ws/queue/*` answers 503 "matchmaking is off" and nothing else changes.

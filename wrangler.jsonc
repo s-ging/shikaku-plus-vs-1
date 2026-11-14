@@ -23,8 +23,10 @@
 	"previews": {
 	},
 	// The Casual queues live in their own Worker (matchmaker/, decision 0025) so tuning them never
-	// restarts the rooms. Deploy that Worker first: see DEPLOY.md, "Matchmaking".
-	"services": [{ "binding": "MM", "service": "shikaku-plus-mm" }],
+	// restarts the rooms. Off until that Worker exists (2026-11-14: a binding to a missing Worker fails
+	// the whole deploy). To switch on: npm run deploy:mm, then uncomment this line and remove `hidden`
+	// from the Casual panel in client/index.html (DEPLOY.md, "Matchmaking").
+	// "services": [{ "binding": "MM", "service": "shikaku-plus-mm" }],
 	// Account checks for signed-in players (worker/identity.js, decision 0017). Both are public by
 	// design: the same URL and anon key ship inside every Shikaku+ app build. Remove them and
 	// everyone simply joins as a guest.
