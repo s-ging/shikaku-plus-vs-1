@@ -251,7 +251,7 @@ canvas.board { display: block; width: 100%; height: auto; aspect-ratio: 1; touch
 @keyframes count-in { from { opacity: 0; transform: scale(1.4); } to { opacity: 1; transform: scale(1); } }
 /* FINISH! / GAME!: the countdown's own look, over the whole screen with a lighter scrim (not inside
    the board, which drops away or dims under it). */
-.count.slam { position: fixed; z-index: 29; border-radius: 0; font-size: clamp(52px, 13vw, 120px); background: rgba(18, 18, 22, 0.3); }
+.count.slam { position: fixed; z-index: 29; border-radius: 0; font-size: clamp(76px, 21vw, 140px); background: rgba(18, 18, 22, 0.3); }
 .box.win { animation: flick 0.3s steps(1, end) 4; }
 #ov-sub { font-variant-numeric: tabular-nums; }
 /* —— Lobby settings: Match and Game tabs —— */
@@ -317,12 +317,16 @@ canvas.board { display: block; width: 100%; height: auto; aspect-ratio: 1; touch
 @keyframes pill-in { from { transform: translate(-50%, -8px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
 .flow { position: fixed; inset: 0; z-index: 30; display: flex; overflow: hidden; background: #111113; animation: flow-in 0.25s ease-out both; }
 @keyframes flow-in { from { opacity: 0; } to { opacity: 1; } }
-.flow::before { content: ''; position: absolute; inset: -120px; background-image: var(--pat); background-size: 120px 120px; opacity: 0.28; pointer-events: none; animation: drift-right 7s linear infinite; }
-.flow.won::before { animation-name: drift-up-right; }
-.flow.lost::before { animation-name: drift-down-left; }
-@keyframes drift-right { to { transform: translate(120px, 0); } }
-@keyframes drift-up-right { to { transform: translate(120px, -120px); } }
-@keyframes drift-down-left { to { transform: translate(-120px, 120px); } }
+.flow::before { content: ''; position: absolute; inset: 0; background-image: var(--pat); background-size: 160px 160px; opacity: 0.09; pointer-events: none; }
+/* The glimmer: the pattern stays still; a few violet copies of its marks fade in and out (opacity
+   only, so the GPU does it), one after another across the screen, plus a sparse few at random.
+   Cheaper on a phone than moving or recolouring the whole grid. */
+.glim { position: absolute; inset: 0; pointer-events: none; }
+.glim i { position: absolute; display: block; opacity: 0; animation: glim 4.2s ease-in-out infinite; animation-delay: var(--d); }
+.glim i.spark { animation-name: spark; animation-duration: 6.4s; }
+.glim i svg { display: block; width: 100%; height: 100%; }
+@keyframes glim { 0%, 34%, 100% { opacity: 0; } 14% { opacity: 0.55; } }
+@keyframes spark { 0%, 52%, 100% { opacity: 0; } 26% { opacity: 0.85; } }
 .flow > * { position: relative; }
 .halves { flex: 1; display: flex; }
 .half { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; transition: flex-grow 0.45s cubic-bezier(0.2, 1, 0.3, 1); min-width: 0; padding: 16px; }
@@ -340,7 +344,10 @@ canvas.board { display: block; width: 100%; height: auto; aspect-ratio: 1; touch
 .is-faceoff .who { font-size: clamp(24px, 4vw, 40px); display: flex; align-items: center; gap: 12px; }
 .is-faceoff .who i { flex: 0 0 auto; width: 0.75em; height: 0.75em; border: 2px solid currentColor; border-radius: 3px; opacity: 0.7; }
 .is-faceoff .rr { display: flex; align-items: center; gap: 10px; font-size: clamp(16px, 2.2vw, 22px); color: rgba(255, 255, 255, 0.75); font-variant-numeric: tabular-nums; }
-.is-faceoff .rr i { width: 1.6em; height: 0.85em; border: 2px solid currentColor; border-radius: 999px; }
+.is-faceoff .rr img { height: 1.3em; width: auto; image-rendering: pixelated; border-radius: 2px; }
+/* The VS mark on the seam between the two players. */
+.vs-icon { position: absolute; z-index: 2; inset: 0; display: grid; place-items: center; pointer-events: none; }
+.vs-icon svg { width: clamp(52px, 7vw, 80px); height: auto; animation: count-in 0.35s 0.25s cubic-bezier(0.2, 1, 0.3, 1) both; filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.5)); }
 /* VICTORY / DEFEAT: a callout, risen out of the middle like one out of the board's lane. */
 .verdict { flex: 1; display: grid; place-items: center; font-family: var(--font-call); letter-spacing: 0.06em; font-size: clamp(56px, 12vw, 128px); line-height: 1; }
 .verdict span { animation: verdict-rise 0.22s ease-out both; }
@@ -371,7 +378,7 @@ canvas.board { display: block; width: 100%; height: auto; aspect-ratio: 1; touch
 	@keyframes in-from-below { from { transform: translateY(100%); } }
 	@keyframes in-from-above { from { transform: translateY(-100%); } }
 }
-@media (prefers-reduced-motion: reduce) { .flow, .flow::before, .half, .verdict span, .results, .ko-pill, .half .num.tick, .count span { animation: none !important; } .seat.fall, .seat.dim { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .glim { display: none; } .flow, .flow::before, .half, .verdict span, .results, .ko-pill, .vs-icon svg, .half .num.tick, .count span { animation: none !important; } .seat.fall, .seat.dim { transition: none; } }
 </style>
 </head>
 <body>

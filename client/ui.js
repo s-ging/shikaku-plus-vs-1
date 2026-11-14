@@ -896,19 +896,52 @@
 	 * The quiet pattern behind the moments (Krischan, 2026-11-14): upright rows of his marks,
 	 *   x y x y …   x the VS icon, y this mode's icon (Quickplay, Room, Practice)
 	 *   z z z z …   z the VERSUS logotype
-	 * one 120 px tile, dark marks; the page draws it at 28% and drifts it.
+	 * one 160 px tile of violet marks, drawn at 9% and still; the glimmer (glimmer()) lights
+	 * copies of them up across it (Krischan, 2026-11-15: "the color moves from tile to tile").
 	 */
+	const VIOLET = '#a090c0';
+	const TILE = 160;
+	const TILE_MARKS = (key) => [
+		[VS_MARKS.vs, 22, 22, 34, 34],
+		[VS_MARKS[key], 104, 22, 34, 34],
+		[VS_MARKS.versus, 24, 108, 112, 21]
+	];
+	const patternKey = () => (mode === 'online' && room && room.mm ? 'quickplay' : mode === 'online' ? 'room' : 'practice');
+	const markSvg = (m, x, y, w, h) => `<svg x="${x}" y="${y}" width="${w}" height="${h}" viewBox="${m.vb}">${m.body.replace(/#fff/g, VIOLET)}</svg>`;
+	/**
+	 * Violet copies of the pattern's marks that fade in one tile after another (a wave across the
+	 * screen: up-right after a win, down-left after a loss, left to right otherwise), plus a few
+	 * at random. One mark a tile, so a phone animates a couple of dozen opacities at most.
+	 */
+	function glimmer(mood) {
+		const cols = Math.ceil(window.innerWidth / TILE);
+		const rows = Math.ceil(window.innerHeight / TILE);
+		const marks = TILE_MARKS(patternKey());
+		const step = 0.16;
+		let out = '';
+		for (let i = 0; i < cols; i++) {
+			for (let j = 0; j < rows; j++) {
+				const order = mood === 'won' ? i + (rows - 1 - j) : mood === 'lost' ? cols - 1 - i + j : i;
+				const [m, x, y, w, h] = marks[(i + j) % 2];
+				out += `<i style="left:${i * TILE + x}px;top:${j * TILE + y}px;width:${w}px;height:${h}px;--d:${(order * step).toFixed(2)}s">${markSvg(m, 0, 0, w, h)}</i>`;
+			}
+		}
+		for (let k = 0; k < Math.max(3, Math.round((cols * rows) / 8)); k++) {
+			const [m, x, y, w, h] = marks[Math.floor(Math.random() * 3)];
+			const i = Math.floor(Math.random() * cols);
+			const j = Math.floor(Math.random() * rows);
+			out += `<i class="spark" style="left:${i * TILE + x}px;top:${j * TILE + y}px;width:${w}px;height:${h}px;--d:${(Math.random() * 6).toFixed(2)}s">${markSvg(m, 0, 0, w, h)}</i>`;
+		}
+		return `<div class="glim">${out}</div>`;
+	}
 	const patterns = {};
 	function pattern() {
-		const key = mode === 'online' && room && room.mm ? 'quickplay' : mode === 'online' ? 'room' : 'practice';
+		const key = patternKey();
 		if (patterns[key]) return patterns[key];
-		const mark = (m, x, y, w, h) => `<svg x="${x}" y="${y}" width="${w}" height="${h}" viewBox="${m.vb}">${m.body.replace(/#fff/g, '#000')}</svg>`;
 		const svg =
-			`<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120"><g>` +
-			mark(VS_MARKS.vs, 16, 16, 26, 26) +
-			mark(VS_MARKS[key], 76, 16, 26, 26) +
-			mark(VS_MARKS.versus, 20, 80, 80, 15) +
-			`</g></svg>`;
+			`<svg xmlns="http://www.w3.org/2000/svg" width="${TILE}" height="${TILE}" viewBox="0 0 ${TILE} ${TILE}">` +
+			TILE_MARKS(key).map((a) => markSvg(...a)).join('') +
+			`</svg>`;
 		return (patterns[key] = `url("data:image/svg+xml,${encodeURIComponent(svg)}")`);
 	}
 
@@ -917,7 +950,9 @@
 		f.style.setProperty('--pat', pattern());
 		if (flowShowing !== kind || f.dataset.html !== html) {
 			f.className = 'flow is-' + kind + (mood ? ' ' + mood : '');
-			f.innerHTML = html;
+			// A new moment starts its glimmer over; a redraw of the same one (the score ticking) keeps it.
+			const glim = flowShowing === kind && f.firstElementChild && f.firstElementChild.classList.contains('glim') ? f.firstElementChild.outerHTML : glimmer(mood);
+			f.innerHTML = glim + html;
 			f.dataset.html = html;
 		}
 		flowShowing = kind;
@@ -944,8 +979,10 @@
 		flowReset();
 		// Badge, name; rank plate, rating. Placeholders until badges and ratings reach the web
 		// (Krischan, 2026-11-15: "a placeholder please").
-		const who = (n) => `<div class="who"><i></i>${esc(n)}</div><div class="rr"><i></i>1000 RR</div>`;
-		flowShow('faceoff', halves({ html: who(nameOf(0)) }, { html: who(nameOf(1)) }));
+		const plate = `<img alt="9 kyu" src="data:image/svg+xml,${encodeURIComponent(VS_PLATES['kyu-9'])}">`;
+		const who = (n) => `<div class="who"><i></i>${esc(n)}</div><div class="rr">${plate}1000 RR</div>`;
+		const vs = `<div class="vs-icon">${markSvg(VS_MARKS.vs, 0, 0, 80, 80)}</div>`;
+		flowShow('faceoff', halves({ html: who(nameOf(0)) }, { html: who(nameOf(1)) }) + vs);
 	}
 
 	/** A round (or the match) just ended, or a round is on: what shows. */
