@@ -221,7 +221,7 @@
 			countTimer = setTimeout(updateCount, left - 3000 + 5);
 			return;
 		}
-		if (flowShowing === 'faceoff') flowHide();
+		if (flowShowing === 'faceoff') flowLeave();
 		if (el.dataset.n !== String(n)) {
 			el.innerHTML = `<span>${n}</span>`;
 			el.dataset.n = String(n);
@@ -858,7 +858,7 @@
 		showVote();
 	});
 	function afterMatch() {
-		flowHide();
+		flowLeave();
 		if (mode === 'online' && room && room.mm) return backToQueue(null); // Quickplay: straight back in line
 		if (mode === 'online') net.send({ t: 'next' });
 		else practice.next();
@@ -963,6 +963,7 @@
 		f.style.setProperty('--pat', pattern(o.fill));
 		f.style.setProperty('--pat-dark', pattern('#000'));
 		f.style.setProperty('--pat-light', pattern('#fff'));
+		clearTimeout(leaveTimer);
 		if (flowShowing !== kind || f.dataset.html !== html) {
 			f.className = 'flow is-' + kind + (mood ? ' ' + mood : '') + (o.bare ? ' bare' : '');
 			// A new moment starts its glimmer over; a redraw of the same one (the score ticking) keeps it.
@@ -974,13 +975,27 @@
 		flowShowing = kind;
 		f.hidden = false;
 	}
+	// A moment that ends flies out (Krischan, 2026-11-15): the halves go back where they came
+	// from and the rest fades, showing the board underneath; then it hides.
+	let leaveTimer = 0;
+	function flowLeave() {
+		const f = $('flow');
+		if (f.hidden || f.classList.contains('leaving')) return;
+		if (calm()) return flowHide();
+		f.classList.add('leaving');
+		flowShowing = '';
+		clearTimeout(leaveTimer);
+		leaveTimer = setTimeout(() => f.classList.contains('leaving') && flowHide(), 340);
+	}
 	function flowHide() {
+		clearTimeout(leaveTimer);
 		$('flow').hidden = true;
 		$('flow').dataset.html = '';
 		flowShowing = '';
 	}
-	function flowReset() {
-		flowHide();
+	function flowReset(leave = false) {
+		if (leave) flowLeave();
+		else flowHide();
 		$('ko-pill').hidden = true;
 		$('slam').hidden = true;
 		for (const id of ['seat-you', 'seat-them']) $(id).classList.remove('fall', 'dim');
@@ -1045,7 +1060,7 @@
 	/** A round (or the match) just ended, or a round is on: what shows. */
 	function flowRound(m, me) {
 		if (!m.roundOver) {
-			if (flowShowing && flowShowing !== 'faceoff') flowReset();
+			if (flowShowing && flowShowing !== 'faceoff') flowReset(true);
 			if (!flowShowing) {
 				$('ko-pill').hidden = true;
 				$('slam').hidden = true;

@@ -429,6 +429,25 @@ canvas.board { display: block; width: 100%; height: auto; aspect-ratio: 1; touch
 	@keyframes in-from-below { from { transform: translateY(100%); } }
 	@keyframes in-from-above { from { transform: translateY(-100%); } }
 }
+/* Between rounds the cards fly in from their sides, like the results. */
+.is-score .half.you { animation: in-from-left 0.45s cubic-bezier(0.2, 1, 0.3, 1) both; }
+.is-score .half.them { animation: in-from-right 0.45s cubic-bezier(0.2, 1, 0.3, 1) both; }
+/* Leaving: the halves fly back where they came from, the rest fades (flowLeave in ui.js). */
+.flow.leaving { background: transparent; pointer-events: none; transition: background 0.34s; }
+.flow.leaving::before, .flow.leaving > .glim, .flow.leaving .seam, .flow.leaving .mode-tile, .flow.leaving .r-bar, .flow.leaving .r-time, .flow.leaving .verdict { opacity: 0; transition: opacity 0.2s; }
+.flow.leaving .mf-board, .flow.leaving .mf-words { display: none; }
+.flow.leaving .half.you { animation: out-to-left 0.34s cubic-bezier(0.55, 0, 0.9, 0.4) forwards !important; }
+.flow.leaving .half.them { animation: out-to-right 0.34s cubic-bezier(0.55, 0, 0.9, 0.4) forwards !important; }
+@keyframes out-to-left { to { transform: translateX(-100%); } }
+@keyframes out-to-right { to { transform: translateX(100%); } }
+@media (max-width: 700px) {
+	.is-score .half.you { animation-name: in-from-below; }
+	.is-score .half.them { animation-name: in-from-above; }
+	.flow.leaving .half.you { animation-name: out-to-below !important; }
+	.flow.leaving .half.them { animation-name: out-to-above !important; }
+	@keyframes out-to-below { to { transform: translateY(100%); } }
+	@keyframes out-to-above { to { transform: translateY(-100%); } }
+}
 /* Reduce animations: no intro, nothing slides or scales. The tiles keep glimmering, capped (in ui.js: 9% on the face-off, 20% on the victory screens). */
 @media (prefers-reduced-motion: reduce) {
 	.flow, .flow::before, .half, .verdict span, .ko-pill, .half .num.tick, .count span, .is-results .score, .r-time, .r-bar { animation: none !important; }
