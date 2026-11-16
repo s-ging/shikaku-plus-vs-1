@@ -26,12 +26,13 @@ test('glicko-2: one match moves new players apart, the winner up, by the same am
 	assert.equal(a.at, 1000);
 });
 
-test('glicko-2: time away grows the uncertainty again, never past a new player', () => {
+test('glicko-2: time away grows the uncertainty again, to at most the returning cap (decision 0020)', () => {
 	const p = { r: 1600, rd: 80, vol: 0.06, n: 10, at: 0 };
 	assert.equal(aged(p, 0).rd, 80, 'no time recorded: unchanged');
 	const p1 = { ...p, at: 1 };
 	assert.ok(aged(p1, 1 + 30 * GLICKO.idleDayMs).rd > 80);
-	assert.equal(aged(p1, 1 + 1e6 * GLICKO.idleDayMs).rd, GLICKO.rd);
+	assert.equal(aged(p1, 1 + 1e6 * GLICKO.idleDayMs).rd, GLICKO.returnRd);
+	assert.equal(aged({ ...p1, rd: 300 }, 1 + 1e6 * GLICKO.idleDayMs).rd, 300, 'never lowered by time away');
 });
 
 test('rated matches: finished Quickplay only; the leaver takes the loss; abandoned and rooms never count', () => {

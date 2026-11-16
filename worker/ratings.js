@@ -26,7 +26,8 @@ export const GLICKO = {
 	rd: 350, // how unsure we are about a new player
 	vol: 0.06, // how erratic a new player is
 	tau: 0.5, // how fast volatility itself may change (Glickman: 0.3–1.2)
-	idleDayMs: 24 * 60 * 60 * 1000 // one rating period's worth of uncertainty per day away
+	idleDayMs: 24 * 60 * 60 * 1000, // one rating period's worth of uncertainty per day away
+	returnRd: 150 // time away grows a player's uncertainty to at most this (decision 0020: a return is a short re-calibration, not a free climb)
 };
 const SCALE = 173.7178;
 
@@ -36,13 +37,13 @@ export const fresh = () => ({ r: GLICKO.rating, rd: GLICKO.rd, vol: GLICKO.vol, 
 const g = (phi) => 1 / Math.sqrt(1 + (3 * phi * phi) / (Math.PI * Math.PI));
 const E = (mu, muJ, phiJ) => 1 / (1 + Math.exp(-g(phiJ) * (mu - muJ)));
 
-/** Uncertainty grown by time away, capped at a new player's. */
+/** Uncertainty grown by time away, capped at returnRd (never above where it already was). */
 export function aged(p, now) {
 	if (!p.at || !(now > p.at)) return p;
 	const periods = (now - p.at) / GLICKO.idleDayMs;
 	const phi = p.rd / SCALE;
 	const grown = Math.sqrt(phi * phi + periods * p.vol * p.vol) * SCALE;
-	return { ...p, rd: Math.min(GLICKO.rd, grown) };
+	return { ...p, rd: Math.max(p.rd, Math.min(GLICKO.returnRd, grown)) };
 }
 
 /**
