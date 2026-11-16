@@ -8,6 +8,21 @@ import { createHash } from 'node:crypto';
 import { RoomCore } from './worker/room-core.js';
 import { isRoomCode } from './shared/protocol.js';
 import { summarize } from './worker/stats.js';
+import { ratingKey, ratedMatch, applyMatch, forPairing } from './worker/ratings.js';
+
+// The quiet ratings (worker/ratings.js), in memory: rated like the Reports object does, read by the queue.
+const ratings = new Map(); // key → rating
+const rated = new Set(); // match keys already rated
+async function rate(rep, who) {
+	if (rep.queue !== 'quickplay' || !Array.isArray(who)) return;
+	const keys = await Promise.all(who.map((w) => ratingKey(w.id, w.uid)));
+	const m = ratedMatch(rep, keys);
+	if (!m || rated.has(rep.key)) return;
+	rated.add(rep.key);
+	const [a, b] = applyMatch(m, (k) => ratings.get(k));
+	ratings.set(keys[0], a);
+	ratings.set(keys[1], b);
+}
 
 // The Quickplay queues (2026-11-14): the matchmaker's own Queue class, with a fake Cloudflare around it.
 globalThis.WebSocketRequestResponsePair ??= class {};
@@ -17,8 +32,25 @@ const queues = new Map(); // division → { q, socks: Set }
 function queueFor(division) {
 	if (queues.has(division)) return queues.get(division);
 	const socks = new Set();
-	const ctx = { getWebSockets: () => [...socks], setWebSocketAutoResponse: () => {}, acceptWebSocket: (s) => socks.add(s) };
+	let alarm = 0;
+	const storage = {
+		setAlarm: async (t) => {
+			clearTimeout(alarm);
+			alarm = setTimeout(() => entry.q.alarm(), Math.max(0, t - Date.now()));
+		},
+		deleteAlarm: async () => clearTimeout(alarm)
+	};
+	const ctx = { storage, getWebSockets: () => [...socks], setWebSocketAutoResponse: () => {}, acceptWebSocket: (s) => socks.add(s) };
 	const env = {
+		REPORTS: {
+			idFromName: (n) => n,
+			get: () => ({
+				fetch: async (url) => {
+					const keys = new URL(url).searchParams.get('keys').split(',');
+					return Response.json(Object.fromEntries(keys.map((k) => [k, forPairing(ratings.get(k))])));
+				}
+			})
+		},
 		ROOMS: {
 			idFromName: (c) => c,
 			get: (code) => ({
@@ -27,6 +59,7 @@ function queueFor(division) {
 		}
 	};
 	const entry = { q: new Queue(ctx, env), socks };
+	if (process.env.BOT_AFTER_S) entry.q.botAfterMs = Number(process.env.BOT_AFTER_S) * 1000; // BOT_AFTER_S=5 node dev-server.mjs
 	queues.set(division, entry);
 	return entry;
 }
@@ -46,7 +79,10 @@ function roomFor(code) {
 		conns: () => [...r.socks].filter((s) => !s.closing).map((s) => ({ conn: s, id: s.id })),
 		lastPing: (id) => Math.max(0, ...[...r.socks].filter((s) => s.id === id).map((s) => s.lastPing || 0)),
 		save: (obj) => (r.saved = JSON.stringify(obj)),
-		report: (rep) => reports.unshift(rep),
+		report: (rep, who) => {
+			reports.unshift(rep);
+			rate(rep, who);
+		},
 		replay: (id, part, data) => {
 			if (!replays.has(id)) replays.set(id, []);
 			replays.get(id)[part] = JSON.parse(JSON.stringify(data));
@@ -70,6 +106,11 @@ const server = createServer((req, res) => {
 		if (url.searchParams.get('k') !== ADMIN_KEY) return res.writeHead(403).end('no');
 		res.writeHead(200, { 'content-type': 'application/json' });
 		return res.end(JSON.stringify(summarize(reports)));
+	}
+	if (url.pathname === '/api/ratings') {
+		if (url.searchParams.get('k') !== ADMIN_KEY) return res.writeHead(403).end('no');
+		res.writeHead(200, { 'content-type': 'application/json' });
+		return res.end(JSON.stringify([...ratings].map(([key, p]) => ({ key, r: Math.round(p.r), rd: Math.round(p.rd), n: p.n }))));
 	}
 	if (url.pathname === '/api/reports') {
 		if (url.searchParams.get('k') !== ADMIN_KEY) return res.writeHead(403).end('no');

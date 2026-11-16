@@ -110,3 +110,12 @@ npm run deploy:mm
 **After that:** a queue change is `npm run deploy:mm` only. It never touches a room. A room change is the normal deploy, as before.
 
 **Locally:** `node dev-server.mjs` runs the queues too (same Queue code, in memory). Open two browsers, press Find a match in both.
+
+### The bot fallback and the quiet rating (2026-11-16)
+
+The matchmaker now reads ratings from vs-1's `Reports` object (binding `REPORTS` in `matchmaker/wrangler.jsonc`) and offers a labeled bot after about 2 minutes. **Order matters:** deploy the rooms first (`npm run deploy`, or merge to `main`), then `npm run deploy:mm`. If the matchmaker goes first, its rating lookups simply fail and everyone is paired as a new player; nothing breaks.
+
+- **See the ratings:** `/api/ratings?k=ADMIN_KEY`. Hidden from players.
+- **Change the rating maths:** edit `GLICKO` in `worker/ratings.js`, deploy the rooms, then send a POST to `/api/ratings/rebuild?k=ADMIN_KEY` (for example `curl -X POST "https://vs.shikaku.plus/api/ratings/rebuild?k=…"`). Every rating is recomputed from the match log.
+- **Try the bot locally without waiting 2 minutes:** `BOT_AFTER_S=5 node dev-server.mjs`.
+

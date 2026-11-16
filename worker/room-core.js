@@ -630,7 +630,9 @@ export class RoomCore {
 	_sendReport(now) {
 		if (!this.report) return;
 		if (this.rlog && !this.rlog.end) this._flushRound(true); // abandoned: keep the round so far
-		this.io.report(this._report(now));
+		// Who sat where, for the quiet rating only (worker/ratings.js): the Worker turns these into rating
+		// keys before anything is stored, so the raw device ids never reach the reports.
+		this.io.report(this._report(now), this.seats.map((s) => ({ id: s.id, uid: s.uid || null })));
 	}
 
 	/** After a match: either player can take the room back to the lobby. Rounds advance by themselves. */

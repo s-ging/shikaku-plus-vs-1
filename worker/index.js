@@ -16,6 +16,7 @@ import { isRoomCode } from '../shared/protocol.js';
 import { summarize } from './stats.js';
 import { originAllowed } from './origin.js';
 import { Identity } from './identity.js';
+import { ratingKey, ratedMatch, applyMatch, rebuild, forPairing } from './ratings.js';
 
 const MAX_MSG = 2048; // bytes; every real message is far smaller
 const MAX_HELLO = 8192; // the first message may carry an account token, which can pass 2KB (Google, Discord)
@@ -50,11 +51,13 @@ export default {
 			if (!/^[a-z0-9]{12,24}$/.test(id)) return new Response('bad id', { status: 400 });
 			return env.REPORTS.get(env.REPORTS.idFromName('all')).fetch('https://reports/replay?id=' + id);
 		}
-		if (url.pathname === '/api/reports' || url.pathname === '/api/stats') {
+		const admin = { '/api/reports': 'list', '/api/stats': 'stats', '/api/ratings': 'ratings/all', '/api/ratings/rebuild': 'ratings/rebuild' }[url.pathname];
+		if (admin) {
 			if (!env.ADMIN_KEY) return new Response('Admin is off: set the ADMIN_KEY secret on this Worker (npx wrangler secret put ADMIN_KEY).', { status: 403 });
 			if (url.searchParams.get('k') !== env.ADMIN_KEY) return new Response('Wrong or missing key: add ?k=YOUR_ADMIN_KEY to the address.', { status: 403 });
-			const path = url.pathname === '/api/stats' ? 'stats' : 'list';
-			return env.REPORTS.get(env.REPORTS.idFromName('all')).fetch('https://reports/' + path);
+			// Rebuild recomputes every rating from the match log (after changing GLICKO in worker/ratings.js).
+			const init = admin === 'ratings/rebuild' ? { method: 'POST' } : undefined;
+			return env.REPORTS.get(env.REPORTS.idFromName('all')).fetch('https://reports/' + admin, init);
 		}
 		return env.ASSETS.fetch(req);
 	}
@@ -101,7 +104,11 @@ export class Room {
 				}
 				return t;
 			},
-			report: (r) => this.env.REPORTS.get(this.env.REPORTS.idFromName('all')).fetch('https://reports/add', { method: 'POST', body: JSON.stringify(r) }),
+			// who: [{ id, uid }] per seat. Quickplay reports carry each seat's rating key (rk), never the raw id.
+			report: async (r, who) => {
+				const rep = r.queue === 'quickplay' && Array.isArray(who) ? { ...r, rk: await Promise.all(who.map((w) => ratingKey(w.id, w.uid))) } : r;
+				return this.env.REPORTS.get(this.env.REPORTS.idFromName('all')).fetch('https://reports/add', { method: 'POST', body: JSON.stringify(rep) });
+			},
 			// One write per round (plus the header at the start): the round's messages, sent when it ends.
 			replay: (id, part, data) =>
 				this.env.REPORTS.get(this.env.REPORTS.idFromName('all')).fetch('https://reports/replay', { method: 'POST', body: JSON.stringify({ id, part, data }) })
@@ -209,7 +216,32 @@ export class Reports {
 			const r = await req.json();
 			const key = `r:${String(r.startedAt || Date.now()).padStart(15, '0')}:${r.code || ''}`;
 			await this.ctx.storage.put(key, r);
+			await this._rate(r, key);
 			return new Response('ok');
+		}
+		// The quiet rating (worker/ratings.js). Only the matchmaker (a Durable Object stub) asks: the
+		// Worker above never passes these paths in. keys: up to 8 rating keys, comma-separated.
+		if (url.pathname === '/ratings') {
+			const keys = (url.searchParams.get('keys') || '').split(',').filter((k) => /^[ud]:[A-Za-z0-9-]{8,64}$/.test(k)).slice(0, 8);
+			const got = keys.length ? await this.ctx.storage.get(keys.map((k) => 'g:' + k)) : new Map();
+			return Response.json(Object.fromEntries(keys.map((k) => [k, forPairing(got.get('g:' + k))])));
+		}
+		if (url.pathname === '/ratings/all') {
+			const all = await this.ctx.storage.list({ prefix: 'g:' });
+			const rows = [...all].map(([k, p]) => ({ key: k.slice(2), r: Math.round(p.r), rd: Math.round(p.rd), vol: +p.vol.toFixed(4), n: p.n, at: p.at }));
+			rows.sort((a, b) => b.r - a.r);
+			const matches = (await this.ctx.storage.list({ prefix: 'm:', reverse: true, limit: 50 })).size;
+			return Response.json({ players: rows.length, recentMatches: matches, ratings: rows });
+		}
+		if (url.pathname === '/ratings/rebuild' && req.method === 'POST') {
+			const log = [...(await this.ctx.storage.list({ prefix: 'm:' })).values()];
+			const fresh = rebuild(log);
+			const old = await this.ctx.storage.list({ prefix: 'g:' });
+			await this.ctx.storage.delete([...old.keys()]);
+			const entries = Object.fromEntries([...fresh].map(([k, p]) => ['g:' + k, p]));
+			const ks = Object.keys(entries);
+			for (let i = 0; i < ks.length; i += 128) await this.ctx.storage.put(Object.fromEntries(ks.slice(i, i + 128).map((k) => [k, entries[k]])));
+			return Response.json({ matches: log.length, players: fresh.size });
 		}
 		if (url.pathname === '/replay' && req.method === 'POST') {
 			const { id, part, data } = await req.json();
@@ -233,5 +265,16 @@ export class Reports {
 			return Response.json(summarize(all));
 		}
 		return new Response('not found', { status: 404 });
+	}
+
+	/** A finished Quickplay match between two humans: log it (m:, kept for rebuilds) and update both ratings (g:). */
+	async _rate(r, key) {
+		const m = ratedMatch(r, r.rk);
+		if (!m) return;
+		const mk = 'm:' + key.slice(2); // one row per match: a resumed match that finishes replaces nothing twice
+		if (await this.ctx.storage.get(mk)) return;
+		const got = await this.ctx.storage.get(m.keys.map((k) => 'g:' + k));
+		const [a, b] = applyMatch(m, (k) => got.get('g:' + k));
+		await this.ctx.storage.put({ [mk]: m, ['g:' + m.keys[0]]: a, ['g:' + m.keys[1]]: b });
 	}
 }

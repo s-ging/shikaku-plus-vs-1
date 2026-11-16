@@ -177,7 +177,8 @@
 		// "FT3 · Knockout", and no second line; the scores and names around it are the detail.
 		const fo = mode === 'online' && room ? room.o : null;
 		const division = fo && formatOf(fo).division;
-		$('mode-title').textContent = `FT${m.target} · ${mode === 'practice' ? 'Practice' : mines ? 'Mines' : division ? division.label : fo ? 'Custom' : 'Versus'}`;
+		const qpBot = mode === 'practice' && practice.qp; // Quickplay's bot fallback: "FT3 · Standard", like the real thing
+		$('mode-title').textContent = `FT${m.target} · ${qpBot ? DIVISION_NAMES[practice.qp.division] : mode === 'practice' ? 'Practice' : mines ? 'Mines' : division ? division.label : fo ? 'Custom' : 'Versus'}`;
 		$('mode-line').hidden = true;
 		$('brand').hidden = true;
 		let you = 'You';
@@ -185,7 +186,8 @@
 		if (mode === 'online' && room) {
 			const opp = room.seats[1 - v.me];
 			them = opp ? opp.name : 'Waiting';
-		} else if (mode === 'practice' && practice.preset) them = `${practice.preset.label} bot`;
+		} else if (mode === 'practice' && practice.qp) them = practice.qp.label; // "Bot · Normal": always says bot
+		else if (mode === 'practice' && practice.preset) them = `${practice.preset.label} bot`;
 		else if (mode === 'replay' && rp.data) [you, them] = rp.data.header.names.map((n) => n || 'Player');
 		$('name-you').textContent = you;
 		$('you-name').textContent = you;
@@ -300,7 +302,7 @@
 					: `${who} won the ${m.over ? 'match' : 'round'}`;
 		$('ov-sub').textContent = `${m.score[me]} – ${m.score[1 - me]}`;
 		$('ov-next').hidden = !m.over || mode === 'replay'; // rounds move on by themselves; only a finished match waits
-		$('ov-next').textContent = mode === 'online' && room && room.mm ? 'Find another match' : 'Back to the room';
+		$('ov-next').textContent = mode === 'online' && room && room.mm ? 'Find another match' : practice.qp ? 'Keep searching' : 'Back to the room';
 		const rid = mode === 'online' && room && room.replay;
 		$('ov-replay').hidden = !(m.over && rid);
 		if (rid) $('ov-replay').href = '/replay/' + rid;
@@ -861,6 +863,7 @@
 		flowLeave();
 		if (mode === 'online' && room && room.mm) return backToQueue(null); // Quickplay: straight back in line
 		if (mode === 'online') net.send({ t: 'next' });
+		else if (practice.qp && core && core.confirmed && core.confirmed.over) queue.backFromBot(); // the bot match is over: back in line
 		else practice.next();
 	}
 	$('ov-next').addEventListener('click', () => {
@@ -868,6 +871,7 @@
 		afterMatch();
 	});
 	$('leave').addEventListener('click', () => {
+		if (mode === 'practice' && practice.qp) return queue.backFromBot(); // leaving the bot keeps the search
 		if (mode === 'online') net.close();
 		const back = mode === 'practice' ? '/practice' : '/'; // a bot match goes back to its setup
 		practice.stop();
@@ -1147,7 +1151,7 @@
 		$('ko-pill').hidden = true;
 		const s = Math.round(flowPlayed / 1000);
 		const rid = mode === 'online' && room && room.replay;
-		const nextLabel = mode === 'online' && room && room.mm ? 'Find another match' : mode === 'online' ? 'Back to the room' : 'Play again';
+		const nextLabel = mode === 'online' && room && room.mm ? 'Find another match' : mode === 'online' ? 'Back to the room' : practice.qp ? 'Keep searching' : 'Play again';
 		// The results: the face-off's halves come back as the players' cards. The winner's keeps
 		// its colour (and is wider), the loser's goes black (Krischan, 2026-11-15).
 		const phone = phoneShape();
@@ -1178,6 +1182,7 @@
 		$('flow-next').onclick = afterMatch;
 		$('flow-menu').onclick = () => {
 			flowHide();
+			if (practice.qp) return go('/', true); // Back to menu ends the search too
 			$('leave').click();
 		};
 	}
@@ -1200,7 +1205,9 @@
 		bot: null,
 		timer: 0,
 		level: 'normal',
-		start(level, modeKey = 'vs', o = {}) {
+		qp: null, // Quickplay's bot fallback: { division, label } while it plays (queue.playBot)
+		start(level, modeKey = 'vs', o = {}, qp = null) {
+			this.qp = qp;
 			this.level = level;
 			this.mode = modeKey;
 			this.o = o;
@@ -1265,7 +1272,7 @@
 		},
 		next() {
 			const m = core.confirmed;
-			if (m.over) return this.start(this.level, this.mode, this.o);
+			if (m.over) return this.start(this.level, this.mode, this.o, this.qp);
 			m.newRound();
 			m.startClock(Date.now(), COUNTDOWN_MS);
 			render();
@@ -1280,6 +1287,7 @@
 			clearTimeout(this.timer);
 			clearTimeout(this.nextTimer);
 			if (mode === 'practice') mode = null;
+			this.qp = null;
 		}
 	};
 
@@ -1451,8 +1459,13 @@
 		retry: 0,
 		timer: 0,
 		stopped: true,
+		bot: null, // the bot the queue offered: { level, label }
+		inBot: false, // playing it now; the search goes on behind it
 		start(division, note = null) {
 			this.stop();
+			this.bot = null;
+			this.inBot = false;
+			$('q-bot').hidden = true;
 			$('q-note').hidden = !note;
 			$('q-note').textContent = note || '';
 			this.stopped = false;
@@ -1481,7 +1494,8 @@
 			this.ws = ws;
 			ws.onopen = () => {
 				this.retry = 0;
-				ws.send(JSON.stringify({ t: 'queue', id: myId, pv: PROTOCOL_VERSION, input: inputKind() }));
+				// bot: back after a drop while playing the bot, so the queue doesn't match us mid-match.
+				ws.send(JSON.stringify({ t: 'queue', id: myId, pv: PROTOCOL_VERSION, input: inputKind(), ...(this.inBot ? { bot: true } : {}) }));
 				clearInterval(this.beat);
 				this.beat = setInterval(() => ws.readyState === 1 && ws.send('ping'), 15000); // keeps phone networks from dropping an idle line
 			};
@@ -1494,6 +1508,12 @@
 					return;
 				}
 				if (msg.t === 'q' && typeof msg.say === 'string') $('q-say').textContent = msg.say;
+				if (msg.t === 'bot' && typeof msg.label === 'string' && BOT_PRESETS[msg.level]) {
+					this.bot = { level: msg.level, label: msg.label };
+					if (typeof msg.say === 'string') $('q-say').textContent = msg.say;
+					$('q-bot').textContent = 'Play ' + msg.label;
+					$('q-bot').hidden = this.inBot;
+				}
 				if (msg.t === 'err' && msg.why === 'update') $('q-say').textContent = 'Shikaku+ VS has been updated. Reload the page to play online.';
 				if (msg.t === 'match' && typeof msg.code === 'string' && typeof msg.tk === 'string') {
 					ticket = { code: msg.code, tk: msg.tk };
@@ -1517,6 +1537,28 @@
 		later() {
 			clearTimeout(this.timer);
 			this.timer = setTimeout(() => !this.stopped && this.connect(), Math.min(8000, 1000 * 2 ** this.retry++));
+		},
+		send(obj) {
+			if (this.ws && this.ws.readyState === 1) this.ws.send(JSON.stringify(obj));
+		},
+		/** Take the offered bot: a local match at Quickplay length, labeled, while this line stays open. */
+		playBot() {
+			if (!this.bot || this.stopped) return;
+			this.inBot = true;
+			$('q-bot').hidden = true;
+			this.send({ t: 'bot' });
+			practice.start(this.bot.level, 'vs', formatSet({}, this.division, 'quickplay'), { division: this.division, label: this.bot.label });
+		},
+		/** The bot match ended or was left: back to the searching screen, same place in line. */
+		backFromBot() {
+			flowLeave();
+			practice.stop();
+			this.inBot = false;
+			this.bot = null;
+			if (this.stopped) return go('/queue', true);
+			this.send({ t: 'free' });
+			show('queue-page');
+			render();
 		},
 		stop() {
 			this.stopped = true;
@@ -1555,6 +1597,7 @@
 	}
 	$('q-find').addEventListener('click', () => go('/queue'));
 	$('q-cancel').addEventListener('click', () => go('/', true));
+	$('q-bot').addEventListener('click', () => queue.playBot());
 
 	// —— Home and routing ——
 	for (const [k, p] of Object.entries(BOT_PRESETS)) $('bot-level').appendChild(Object.assign(document.createElement('option'), { value: k, textContent: p.label }));

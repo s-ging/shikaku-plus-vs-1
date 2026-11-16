@@ -519,7 +519,8 @@ canvas.board { display: block; width: 100%; height: auto; aspect-ratio: 1; touch
 		<p id="q-note" hidden style="margin: 0 0 6px"></p>
 		<p class="muted" id="q-say" style="margin: 0 0 6px">Connecting…</p>
 		<p class="num" id="q-time" style="margin: 0 0 10px; font-size: 22px">0:00</p>
-		<div class="row"><button id="q-cancel">Cancel</button></div>
+		<!-- The bot fallback (decision 0025): offered by the queue after about 2 minutes, always labeled. -->
+		<div class="row"><button class="primary" id="q-bot" hidden>Play a bot</button><button id="q-cancel">Cancel</button></div>
 	</div>
 </section>
 <section id="lobby" hidden style="display: flex; flex-direction: column; gap: 12px">

@@ -11,8 +11,16 @@
 		"bindings": [
 			{ "name": "QUEUE", "class_name": "Queue" },
 			// The rooms live in shikaku-plus-vs-1; the queue only reserves seats in them.
-			{ "name": "ROOMS", "class_name": "Room", "script_name": "shikaku-plus-vs-1" }
+			{ "name": "ROOMS", "class_name": "Room", "script_name": "shikaku-plus-vs-1" },
+			// The quiet ratings live with the reports (worker/ratings.js); the queue reads one per join to pair by skill.
+			{ "name": "REPORTS", "class_name": "Reports", "script_name": "shikaku-plus-vs-1" }
 		]
+	},
+	// Account checks, signature only, to know whose rating a signed-in player's is (worker/identity.js).
+	// Public by design, the same values as vs-1's wrangler.jsonc. Without them everyone is rated by device.
+	"vars": {
+		"SUPABASE_URL": "https://facboumzeprcfzfhchnq.supabase.co",
+		"SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZhY2JvdW16ZXByY2Z6ZmhjaG5xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzMTUwODUsImV4cCI6MjA5NTg5MTA4NX0.I_lxa8Dh2_bBdqeZ-PtzWj7wR2l7GTcp0rNDb84qq-w"
 	},
 	"migrations": [{ "tag": "v1", "new_sqlite_classes": ["Queue"] }]
 }
